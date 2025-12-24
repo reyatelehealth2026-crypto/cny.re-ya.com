@@ -1,4 +1,4 @@
-ๆ<?php
+<?php
 /**
  * Header & Sidebar Component - Modern Admin Dashboard V3.0
  * Unified Shop System
