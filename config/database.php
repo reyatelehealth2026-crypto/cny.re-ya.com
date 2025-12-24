@@ -23,6 +23,8 @@ class Database {
             // Ensure UTF-8
             $this->conn->exec("SET NAMES utf8mb4");
             $this->conn->exec("SET CHARACTER SET utf8mb4");
+            // Set Thai timezone (+07:00 = Asia/Bangkok)
+            $this->conn->exec("SET time_zone = '+07:00'");
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
