@@ -27,22 +27,31 @@ $shopLogo = '';
 $companyName = 'MedCare';
 
 try {
-    $stmt = $db->prepare("SELECT la.*, ss.shop_name, ss.logo_url 
-        FROM line_accounts la 
-        LEFT JOIN shop_settings ss ON la.id = ss.line_account_id
-        WHERE la.id = ? OR la.is_default = 1 
-        ORDER BY (la.id = ?) DESC, la.is_default DESC LIMIT 1");
+    // First get line_account data
+    $stmt = $db->prepare("SELECT * FROM line_accounts WHERE id = ? OR is_default = 1 ORDER BY (id = ?) DESC, is_default DESC LIMIT 1");
     $stmt->execute([$lineAccountId, $lineAccountId]);
     $account = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($account) {
         $lineAccountId = $account['id'];
         $liffId = $account['liff_id'] ?? '';
-        $shopName = $account['shop_name'] ?: $account['name'];
+        $shopName = $account['name'];
         $companyName = $shopName;
-        $shopLogo = $account['logo_url'] ?? '';
+        
+        // Try to get shop settings separately
+        try {
+            $stmt2 = $db->prepare("SELECT shop_name FROM shop_settings WHERE line_account_id = ? LIMIT 1");
+            $stmt2->execute([$lineAccountId]);
+            $shop = $stmt2->fetch(PDO::FETCH_ASSOC);
+            if ($shop && $shop['shop_name']) {
+                $shopName = $shop['shop_name'];
+                $companyName = $shopName;
+            }
+        } catch (Exception $e2) {}
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    error_log("liff-app.php: Error getting account: " . $e->getMessage());
+}
 
 $baseUrl = rtrim(BASE_URL, '/');
 
