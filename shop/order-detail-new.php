@@ -149,11 +149,11 @@ $stmt = $db->prepare("SELECT * FROM transaction_items WHERE transaction_id = ?")
 $stmt->execute([$orderId]);
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get payment slips (use transaction_id)
+// Get payment slips (use order_id or transaction_id)
 $slips = [];
 try {
-    $stmt = $db->prepare("SELECT * FROM payment_slips WHERE transaction_id = ? ORDER BY created_at DESC");
-    $stmt->execute([$orderId]);
+    $stmt = $db->prepare("SELECT * FROM payment_slips WHERE order_id = ? OR transaction_id = ? ORDER BY created_at DESC");
+    $stmt->execute([$orderId, $orderId]);
     $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 

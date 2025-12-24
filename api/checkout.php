@@ -755,21 +755,22 @@ function handleUploadSlip() {
     }
     $imageUrl = $baseUrl . '/uploads/slips/' . $filename;
     
-    // Save to payment_slips table (use transaction_id only - unified with LIFF)
+    // Save to payment_slips table (use transaction_id and order_id)
     $slipSaved = false;
     try {
-        $stmt = $db->prepare("INSERT INTO payment_slips (transaction_id, user_id, image_url, status) VALUES (?, ?, ?, 'pending')");
-        $stmt->execute([$orderId, $order['user_id'], $imageUrl]);
+        // Insert with both order_id and transaction_id for compatibility
+        $stmt = $db->prepare("INSERT INTO payment_slips (order_id, transaction_id, user_id, image_url, status) VALUES (?, ?, ?, ?, 'pending')");
+        $stmt->execute([$orderId, $orderId, $order['user_id'], $imageUrl]);
         $slipSaved = true;
-        error_log("payment_slips saved: transaction_id={$orderId}, user_id={$order['user_id']}, image={$imageUrl}");
+        error_log("payment_slips saved: order_id={$orderId}, transaction_id={$orderId}, user_id={$order['user_id']}, image={$imageUrl}");
     } catch (Exception $e) {
         error_log('payment_slips insert error: ' . $e->getMessage());
         // Try alternative insert without user_id
         try {
-            $stmt = $db->prepare("INSERT INTO payment_slips (transaction_id, image_url, status) VALUES (?, ?, 'pending')");
-            $stmt->execute([$orderId, $imageUrl]);
+            $stmt = $db->prepare("INSERT INTO payment_slips (order_id, transaction_id, image_url, status) VALUES (?, ?, ?, 'pending')");
+            $stmt->execute([$orderId, $orderId, $imageUrl]);
             $slipSaved = true;
-            error_log("payment_slips saved (without user_id): transaction_id={$orderId}");
+            error_log("payment_slips saved (without user_id): order_id={$orderId}");
         } catch (Exception $e2) {
             error_log('payment_slips insert error (retry): ' . $e2->getMessage());
         }
