@@ -715,7 +715,6 @@ class CnyPharmacyAPI
      */
     private function getItemsTable()
     {
-        if ($this->tableExists('business_items')) return 'business_items';
         if ($this->tableExists('products')) return 'products';
         return null;
     }

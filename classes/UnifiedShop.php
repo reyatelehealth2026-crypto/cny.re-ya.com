@@ -77,12 +77,11 @@ class UnifiedShop
     
     /**
      * Get items table (auto-detect)
-     * Priority: products > business_items
+     * Priority: products only
      */
     public function getItemsTable()
     {
         if ($this->tableExists('products')) return 'products';
-        if ($this->tableExists('business_items')) return 'business_items';
         return null;
     }
     
@@ -126,11 +125,11 @@ class UnifiedShop
     }
     
     /**
-     * Check if using V2.5 (business_items)
+     * Check if using V2.5 (deprecated - always false now)
      */
     public function isV25()
     {
-        return $this->tableExists('business_items');
+        return false;
     }
 
     // ==================== SETTINGS ====================
