@@ -483,6 +483,10 @@ const CONFIG = {
     SHOP_LOGO: '<?= addslashes($shopLogo) ?>'
 };
 
+// Debug: แสดง config
+console.log('🔧 CONFIG:', CONFIG);
+console.log('🔧 LIFF_ID:', CONFIG.LIFF_ID || 'NOT SET');
+
 let liffProfile = null;
 let memberData = null;
 let userId = null;
@@ -825,15 +829,21 @@ function openRegister() {
 
 function liffLogin() {
     console.log('liffLogin called, LIFF_ID:', CONFIG.LIFF_ID);
-    if (typeof liff !== 'undefined' && CONFIG.LIFF_ID) {
-        // ใช้ redirectUri กลับมาหน้าเดิม
-        const redirectUri = window.location.href.split('?')[0] + '?account=' + CONFIG.ACCOUNT_ID;
-        console.log('Redirecting to:', redirectUri);
-        liff.login({ redirectUri: redirectUri });
-    } else {
-        // Fallback: เปิด LIFF URL โดยตรง
-        window.location.href = `https://liff.line.me/${CONFIG.LIFF_ID}?account=${CONFIG.ACCOUNT_ID}`;
+    
+    if (!CONFIG.LIFF_ID) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ไม่พบ LIFF ID',
+            text: 'กรุณาติดต่อผู้ดูแลระบบ',
+            confirmButtonColor: '#11B0A6'
+        });
+        return;
     }
+    
+    // วิธีที่ดีที่สุดคือเปิด LIFF URL โดยตรง - จะ auto login
+    const liffUrl = `https://liff.line.me/${CONFIG.LIFF_ID}`;
+    console.log('Opening LIFF URL:', liffUrl);
+    window.location.href = liffUrl;
 }
 
 function openChat() {
