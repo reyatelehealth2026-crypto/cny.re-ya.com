@@ -88,6 +88,9 @@ $shopName = $shopSettings['shop_name'] ?? 'ร้านยา';
             <i class="fas fa-arrow-left text-gray-600"></i>
         </button>
         <h1 class="font-bold text-gray-800 truncate flex-1"><?= htmlspecialchars($product['name']) ?></h1>
+        <button onclick="toggleWishlist()" id="wishlistBtn" class="p-2">
+            <i id="wishlistIcon" class="far fa-heart text-xl text-gray-400"></i>
+        </button>
         <button onclick="openCart()" class="relative p-2">
             <i class="fas fa-shopping-cart text-gray-600"></i>
             <span id="cartBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
@@ -360,8 +363,73 @@ $shopName = $shopSettings['shop_name'] ?? 'ร้านยา';
         window.location.href = 'liff-checkout.php?user=' + userId + '&account=' + lineAccountId;
     }
     
+    // Wishlist functions
+    let isFavorite = false;
+    
+    async function checkWishlist() {
+        if (!userId) return;
+        try {
+            const res = await fetch(`api/wishlist.php?action=check&line_user_id=${userId}&product_id=${productId}`);
+            const data = await res.json();
+            isFavorite = data.is_favorite;
+            updateWishlistIcon();
+        } catch (e) {}
+    }
+    
+    async function toggleWishlist() {
+        if (!userId) {
+            showToast('กรุณาเข้าสู่ระบบก่อน', 'warning');
+            return;
+        }
+        
+        try {
+            const res = await fetch('api/wishlist.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'toggle',
+                    line_user_id: userId,
+                    product_id: productId,
+                    line_account_id: lineAccountId
+                })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                isFavorite = data.is_favorite;
+                updateWishlistIcon();
+                showToast(data.message, 'success');
+            }
+        } catch (e) {
+            showToast('เกิดข้อผิดพลาด', 'error');
+        }
+    }
+    
+    function updateWishlistIcon() {
+        const icon = document.getElementById('wishlistIcon');
+        if (isFavorite) {
+            icon.className = 'fas fa-heart text-xl text-red-500';
+        } else {
+            icon.className = 'far fa-heart text-xl text-gray-400';
+        }
+    }
+    
+    function showToast(message, type = 'success') {
+        const colors = {
+            success: 'bg-green-500',
+            warning: 'bg-yellow-500',
+            error: 'bg-red-500'
+        };
+        const toast = document.createElement('div');
+        toast.className = `fixed top-20 left-1/2 -translate-x-1/2 ${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg z-50`;
+        toast.innerHTML = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    }
+    
     // Init
     updateCartBadge();
+    checkWishlist();
     </script>
 </body>
 </html>
