@@ -130,8 +130,9 @@ for ($hour = 6; $hour <= min(23, (int)date('H') + 2); $hour++) {
             : $normalMessages[array_rand($normalMessages)];
         
         try {
-            // Build insert based on available columns
-            $insertCols = ['user_id', 'message', 'direction', 'created_at'];
+            // Build insert based on available columns - use 'content' not 'message'
+            $msgCol = isset($columns['content']) ? 'content' : 'message';
+            $insertCols = ['user_id', $msgCol, 'direction', 'created_at'];
             $insertVals = [$userId, $message, 'incoming', $msgTime];
             $placeholders = ['?', '?', '?', '?'];
             
@@ -153,7 +154,7 @@ for ($hour = 6; $hour <= min(23, (int)date('H') + 2); $hour++) {
                 $reply = $replies[array_rand($replies)];
                 $admin = $adminNames[array_rand($adminNames)];
                 
-                $insertCols2 = ['user_id', 'message', 'direction', 'created_at'];
+                $insertCols2 = ['user_id', $msgCol, 'direction', 'created_at'];
                 $insertVals2 = [$userId, $reply, 'outgoing', $replyTime];
                 $placeholders2 = ['?', '?', '?', '?'];
                 

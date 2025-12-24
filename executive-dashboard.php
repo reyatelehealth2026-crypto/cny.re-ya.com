@@ -83,7 +83,7 @@ try {
 $problemKeywords = ['ปัญหา', 'ไม่พอใจ', 'ช้า', 'แย่', 'ผิด', 'เสีย', 'ไม่ได้', 'รอนาน', 'ไม่ตอบ', 'complaint', 'problem'];
 $problemMessages = [];
 try {
-    $keywordConditions = array_map(fn($k) => "m.message LIKE ?", $problemKeywords);
+    $keywordConditions = array_map(fn($k) => "m.content LIKE ?", $problemKeywords);
     $keywordParams = array_map(fn($k) => "%{$k}%", $problemKeywords);
     
     $sql = "SELECT m.*, u.display_name, u.picture_url 
@@ -133,7 +133,7 @@ try {
         SELECT u.id, u.display_name, u.picture_url, u.line_user_id,
                COUNT(m.id) as message_count,
                MAX(m.created_at) as last_message_at,
-               (SELECT message FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_message
+               (SELECT content FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM users u
         JOIN messages m ON u.id = m.user_id
         WHERE m.created_at BETWEEN ? AND ?
@@ -164,7 +164,7 @@ try {
 $topIssues = [];
 try {
     // Simple keyword frequency analysis
-    $stmt = $db->prepare("SELECT message FROM messages WHERE direction = 'incoming' AND created_at BETWEEN ? AND ?");
+    $stmt = $db->prepare("SELECT content FROM messages WHERE direction = 'incoming' AND created_at BETWEEN ? AND ?");
     $stmt->execute([$dateStart, $dateEnd]);
     $messages = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
@@ -370,7 +370,7 @@ require_once 'includes/header.php';
                                 <span class="font-medium text-sm"><?= htmlspecialchars($msg['display_name'] ?: 'ลูกค้า') ?></span>
                                 <span class="text-xs text-gray-400"><?= date('H:i', strtotime($msg['created_at'])) ?></span>
                             </div>
-                            <p class="text-sm text-gray-600 truncate"><?= htmlspecialchars($msg['message']) ?></p>
+                            <p class="text-sm text-gray-600 truncate"><?= htmlspecialchars($msg['content'] ?? '') ?></p>
                         </div>
                         <i class="fas fa-chevron-right text-gray-300"></i>
                     </div>
