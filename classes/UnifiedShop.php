@@ -77,21 +77,23 @@ class UnifiedShop
     
     /**
      * Get items table (auto-detect)
+     * Priority: products > business_items
      */
     public function getItemsTable()
     {
-        if ($this->tableExists('business_items')) return 'business_items';
         if ($this->tableExists('products')) return 'products';
+        if ($this->tableExists('business_items')) return 'business_items';
         return null;
     }
     
     /**
      * Get categories table (auto-detect)
+     * Priority: product_categories > item_categories
      */
     public function getCategoriesTable()
     {
-        if ($this->tableExists('item_categories')) return 'item_categories';
         if ($this->tableExists('product_categories')) return 'product_categories';
+        if ($this->tableExists('item_categories')) return 'item_categories';
         return null;
     }
     
