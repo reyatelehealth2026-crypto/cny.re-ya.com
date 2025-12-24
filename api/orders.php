@@ -104,20 +104,23 @@ function handleMyOrders($db) {
         $orderIdField = $ordersTable === 'transactions' ? 'transaction_id' : 'order_id';
         
         try {
-            // Try to get items with product details
+            // Get items with full product details
             $stmt = $db->prepare("
-                SELECT oi.*, 
-                       COALESCE(p.name, bi.name, oi.product_name) as name,
-                       COALESCE(p.image_url, bi.image_url) as image
+                SELECT oi.id, oi.product_id, oi.quantity,
+                       COALESCE(oi.product_name, p.name) as name,
+                       COALESCE(oi.product_price, p.sale_price, p.price, 0) as price,
+                       COALESCE(oi.subtotal, oi.product_price * oi.quantity, 0) as subtotal,
+                       COALESCE(p.image_url, '') as image,
+                       p.sku, p.description, p.unit,
+                       p.manufacturer, p.generic_name, p.usage_instructions
                 FROM {$orderItemsTable} oi
                 LEFT JOIN products p ON oi.product_id = p.id
-                LEFT JOIN business_items bi ON oi.product_id = bi.id
                 WHERE oi.{$orderIdField} = ?
             ");
             $stmt->execute([$orderId]);
             $order['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            // Fallback: just get order items without product details
+            // Fallback
             try {
                 $stmt = $db->prepare("SELECT * FROM {$orderItemsTable} WHERE {$orderIdField} = ?");
                 $stmt->execute([$orderId]);
@@ -127,8 +130,16 @@ function handleMyOrders($db) {
             }
         }
         
+        // Parse delivery_info JSON
+        if (!empty($order['delivery_info'])) {
+            $order['delivery_info'] = json_decode($order['delivery_info'], true) ?: [];
+        } else {
+            $order['delivery_info'] = [];
+        }
+        
         // Normalize fields for LIFF
-        $order['order_id'] = $order['order_number'] ?? $order['id'];
+        $order['order_id'] = $order['id'];
+        $order['order_number'] = $order['order_number'] ?? $order['id'];
         $order['total_amount'] = $order['grand_total'] ?? $order['total_amount'] ?? 0;
     }
     

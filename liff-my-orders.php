@@ -170,19 +170,25 @@ $baseUrl = rtrim(BASE_URL, '/');
             // Build items preview (show up to 3)
             let itemsHtml = '';
             items.slice(0, 3).forEach(item => {
+                const itemName = item.name || item.product_name || 'สินค้า';
+                const itemPrice = parseFloat(item.price || item.product_price || 0);
+                const itemQty = parseInt(item.quantity || 1);
+                const itemSubtotal = parseFloat(item.subtotal || (itemPrice * itemQty));
+                const itemImage = item.image || item.image_url || 'https://via.placeholder.com/100?text=No+Image';
+                
                 itemsHtml += `
                     <div class="flex gap-3 py-2 border-b border-gray-100 last:border-0">
                         <div class="w-14 h-14 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img src="${item.image || 'https://via.placeholder.com/100?text=No+Image'}" 
+                            <img src="${itemImage}" 
                                 class="w-full h-full object-cover" 
                                 onerror="this.src='https://via.placeholder.com/100?text=No+Image'">
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(item.name || 'สินค้า')}</p>
-                            <p class="text-xs text-gray-500">฿${numberFormat(item.price)} x ${item.quantity}</p>
+                            <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(itemName)}</p>
+                            <p class="text-xs text-gray-500">฿${numberFormat(itemPrice)} x ${itemQty}</p>
                         </div>
                         <div class="text-right flex-shrink-0">
-                            <p class="text-sm font-bold text-gray-800">฿${numberFormat(item.subtotal)}</p>
+                            <p class="text-sm font-bold text-gray-800">฿${numberFormat(itemSubtotal)}</p>
                         </div>
                     </div>
                 `;
