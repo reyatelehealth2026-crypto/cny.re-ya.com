@@ -54,26 +54,38 @@ try {
     $adminName = !empty($adminUser['username']) ? $adminUser['username'] : 'test_admin';
     $testSentBy = 'admin:' . $adminName;
     
-    echo "<p>ทดสอบ insert ด้วย sent_by = <strong>$testSentBy</strong></p>";
+    // หา user_id และ line_account_id ที่มีอยู่จริง
+    $stmt = $db->query("SELECT id, line_account_id FROM users LIMIT 1");
+    $testUser = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, sent_by, created_at, is_read) VALUES (1, 1, 'outgoing', 'text', 'TEST_FIX_AUTO', ?, NOW(), 0)");
-    $stmt->execute([$testSentBy]);
-    $newId = $db->lastInsertId();
+    if (!$testUser) {
+        echo "<div class='error'>❌ ไม่พบ user ในระบบ - ไม่สามารถทดสอบได้</div>";
+    } else {
+        $testUserId = $testUser['id'];
+        $testBotId = $testUser['line_account_id'];
+        
+        echo "<p>ทดสอบ insert ด้วย sent_by = <strong>$testSentBy</strong></p>";
+        echo "<p><small>ใช้ user_id: $testUserId, line_account_id: $testBotId</small></p>";
+        
+        $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, sent_by, created_at, is_read) VALUES (?, ?, 'outgoing', 'text', 'TEST_FIX_AUTO', ?, NOW(), 0)");
+        $stmt->execute([$testBotId, $testUserId, $testSentBy]);
+        $newId = $db->lastInsertId();
     
     $stmt = $db->prepare("SELECT sent_by FROM messages WHERE id = ?");
     $stmt->execute([$newId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if ($row['sent_by'] === $testSentBy) {
-        echo "<div class='success' style='font-size:18px'>✅ SUCCESS! sent_by ทำงานถูกต้องแล้ว!</div>";
-        echo "<p>ค่าที่บันทึก: <strong>{$row['sent_by']}</strong></p>";
-    } else {
-        echo "<div class='error'>❌ ยังไม่ทำงาน - ค่าที่ได้: " . ($row['sent_by'] ?: 'NULL') . "</div>";
+        if ($row['sent_by'] === $testSentBy) {
+            echo "<div class='success' style='font-size:18px'>✅ SUCCESS! sent_by ทำงานถูกต้องแล้ว!</div>";
+            echo "<p>ค่าที่บันทึก: <strong>{$row['sent_by']}</strong></p>";
+        } else {
+            echo "<div class='error'>❌ ยังไม่ทำงาน - ค่าที่ได้: " . ($row['sent_by'] ?: 'NULL') . "</div>";
+        }
+        
+        // Cleanup test
+        $db->prepare("DELETE FROM messages WHERE id = ?")->execute([$newId]);
+        echo "<p><small>ลบข้อความทดสอบแล้ว</small></p>";
     }
-    
-    // Cleanup test
-    $db->prepare("DELETE FROM messages WHERE id = ?")->execute([$newId]);
-    echo "<p><small>ลบข้อความทดสอบแล้ว</small></p>";
     
     // 3. Session info
     echo "<h2>3. Session Info</h2>";
