@@ -2,44 +2,30 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<pre>";
-echo "Step 1: Start\n";
+echo "Step 1: Start<br>";
 
-echo "Step 2: Config...\n";
+echo "Step 2: Config...<br>";
 require_once 'config/config.php';
-echo "Step 2: OK\n";
+echo "Step 2: OK<br>";
 
-echo "Step 3: Database...\n";
+echo "Step 3: Database...<br>";
 require_once 'config/database.php';
-echo "Step 3: OK\n";
+echo "Step 3: OK<br>";
 
-echo "Step 4: Session...\n";
+echo "Step 4: Session...<br>";
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-echo "Session ID: " . session_id() . "\n";
-echo "Session data: " . print_r($_SESSION, true) . "\n";
+echo "Session OK<br>";
 
-echo "Step 5: Auth check...\n";
-require_once 'includes/auth_check.php';
-echo "Step 5: OK\n";
+echo "Step 5: Including header.php...<br>";
+flush();
+ob_flush();
 
-echo "Step 6: Header...\n";
-// Don't include header, just test the parts
-$db = Database::getInstance()->getConnection();
-echo "DB OK\n";
+$pageTitle = 'Test Page';
+require_once 'includes/header.php';
 
-echo "Step 7: Test products table...\n";
-$stmt = $db->query("SELECT COUNT(*) FROM products");
-echo "Products count: " . $stmt->fetchColumn() . "\n";
+echo "Step 6: Header loaded OK!<br>";
+echo "<h1>If you see this, header works!</h1>";
 
-echo "Step 8: Test product_categories...\n";
-try {
-    $stmt = $db->query("SELECT COUNT(*) FROM product_categories");
-    echo "Categories count: " . $stmt->fetchColumn() . "\n";
-} catch (Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
-}
-
-echo "\nAll tests passed!\n";
-echo "</pre>";
+require_once 'includes/footer.php';
