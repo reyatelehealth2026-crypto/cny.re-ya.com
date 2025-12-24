@@ -185,7 +185,8 @@ try {
             }
             
             // Save to database
-            $adminName = $_SESSION['admin_name'] ?? $_SESSION['username'] ?? 'Admin';
+            $adminUser = $_SESSION['admin_user'] ?? [];
+            $adminName = $adminUser['display_name'] ?? $adminUser['username'] ?? $_SESSION['admin_name'] ?? 'Admin';
             $sentBy = 'admin:' . $adminName;
             
             // Check if sent_by column exists

@@ -47,7 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 }
                 
                 if ($result['code'] === 200) {
-                    $adminName = $_SESSION['admin_name'] ?? $_SESSION['username'] ?? 'Admin';
+                    // Get admin name from session
+                    $adminUser = $_SESSION['admin_user'] ?? [];
+                    $adminName = $adminUser['display_name'] ?? $adminUser['username'] ?? $_SESSION['admin_name'] ?? 'Admin';
                     $hasSentBy = false;
                     try {
                         $checkCol = $db->query("SHOW COLUMNS FROM messages LIKE 'sent_by'");
