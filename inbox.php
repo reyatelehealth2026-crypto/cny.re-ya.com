@@ -64,7 +64,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                         $stmt->execute([$user['line_account_id'], $userId, $message]);
                     }
                     $msgId = $db->lastInsertId();
-                    echo json_encode(['success' => true, 'message_id' => $msgId, 'content' => $message, 'time' => date('H:i'), 'sent_by' => 'admin:' . $adminName, 'method' => $result['method'] ?? 'push']);
+                    $method = $result['method'] ?? 'push';
+                    echo json_encode([
+                        'success' => true, 
+                        'message_id' => $msgId, 
+                        'content' => $message, 
+                        'time' => date('H:i'), 
+                        'sent_by' => 'admin:' . $adminName, 
+                        'method' => $method,
+                        'method_label' => $method === 'reply' ? '✓ Reply (ฟรี)' : '💰 Push'
+                    ]);
                 } else {
                     throw new Exception("LINE API Error");
                 }
@@ -174,8 +183,13 @@ function getMessagePreview($content, $type) {
     return mb_strlen($content) > 30 ? mb_substr($content, 0, 30) . '...' : $content;
 }
 
-function getSenderBadge($sentBy) {
+function getSenderBadge($sentBy, $direction = 'outgoing') {
+    // For outgoing messages without sent_by, show default "Admin"
+    if (empty($sentBy) && $direction === 'outgoing') {
+        return '<span class="sender-badge admin"><i class="fas fa-user-shield"></i> Admin</span>';
+    }
     if (empty($sentBy)) return '';
+    
     if (strpos($sentBy, 'admin:') === 0) {
         $name = substr($sentBy, 6);
         return '<span class="sender-badge admin"><i class="fas fa-user-shield"></i> ' . htmlspecialchars($name) . '</span>';
@@ -375,7 +389,7 @@ function getSenderBadge($sentBy) {
                     <div class="msg-meta <?= $isMe ? '' : 'incoming' ?>">
                         <span><?= date('H:i', strtotime($msg['created_at'])) ?></span>
                         <?php if ($isMe): ?>
-                            <?= getSenderBadge($sentBy) ?>
+                            <?= getSenderBadge($sentBy, 'outgoing') ?>
                             <?php if ($isRead): ?>
                                 <span class="read-status read" title="อ่านแล้ว">✓✓</span>
                             <?php else: ?>
@@ -587,18 +601,21 @@ function appendMessage(msg) {
     const sentBy = msg.sent_by || '';
     const isRead = msg.is_read == 1;
     
-    // Build sender badge
+    // Build sender badge - show "Admin" as default for outgoing without sent_by
     let senderBadge = '';
-    if (isMe && sentBy) {
-        if (sentBy.startsWith('admin:')) {
+    if (isMe) {
+        if (sentBy && sentBy.startsWith('admin:')) {
             const name = sentBy.substring(6);
             senderBadge = `<span class="sender-badge admin"><i class="fas fa-user-shield"></i> ${escapeHtml(name)}</span>`;
-        } else if (sentBy === 'ai' || sentBy.startsWith('ai:')) {
+        } else if (sentBy === 'ai' || (sentBy && sentBy.startsWith('ai:'))) {
             senderBadge = `<span class="sender-badge ai"><i class="fas fa-robot"></i> AI</span>`;
-        } else if (sentBy === 'bot' || sentBy.startsWith('bot:') || sentBy.startsWith('system:')) {
+        } else if (sentBy === 'bot' || (sentBy && (sentBy.startsWith('bot:') || sentBy.startsWith('system:')))) {
             senderBadge = `<span class="sender-badge bot"><i class="fas fa-cog"></i> Bot</span>`;
-        } else {
+        } else if (sentBy) {
             senderBadge = `<span class="sender-badge">${escapeHtml(sentBy)}</span>`;
+        } else {
+            // Default for outgoing without sent_by
+            senderBadge = `<span class="sender-badge admin"><i class="fas fa-user-shield"></i> Admin</span>`;
         }
     }
     
@@ -679,6 +696,11 @@ async function sendMessage(e) {
             const msgId = data.message_id || Date.now();
             sentMessageIds.add(msgId); // Track this message
             lastMessageId = Math.max(lastMessageId, msgId);
+            
+            // Show method used (reply = free, push = paid)
+            if (data.method_label) {
+                console.log('📤 Sent via:', data.method_label);
+            }
             
             // Append immediately
             appendMessage({
