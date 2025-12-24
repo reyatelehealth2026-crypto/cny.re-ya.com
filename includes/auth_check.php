@@ -1,0 +1,170 @@
+<?php
+/**
+ * Auth Check - ตรวจสอบสิทธิ์การเข้าถึง
+ * Include ไฟล์นี้ในทุกหน้าที่ต้องการ authentication
+ * V2.0 - รองรับ AdminAuth class
+ */
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Load AdminAuth if available (only if Database class exists)
+$adminAuth = null;
+if (class_exists('Database') && file_exists(__DIR__ . '/../classes/AdminAuth.php')) {
+    try {
+        require_once __DIR__ . '/../classes/AdminAuth.php';
+        $db = Database::getInstance()->getConnection();
+        $adminAuth = new AdminAuth($db);
+    } catch (Exception $e) {
+        // Ignore errors - AdminAuth is optional
+    }
+}
+
+// ตรวจสอบว่าล็อกอินหรือยัง
+if (!isset($_SESSION['admin_user'])) {
+    // Determine redirect path based on current location
+    $currentPath = $_SERVER['PHP_SELF'];
+    $isInSubfolder = strpos($currentPath, '/shop/') !== false || 
+                     strpos($currentPath, '/user/') !== false ||
+                     strpos($currentPath, '/auth/') !== false;
+    $redirectPath = $isInSubfolder ? '../auth/login.php' : 'auth/login.php';
+    
+    header('Location: ' . (defined('AUTH_REDIRECT') ? AUTH_REDIRECT : $redirectPath));
+    exit;
+}
+
+$currentUser = $_SESSION['admin_user'];
+
+/**
+ * ตรวจสอบว่าเป็น Super Admin หรือไม่
+ */
+function isSuperAdmin() {
+    global $currentUser;
+    return isset($currentUser['role']) && $currentUser['role'] === 'super_admin';
+}
+
+/**
+ * ตรวจสอบว่าเป็น Admin หรือไม่ (รวม super_admin)
+ */
+function isAdmin() {
+    global $currentUser;
+    return isset($currentUser['role']) && in_array($currentUser['role'], ['admin', 'super_admin']);
+}
+
+/**
+ * ตรวจสอบว่าเป็น Staff หรือไม่
+ */
+function isStaff() {
+    global $currentUser;
+    return isset($currentUser['role']) && $currentUser['role'] === 'staff';
+}
+
+/**
+ * ตรวจสอบว่าเป็น User ทั่วไปหรือไม่
+ */
+function isUser() {
+    global $currentUser;
+    return isset($currentUser['role']) && $currentUser['role'] === 'user';
+}
+
+/**
+ * บังคับให้เป็น Super Admin เท่านั้น
+ */
+function requireSuperAdmin() {
+    if (!isSuperAdmin()) {
+        header('Location: index.php?error=no_permission');
+        exit;
+    }
+}
+
+/**
+ * บังคับให้เป็น Admin เท่านั้น
+ */
+function requireAdmin() {
+    if (!isAdmin()) {
+        header('Location: ' . (defined('USER_DASHBOARD') ? USER_DASHBOARD : 'user/dashboard.php'));
+        exit;
+    }
+}
+
+/**
+ * บังคับให้เป็น User ที่ตั้งค่า LINE Account แล้ว
+ */
+function requireUserWithAccount() {
+    global $currentUser;
+    if (isUser() && empty($currentUser['line_account_id'])) {
+        header('Location: ' . (defined('SETUP_ACCOUNT') ? SETUP_ACCOUNT : 'auth/setup-account.php'));
+        exit;
+    }
+}
+
+/**
+ * ดึง LINE Account ID ที่ผู้ใช้มีสิทธิ์เข้าถึง
+ * Super Admin = ทุกบัญชี (return null)
+ * Admin/Staff = เฉพาะบัญชีที่ถูกกำหนด
+ * User = เฉพาะบัญชีที่ตั้งค่าไว้
+ */
+function getAllowedLineAccountId() {
+    global $currentUser;
+    if (isSuperAdmin()) {
+        return null; // Super Admin เข้าถึงได้ทุกบัญชี
+    }
+    return $currentUser['line_account_id'] ?? null;
+}
+
+/**
+ * ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึง LINE Account นี้หรือไม่
+ */
+function canAccessLineAccount($lineAccountId) {
+    global $currentUser, $adminAuth;
+    
+    if (isSuperAdmin()) {
+        return true;
+    }
+    
+    // Use AdminAuth if available
+    if ($adminAuth) {
+        return $adminAuth->canAccessBot($lineAccountId);
+    }
+    
+    // Fallback to session-based check
+    return $currentUser['line_account_id'] == $lineAccountId;
+}
+
+/**
+ * ตรวจสอบสิทธิ์เฉพาะสำหรับ Bot
+ */
+function canAccessBotPermission($lineAccountId, $permission = 'can_view') {
+    global $adminAuth;
+    
+    if (isSuperAdmin()) {
+        return true;
+    }
+    
+    if ($adminAuth) {
+        return $adminAuth->canAccessBot($lineAccountId, $permission);
+    }
+    
+    return false;
+}
+
+/**
+ * ดึงรายการ LINE Bot ที่ผู้ใช้เข้าถึงได้
+ */
+function getAccessibleBots() {
+    global $adminAuth;
+    
+    if ($adminAuth) {
+        return $adminAuth->getAccessibleBots();
+    }
+    
+    // Fallback - return all active bots for admin
+    if (isSuperAdmin() || isAdmin()) {
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->query("SELECT * FROM line_accounts WHERE is_active = 1 ORDER BY name");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    return [];
+}

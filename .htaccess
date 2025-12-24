@@ -1,0 +1,102 @@
+# LINE CRM - Apache Configuration for /v1 subdirectory
+# อัพโหลดไฟล์นี้ไปที่ /v1/.htaccess
+
+# Enable RewriteEngine
+RewriteEngine On
+
+# สำคัญ! กำหนด Base ให้เป็น /v1/ เพื่อ override .htaccess ของ root
+RewriteBase /v1/
+
+# =====================================================
+# Clean URLs - ไม่ต้องพิมพ์ .php หรือ .html
+# =====================================================
+
+# ถ้าไม่ใช่ไฟล์หรือโฟลเดอร์จริง ให้ลองหา .php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^/]+)/?$ $1.php [L]
+
+# ถ้าไม่ใช่ไฟล์หรือโฟลเดอร์จริง ให้ลองหา .html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^([^/]+)/?$ $1.html [L]
+
+# รองรับ subdirectory เช่น /shop/products, /api/member
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^/]+)/([^/]+)/?$ $1/$2.php [L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^([^/]+)/([^/]+)/?$ $1/$2.html [L]
+
+# =====================================================
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Disable directory listing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect config files
+<FilesMatch "config\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect lock file
+<FilesMatch "installed\.lock$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ไม่ต้อง redirect ไป install อัตโนมัติ (ให้ user เข้าเอง)
+# RewriteCond %{REQUEST_URI} !^/v1/install
+# RewriteCond %{DOCUMENT_ROOT}/v1/config/installed.lock !-f
+# RewriteRule ^(.*)$ /v1/install/ [R=302,L]
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options SAMEORIGIN
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# PHP Settings
+<IfModule mod_php.c>
+    php_flag display_errors off
+    php_flag log_errors on
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value date.timezone "Asia/Bangkok"
+</IfModule>
+
+# Compress files
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Cache static files
+<IfModule mod_expires.c>
+    ExpiresActive on
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+</IfModule>

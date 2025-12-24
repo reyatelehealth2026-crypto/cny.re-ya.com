@@ -1,0 +1,137 @@
+<?php
+/**
+ * User Profile API
+ * สำหรับ LIFF - บันทึก/ดึงข้อมูล user profile
+ */
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+require_once '../config/config.php';
+require_once '../config/database.php';
+
+try {
+    $db = Database::getInstance()->getConnection();
+    
+    // Handle GET requests
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $action = $_GET['action'] ?? '';
+        
+        if ($action === 'get_data') {
+            $lineUserId = $_GET['line_user_id'] ?? '';
+            $accountId = $_GET['account_id'] ?? 1;
+            
+            if (empty($lineUserId)) {
+                throw new Exception('Missing line_user_id');
+            }
+            
+            // Get user
+            $stmt = $db->prepare("SELECT id, display_name, picture_url FROM users WHERE line_user_id = ?");
+            $stmt->execute([$lineUserId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                echo json_encode(['success' => false, 'error' => 'User not found']);
+                exit;
+            }
+            
+            $response = [
+                'success' => true,
+                'user_id' => $user['id'],
+                'display_name' => $user['display_name'],
+                'picture_url' => $user['picture_url'],
+                'points' => 0,
+                'cart_count' => 0,
+                'tier' => ['name' => 'Bronze', 'min' => 0]
+            ];
+            
+            // Get loyalty points
+            try {
+                $stmt = $db->prepare("SELECT points FROM loyalty_points WHERE user_id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
+                $stmt->execute([$user['id'], $accountId]);
+                $points = $stmt->fetchColumn();
+                $response['points'] = (int)($points ?: 0);
+                
+                // Calculate tier
+                if ($response['points'] >= 5000) {
+                    $response['tier'] = ['name' => 'Platinum', 'min' => 5000];
+                } elseif ($response['points'] >= 2000) {
+                    $response['tier'] = ['name' => 'Gold', 'min' => 2000];
+                } elseif ($response['points'] >= 500) {
+                    $response['tier'] = ['name' => 'Silver', 'min' => 500];
+                }
+            } catch (Exception $e) {}
+            
+            // Get cart count
+            try {
+                $stmt = $db->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
+                $stmt->execute([$user['id'], $accountId]);
+                $cartCount = $stmt->fetchColumn();
+                $response['cart_count'] = (int)($cartCount ?: 0);
+            } catch (Exception $e) {}
+            
+            echo json_encode($response);
+            exit;
+        }
+        
+        echo json_encode(['success' => false, 'error' => 'Invalid action']);
+        exit;
+    }
+    
+    // Handle POST requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $action = $input['action'] ?? '';
+        
+        if ($action === 'update_profile') {
+            $lineUserId = $input['line_user_id'] ?? '';
+            $displayName = $input['display_name'] ?? '';
+            $pictureUrl = $input['picture_url'] ?? '';
+            $statusMessage = $input['status_message'] ?? '';
+            $accountId = $input['line_account_id'] ?? null;
+            
+            if (empty($lineUserId)) {
+                throw new Exception('Missing line_user_id');
+            }
+            
+            // Check if user exists
+            $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ?");
+            $stmt->execute([$lineUserId]);
+            $userId = $stmt->fetchColumn();
+            
+            if ($userId) {
+                // Update existing user
+                $stmt = $db->prepare("UPDATE users SET display_name = ?, picture_url = ?, status_message = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$displayName, $pictureUrl, $statusMessage, $userId]);
+            } else {
+                // Create new user
+                $stmt = $db->prepare("INSERT INTO users (line_account_id, line_user_id, display_name, picture_url, status_message, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$accountId, $lineUserId, $displayName, $pictureUrl, $statusMessage]);
+                $userId = $db->lastInsertId();
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'user_id' => $userId,
+                'message' => 'Profile updated'
+            ]);
+            exit;
+        }
+        
+        echo json_encode(['success' => false, 'error' => 'Invalid action']);
+        exit;
+    }
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
+}

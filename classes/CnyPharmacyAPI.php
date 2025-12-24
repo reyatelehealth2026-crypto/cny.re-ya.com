@@ -1,0 +1,1067 @@
+<?php
+/**
+ * CNY Pharmacy API Client
+ * สำหรับเชื่อมต่อกับ CNY Pharmacy Manager API
+ * Sync สินค้ายาเข้าระบบ LINECRM
+ */
+
+class CnyPharmacyAPI
+{
+    private $baseUrl = 'https://manager.cnypharmacy.com/api';
+    private $token = '90xcKekelCqCAjmgkpI1saJF6N55eiNexcI4hdcYM2M';
+    private $db;
+    private $lineAccountId;
+    private $timeout = 120;
+    
+    public function __construct($db = null, $lineAccountId = null)
+    {
+        $this->db = $db;
+        $this->lineAccountId = $lineAccountId;
+    }
+    
+    /**
+     * Set custom API credentials
+     */
+    public function setCredentials($baseUrl, $token)
+    {
+        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->token = $token;
+        return $this;
+    }
+    
+    /**
+     * Make API request
+     */
+    private function request($method, $endpoint, $data = null)
+    {
+        $url = $this->baseUrl . $endpoint;
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->token,
+                'Content-Type: application/json',
+                'Accept: application/json'
+            ]
+        ]);
+        
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if ($data) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data, JSON_UNESCAPED_UNICODE));
+            }
+        }
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            return ['success' => false, 'error' => $error];
+        }
+        
+        // Try to decode JSON first - if it works, it's valid JSON even if description contains HTML
+        $decoded = json_decode($response, true);
+        
+        // Check JSON decode error
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+            // Only check for HTML if JSON decode failed
+            if (strpos($response, '<!doctype html') === 0 || strpos($response, '<html') === 0) {
+                return ['success' => false, 'error' => 'API returned HTML instead of JSON', 'is_html' => true];
+            }
+            return ['success' => false, 'error' => 'Invalid JSON response: ' . json_last_error_msg()];
+        }
+        
+        return [
+            'success' => $httpCode >= 200 && $httpCode < 300,
+            'http_code' => $httpCode,
+            'data' => $decoded
+        ];
+    }
+    
+    /**
+     * Stream API request - save to temp file to avoid memory issues
+     */
+    private function requestToFile($endpoint, $timeout = 300)
+    {
+        $url = $this->baseUrl . $endpoint;
+        $tempFile = sys_get_temp_dir() . '/cny_products_' . md5($url) . '.json';
+        
+        $fp = fopen($tempFile, 'w');
+        if (!$fp) {
+            return ['success' => false, 'error' => 'Cannot create temp file'];
+        }
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_FILE => $fp,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->token,
+                'Accept: application/json'
+            ]
+        ]);
+        
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        fclose($fp);
+        
+        if ($error) {
+            @unlink($tempFile);
+            return ['success' => false, 'error' => $error];
+        }
+        
+        return [
+            'success' => $httpCode >= 200 && $httpCode < 300,
+            'http_code' => $httpCode,
+            'file' => $tempFile
+        ];
+    }
+    
+    /**
+     * Get SKU list only - using regex streaming to avoid memory issues
+     */
+    public function getSkuList()
+    {
+        $cacheFile = sys_get_temp_dir() . '/cny_sku_list.json';
+        
+        // Check cache (valid for 1 hour)
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 3600) {
+            $skus = json_decode(file_get_contents($cacheFile), true);
+            if (is_array($skus)) {
+                return ['success' => true, 'data' => $skus, 'cached' => true];
+            }
+        }
+        
+        // Download to temp file
+        $result = $this->requestToFile('/get_product_all', 600);
+        if (!$result['success']) {
+            return $result;
+        }
+        
+        $tempFile = $result['file'];
+        
+        // Stream parse - read file in chunks and extract SKUs with regex
+        $skus = [];
+        $handle = fopen($tempFile, 'r');
+        if (!$handle) {
+            @unlink($tempFile);
+            return ['success' => false, 'error' => 'Cannot read temp file'];
+        }
+        
+        $buffer = '';
+        while (!feof($handle)) {
+            $buffer .= fread($handle, 8192); // Read 8KB at a time
+            
+            // Extract SKUs using regex
+            if (preg_match_all('/"sku"\s*:\s*"([^"]+)"/', $buffer, $matches)) {
+                foreach ($matches[1] as $sku) {
+                    if (!in_array($sku, $skus)) {
+                        $skus[] = $sku;
+                    }
+                }
+            }
+            
+            // Keep only last 1KB to handle SKUs split across chunks
+            if (strlen($buffer) > 10000) {
+                $buffer = substr($buffer, -1000);
+            }
+        }
+        fclose($handle);
+        @unlink($tempFile);
+        
+        // Cache the SKU list
+        file_put_contents($cacheFile, json_encode($skus));
+        
+        return ['success' => true, 'data' => $skus, 'cached' => false, 'count' => count($skus)];
+    }
+    
+    /**
+     * Get all products data cached - ดึงข้อมูลสินค้าทั้งหมดและ cache ไว้
+     */
+    public function getAllProductsCached()
+    {
+        $cacheFile = sys_get_temp_dir() . '/cny_products_all.json';
+        
+        // Check cache (valid for 1 hour)
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 3600) {
+            $products = json_decode(file_get_contents($cacheFile), true);
+            if (is_array($products)) {
+                return ['success' => true, 'data' => $products, 'cached' => true];
+            }
+        }
+        
+        // Download to temp file
+        $result = $this->requestToFile('/get_product_all', 600);
+        if (!$result['success']) {
+            return $result;
+        }
+        
+        $tempFile = $result['file'];
+        $content = file_get_contents($tempFile);
+        @unlink($tempFile);
+        
+        $products = json_decode($content, true);
+        if (!is_array($products)) {
+            return ['success' => false, 'error' => 'Invalid JSON response'];
+        }
+        
+        // Cache the products
+        file_put_contents($cacheFile, $content);
+        
+        return ['success' => true, 'data' => $products, 'cached' => false, 'count' => count($products)];
+    }
+    
+    /**
+     * Get product from cached data by SKU
+     */
+    public function getProductFromCache($sku)
+    {
+        $result = $this->getAllProductsCached();
+        if (!$result['success']) {
+            return $result;
+        }
+        
+        foreach ($result['data'] as $product) {
+            if (($product['sku'] ?? '') === $sku) {
+                return ['success' => true, 'data' => $product, 'from_cache' => true];
+            }
+        }
+        
+        return ['success' => false, 'error' => 'Product not found in cache'];
+    }
+    
+    /**
+     * Sync by fetching individual products by SKU
+     */
+    public function syncBySku($skuList, $options = [])
+    {
+        if (!$this->db) {
+            return ['success' => false, 'error' => 'Database connection required'];
+        }
+        
+        $stats = ['total' => count($skuList), 'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+        
+        foreach ($skuList as $sku) {
+            try {
+                $result = $this->getProductBySku($sku);
+                if (!$result['success'] || empty($result['data'])) {
+                    $stats['skipped']++;
+                    continue;
+                }
+                
+                $syncResult = $this->syncProduct($result['data'], $options);
+                if ($syncResult['action'] === 'created') $stats['created']++;
+                elseif ($syncResult['action'] === 'updated') $stats['updated']++;
+                else $stats['skipped']++;
+                
+            } catch (Exception $e) {
+                $stats['errors'][] = ['sku' => $sku, 'error' => $e->getMessage()];
+            }
+        }
+        
+        return ['success' => true, 'stats' => $stats];
+    }
+    
+    // ==================== API METHODS ====================
+    
+    /**
+     * ดึงข้อมูลสินค้าทั้งหมด
+     */
+    public function getAllProducts()
+    {
+        return $this->request('GET', '/get_product_all');
+    }
+    
+    /**
+     * ดึงข้อมูลสินค้าด้วย SKU
+     */
+    public function getProductBySku($sku)
+    {
+        return $this->request('GET', '/get_product_sku/' . urlencode($sku));
+    }
+    
+    /**
+     * อัพเดทข้อมูลสินค้า
+     */
+    public function updateProduct($productData)
+    {
+        return $this->request('POST', '/update_product', $productData);
+    }
+    
+    /**
+     * อัพเดท description สินค้า
+     */
+    public function updateProductDescription($sku, $description)
+    {
+        return $this->request('POST', '/update_product_description', [
+            'sku' => $sku,
+            'description' => $description
+        ]);
+    }
+    
+    // ==================== SYNC METHODS ====================
+    
+    /**
+     * Sync สินค้าทั้งหมดเข้า LINECRM (memory efficient)
+     */
+    public function syncAllProducts($options = [])
+    {
+        if (!$this->db) {
+            return ['success' => false, 'error' => 'Database connection required'];
+        }
+        
+        $limit = $options['limit'] ?? 100;
+        $offset = $options['offset'] ?? 0;
+        
+        // Download to temp file to avoid memory issues
+        $result = $this->requestToFile('/get_product_all');
+        if (!$result['success']) {
+            return $result;
+        }
+        
+        $tempFile = $result['file'];
+        $stats = ['total' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+        
+        // Read and parse JSON in chunks
+        $content = file_get_contents($tempFile);
+        @unlink($tempFile); // Clean up
+        
+        $products = json_decode($content, true);
+        unset($content); // Free memory
+        
+        if (!is_array($products)) {
+            return ['success' => false, 'error' => 'Invalid response format'];
+        }
+        
+        $totalProducts = count($products);
+        
+        // Apply offset and limit
+        if ($offset > 0 || $limit > 0) {
+            $products = array_slice($products, $offset, $limit > 0 ? $limit : null);
+        }
+        
+        $stats['total'] = count($products);
+        $stats['total_available'] = $totalProducts;
+        
+        foreach ($products as $product) {
+            try {
+                $syncResult = $this->syncProduct($product, $options);
+                if ($syncResult['action'] === 'created') $stats['created']++;
+                elseif ($syncResult['action'] === 'updated') $stats['updated']++;
+                else $stats['skipped']++;
+            } catch (Exception $e) {
+                $stats['errors'][] = ['sku' => $product['sku'] ?? 'unknown', 'error' => $e->getMessage()];
+            }
+            
+            // Free memory periodically
+            if ($stats['total'] > 0 && ($stats['created'] + $stats['updated'] + $stats['skipped']) % 50 === 0) {
+                gc_collect_cycles();
+            }
+        }
+        
+        return ['success' => true, 'stats' => $stats];
+    }
+
+    
+    /**
+     * Sync สินค้าเดี่ยวเข้า LINECRM
+     */
+    public function syncProduct($cnyProduct, $options = [])
+    {
+        $table = $this->getItemsTable();
+        if (!$table) {
+            throw new Exception('Items table not found');
+        }
+        
+        $sku = $cnyProduct['sku'] ?? null;
+        $cnyId = $cnyProduct['id'] ?? null;
+        
+        if (!$sku && !$cnyId) {
+            return ['action' => 'skipped', 'reason' => 'No SKU or ID'];
+        }
+        
+        // Map CNY product to LINECRM format
+        $mapped = $this->mapProduct($cnyProduct, $options);
+        
+        // Use CNY ID as product ID option
+        $useCnyId = $options['use_cny_id'] ?? true;
+        
+        // Check if exists by CNY ID first, then by SKU
+        $existing = null;
+        if ($cnyId && $useCnyId) {
+            $existing = $this->findById($cnyId);
+        }
+        if (!$existing && $sku) {
+            $existing = $this->findBySku($sku);
+        }
+        
+        if ($existing) {
+            // Update
+            if ($options['update_existing'] ?? true) {
+                $this->updateLocalProduct($existing['id'], $mapped, $table);
+                return ['action' => 'updated', 'id' => $existing['id']];
+            }
+            return ['action' => 'skipped', 'reason' => 'Already exists'];
+        }
+        
+        // Create new with CNY ID
+        if ($cnyId && $useCnyId) {
+            $id = $this->createLocalProductWithId($cnyId, $mapped, $table);
+        } else {
+            $id = $this->createLocalProduct($mapped, $table);
+        }
+        return ['action' => 'created', 'id' => $id];
+    }
+    
+    /**
+     * Map CNY product to LINECRM format
+     */
+    private function mapProduct($cnyProduct, $options = [])
+    {
+        // Get price (use first price or GEN price)
+        $price = 0;
+        $prices = $cnyProduct['product_price'] ?? [];
+        if (!empty($prices)) {
+            // Try to find GEN price first
+            foreach ($prices as $p) {
+                if (strpos($p['customer_group'] ?? '', 'GEN') !== false) {
+                    $price = floatval($p['price']);
+                    break;
+                }
+            }
+            // Fallback to first price
+            if ($price == 0 && isset($prices[0]['price'])) {
+                $price = floatval($prices[0]['price']);
+            }
+        }
+        
+        // Get unit from first price
+        $unit = 'ชิ้น';
+        if (!empty($prices[0]['unit'])) {
+            $unit = $prices[0]['unit'];
+        }
+        
+        // Auto-create category from CNY category field
+        $categoryId = $options['default_category_id'] ?? null;
+        $autoCategory = $options['auto_category'] ?? true;
+        
+        if ($autoCategory && !empty($cnyProduct['category'])) {
+            $categoryId = $this->getOrCreateCategory($cnyProduct['category']);
+        }
+        
+        return [
+            'sku' => $cnyProduct['sku'] ?? null,
+            'barcode' => $cnyProduct['barcode'] ?? null,
+            'name' => $cnyProduct['name'] ?? $cnyProduct['name_en'] ?? 'Unknown',
+            'description' => $this->buildDescription($cnyProduct),
+            'manufacturer' => $this->extractManufacturer($cnyProduct['name_en'] ?? ''),
+            'generic_name' => $cnyProduct['spec_name'] ?? null,
+            'usage_instructions' => $cnyProduct['how_to_use'] ?? null,
+            'price' => $price,
+            'unit' => $unit,
+            'stock' => intval($cnyProduct['qty'] ?? 0),
+            'image_url' => $cnyProduct['photo_path'] ?? null,
+            'is_active' => ($cnyProduct['enable'] ?? '1') == '1' ? 1 : 0,
+            'category_id' => $categoryId,
+            'line_account_id' => $this->lineAccountId,
+            'item_type' => 'physical',
+            'delivery_method' => 'shipping',
+            'extra_data' => json_encode([
+                'cny_id' => $cnyProduct['id'] ?? null,
+                'cny_category' => $cnyProduct['category'] ?? null,
+                'name_en' => $cnyProduct['name_en'] ?? null,
+                'hashtag' => $cnyProduct['hashtag'] ?? null,
+                'properties' => $cnyProduct['properties_other'] ?? null,
+                'all_prices' => $prices,
+                'qty_incoming' => $cnyProduct['qty_incoming'] ?? 0
+            ], JSON_UNESCAPED_UNICODE)
+        ];
+    }
+    
+    /**
+     * Parse category name from CNY format
+     * Example: "GIS-04-แก้ท้องเสีย-ท้องผูก" -> "แก้ท้องเสีย-ท้องผูก"
+     */
+    private function parseCategoryName($cnyCategoryCode)
+    {
+        if (empty($cnyCategoryCode)) {
+            return null;
+        }
+        
+        // Pattern: CODE-NUMBER-ชื่อหมวดหมู่ภาษาไทย
+        // Example: GIS-04-แก้ท้องเสีย-ท้องผูก
+        // Example: VIT-01-วิตามิน
+        // Example: MED-02-ยาแก้ปวด
+        
+        // Split by dash and find Thai text
+        $parts = explode('-', $cnyCategoryCode);
+        
+        // Find first part that contains Thai characters
+        $thaiParts = [];
+        $foundThai = false;
+        
+        foreach ($parts as $part) {
+            // Check if part contains Thai characters
+            if (preg_match('/[\x{0E00}-\x{0E7F}]/u', $part)) {
+                $foundThai = true;
+            }
+            
+            if ($foundThai) {
+                $thaiParts[] = $part;
+            }
+        }
+        
+        if (!empty($thaiParts)) {
+            return implode('-', $thaiParts);
+        }
+        
+        // Fallback: return last part if no Thai found
+        if (count($parts) > 2) {
+            return implode('-', array_slice($parts, 2));
+        }
+        
+        // Last resort: return original
+        return $cnyCategoryCode;
+    }
+    
+    /**
+     * Get or create category by CNY category code
+     * Auto-creates category if not exists
+     */
+    public function getOrCreateCategory($cnyCategoryCode)
+    {
+        if (empty($cnyCategoryCode) || !$this->db) {
+            return null;
+        }
+        
+        // Parse category name from code
+        $categoryName = $this->parseCategoryName($cnyCategoryCode);
+        if (empty($categoryName)) {
+            return null;
+        }
+        
+        // Determine categories table
+        $categoriesTable = 'product_categories';
+        if (!$this->tableExists($categoriesTable)) {
+            // Try to create table
+            try {
+                $this->db->exec("CREATE TABLE IF NOT EXISTS product_categories (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    line_account_id INT DEFAULT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    cny_code VARCHAR(100) NULL,
+                    description TEXT,
+                    image_url VARCHAR(500),
+                    sort_order INT DEFAULT 0,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_name (name),
+                    INDEX idx_cny_code (cny_code)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            } catch (Exception $e) {
+                return null;
+            }
+        }
+        
+        // Check if cny_code column exists, add if not
+        if (!$this->hasColumn($categoriesTable, 'cny_code')) {
+            try {
+                $this->db->exec("ALTER TABLE {$categoriesTable} ADD COLUMN cny_code VARCHAR(100) NULL");
+                $this->db->exec("ALTER TABLE {$categoriesTable} ADD INDEX idx_cny_code (cny_code)");
+            } catch (Exception $e) {
+                // Ignore if already exists
+            }
+        }
+        
+        // First, try to find by cny_code (exact match)
+        try {
+            $stmt = $this->db->prepare("SELECT id FROM {$categoriesTable} WHERE cny_code = ? LIMIT 1");
+            $stmt->execute([$cnyCategoryCode]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($existing) {
+                return $existing['id'];
+            }
+        } catch (Exception $e) {
+            // Continue to name search
+        }
+        
+        // Try to find by name
+        try {
+            $stmt = $this->db->prepare("SELECT id FROM {$categoriesTable} WHERE name = ? AND (line_account_id = ? OR line_account_id IS NULL) LIMIT 1");
+            $stmt->execute([$categoryName, $this->lineAccountId]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($existing) {
+                // Update cny_code if not set
+                try {
+                    $this->db->prepare("UPDATE {$categoriesTable} SET cny_code = ? WHERE id = ? AND (cny_code IS NULL OR cny_code = '')")
+                        ->execute([$cnyCategoryCode, $existing['id']]);
+                } catch (Exception $e) {}
+                
+                return $existing['id'];
+            }
+        } catch (Exception $e) {
+            // Continue to create
+        }
+        
+        // Create new category
+        try {
+            // Get max sort_order
+            $stmt = $this->db->query("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM {$categoriesTable}");
+            $nextOrder = $stmt->fetchColumn();
+            
+            $stmt = $this->db->prepare("INSERT INTO {$categoriesTable} (line_account_id, name, cny_code, sort_order, is_active) VALUES (?, ?, ?, ?, 1)");
+            $stmt->execute([$this->lineAccountId, $categoryName, $cnyCategoryCode, $nextOrder]);
+            
+            return $this->db->lastInsertId();
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get all categories created from CNY sync
+     */
+    public function getCnyCategories()
+    {
+        $categoriesTable = 'product_categories';
+        if (!$this->tableExists($categoriesTable)) {
+            return [];
+        }
+        
+        try {
+            $stmt = $this->db->query("SELECT * FROM {$categoriesTable} WHERE cny_code IS NOT NULL AND cny_code != '' ORDER BY sort_order");
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+    
+    /**
+     * Build description from CNY product
+     */
+    private function buildDescription($product)
+    {
+        $parts = [];
+        
+        if (!empty($product['properties_other'])) {
+            $text = $this->cleanHtml($product['properties_other']);
+            if ($text) $parts[] = "สรรพคุณ: " . $text;
+        }
+        
+        if (!empty($product['spec_name'])) {
+            $text = $this->cleanHtml($product['spec_name']);
+            if ($text) $parts[] = "ส่วนประกอบ: " . $text;
+        }
+        
+        if (!empty($product['description']) && $product['description'] !== 'Product detail') {
+            $text = $this->cleanHtml($product['description']);
+            // Skip if it's HTML page content
+            if ($text && strlen($text) < 2000 && strpos($text, 'CNY Pharmacy') === false) {
+                $parts[] = $text;
+            }
+        }
+        
+        return implode("\n\n", $parts) ?: null;
+    }
+    
+    /**
+     * Clean HTML from text
+     */
+    private function cleanHtml($text)
+    {
+        if (empty($text)) return null;
+        
+        // Check if it's HTML
+        if (strpos($text, '<html') !== false || strpos($text, '<!doctype') !== false) {
+            return null; // Skip full HTML pages
+        }
+        
+        // Strip HTML tags
+        $text = strip_tags($text);
+        
+        // Clean up whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = trim($text);
+        
+        return $text ?: null;
+    }
+    
+    /**
+     * Extract manufacturer from name_en (usually in brackets)
+     */
+    private function extractManufacturer($nameEn)
+    {
+        if (preg_match('/\[([^\]]+)\]/', $nameEn, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+    
+    // ==================== DATABASE HELPERS ====================
+    
+    /**
+     * Get items table name
+     */
+    private function getItemsTable()
+    {
+        if ($this->tableExists('business_items')) return 'business_items';
+        if ($this->tableExists('products')) return 'products';
+        return null;
+    }
+    
+    /**
+     * Check if table exists
+     */
+    private function tableExists($table)
+    {
+        try {
+            $this->db->query("SELECT 1 FROM {$table} LIMIT 1");
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Check if column exists
+     */
+    private function hasColumn($table, $column)
+    {
+        try {
+            $stmt = $this->db->query("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Find product by SKU
+     */
+    public function findBySku($sku)
+    {
+        $table = $this->getItemsTable();
+        if (!$table || !$this->hasColumn($table, 'sku')) return null;
+        
+        $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE sku = ? LIMIT 1");
+        $stmt->execute([$sku]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Find product by ID
+     */
+    public function findById($id)
+    {
+        $table = $this->getItemsTable();
+        if (!$table) return null;
+        
+        $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Find product by barcode
+     */
+    public function findByBarcode($barcode)
+    {
+        $table = $this->getItemsTable();
+        if (!$table || !$this->hasColumn($table, 'barcode')) return null;
+        
+        $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE barcode = ? LIMIT 1");
+        $stmt->execute([$barcode]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    
+    /**
+     * Create new product in local database
+     */
+    private function createLocalProduct($data, $table)
+    {
+        $columns = [];
+        $placeholders = [];
+        $values = [];
+        
+        // Define allowed columns per table
+        $allowedColumns = [
+            'sku', 'barcode', 'name', 'description', 'manufacturer', 'generic_name',
+            'usage_instructions', 'price', 'unit', 'stock', 'image_url', 'is_active',
+            'category_id', 'line_account_id', 'item_type', 'delivery_method'
+        ];
+        
+        foreach ($allowedColumns as $col) {
+            if (isset($data[$col]) && $this->hasColumn($table, $col)) {
+                $columns[] = $col;
+                $placeholders[] = '?';
+                $values[] = $data[$col];
+            }
+        }
+        
+        // Handle extra_data if column exists
+        if (isset($data['extra_data']) && $this->hasColumn($table, 'extra_data')) {
+            $columns[] = 'extra_data';
+            $placeholders[] = '?';
+            $values[] = $data['extra_data'];
+        }
+        
+        $sql = "INSERT INTO {$table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($values);
+        
+        return $this->db->lastInsertId();
+    }
+    
+    /**
+     * Create new product with specific ID (from CNY API)
+     * ใช้ ID จาก CNY API แทนการ auto increment
+     */
+    private function createLocalProductWithId($id, $data, $table)
+    {
+        // Check if ID already exists
+        $checkStmt = $this->db->prepare("SELECT id FROM {$table} WHERE id = ?");
+        $checkStmt->execute([$id]);
+        if ($checkStmt->fetch()) {
+            // ID exists, update instead
+            $this->updateLocalProduct($id, $data, $table);
+            return $id;
+        }
+        
+        $columns = ['id'];
+        $placeholders = ['?'];
+        $values = [$id];
+        
+        // Define allowed columns per table
+        $allowedColumns = [
+            'sku', 'barcode', 'name', 'description', 'manufacturer', 'generic_name',
+            'usage_instructions', 'price', 'unit', 'stock', 'image_url', 'is_active',
+            'category_id', 'line_account_id', 'item_type', 'delivery_method'
+        ];
+        
+        foreach ($allowedColumns as $col) {
+            if (isset($data[$col]) && $this->hasColumn($table, $col)) {
+                $columns[] = $col;
+                $placeholders[] = '?';
+                $values[] = $data[$col];
+            }
+        }
+        
+        // Handle extra_data if column exists
+        if (isset($data['extra_data']) && $this->hasColumn($table, 'extra_data')) {
+            $columns[] = 'extra_data';
+            $placeholders[] = '?';
+            $values[] = $data['extra_data'];
+        }
+        
+        $sql = "INSERT INTO {$table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($values);
+        
+        return $id;
+    }
+    
+    /**
+     * Update existing product in local database
+     */
+    private function updateLocalProduct($id, $data, $table)
+    {
+        $sets = [];
+        $values = [];
+        
+        // Columns to update
+        $updateColumns = [
+            'barcode', 'name', 'description', 'manufacturer', 'generic_name',
+            'usage_instructions', 'price', 'unit', 'stock', 'image_url', 'is_active',
+            'category_id'  // Added category_id to update list
+        ];
+        
+        foreach ($updateColumns as $col) {
+            if (isset($data[$col]) && $this->hasColumn($table, $col)) {
+                $sets[] = "{$col} = ?";
+                $values[] = $data[$col];
+            }
+        }
+        
+        // Handle extra_data
+        if (isset($data['extra_data']) && $this->hasColumn($table, 'extra_data')) {
+            $sets[] = "extra_data = ?";
+            $values[] = $data['extra_data'];
+        }
+        
+        if (empty($sets)) return false;
+        
+        $values[] = $id;
+        $sql = "UPDATE {$table} SET " . implode(', ', $sets) . " WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($values);
+    }
+    
+    /**
+     * Update categories for all existing products from CNY data
+     * Use this to retroactively assign categories to products that were synced before auto-category feature
+     */
+    public function updateAllProductCategories()
+    {
+        if (!$this->db) {
+            return ['success' => false, 'error' => 'Database connection required'];
+        }
+        
+        $table = $this->getItemsTable();
+        if (!$table) {
+            return ['success' => false, 'error' => 'Products table not found'];
+        }
+        
+        // Check if extra_data column exists
+        if (!$this->hasColumn($table, 'extra_data')) {
+            return ['success' => false, 'error' => 'extra_data column not found'];
+        }
+        
+        $stats = ['total' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+        
+        // Get all products with extra_data
+        $stmt = $this->db->query("SELECT id, extra_data, category_id FROM {$table} WHERE extra_data IS NOT NULL AND extra_data != ''");
+        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $stats['total'] = count($products);
+        
+        foreach ($products as $product) {
+            try {
+                $extraData = json_decode($product['extra_data'], true);
+                
+                // Check if cny_category exists in extra_data
+                $cnyCategory = $extraData['cny_category'] ?? null;
+                
+                if (empty($cnyCategory)) {
+                    $stats['skipped']++;
+                    continue;
+                }
+                
+                // Get or create category
+                $categoryId = $this->getOrCreateCategory($cnyCategory);
+                
+                if ($categoryId && $categoryId != $product['category_id']) {
+                    // Update product category
+                    $updateStmt = $this->db->prepare("UPDATE {$table} SET category_id = ? WHERE id = ?");
+                    $updateStmt->execute([$categoryId, $product['id']]);
+                    $stats['updated']++;
+                } else {
+                    $stats['skipped']++;
+                }
+                
+            } catch (Exception $e) {
+                $stats['errors'][] = ['id' => $product['id'], 'error' => $e->getMessage()];
+            }
+        }
+        
+        return ['success' => true, 'stats' => $stats];
+    }
+    
+    // ==================== UTILITY METHODS ====================
+    
+    /**
+     * Get sync status/stats
+     */
+    public function getSyncStats()
+    {
+        $table = $this->getItemsTable();
+        if (!$table) return null;
+        
+        $stats = [];
+        
+        // Total products
+        $stmt = $this->db->query("SELECT COUNT(*) FROM {$table}");
+        $stats['total'] = $stmt->fetchColumn();
+        
+        // Products with SKU (synced from CNY)
+        if ($this->hasColumn($table, 'sku')) {
+            $stmt = $this->db->query("SELECT COUNT(*) FROM {$table} WHERE sku IS NOT NULL AND sku != ''");
+            $stats['with_sku'] = $stmt->fetchColumn();
+        }
+        
+        // Active products
+        $stmt = $this->db->query("SELECT COUNT(*) FROM {$table} WHERE is_active = 1");
+        $stats['active'] = $stmt->fetchColumn();
+        
+        // Out of stock
+        $stmt = $this->db->query("SELECT COUNT(*) FROM {$table} WHERE stock <= 0");
+        $stats['out_of_stock'] = $stmt->fetchColumn();
+        
+        return $stats;
+    }
+    
+    /**
+     * Test API connection
+     */
+    public function testConnection()
+    {
+        $result = $this->request('GET', '/get_product_sku/0001');
+        return [
+            'success' => $result['success'],
+            'http_code' => $result['http_code'] ?? null,
+            'message' => $result['success'] ? 'Connection successful' : ($result['error'] ?? 'Connection failed')
+        ];
+    }
+    
+    /**
+     * Search products from CNY API
+     */
+    public function searchProducts($keyword)
+    {
+        $result = $this->getAllProducts();
+        if (!$result['success']) return $result;
+        
+        $products = $result['data'];
+        $filtered = array_filter($products, function($p) use ($keyword) {
+            $searchIn = strtolower(
+                ($p['name'] ?? '') . ' ' . 
+                ($p['name_en'] ?? '') . ' ' . 
+                ($p['sku'] ?? '') . ' ' . 
+                ($p['barcode'] ?? '') . ' ' .
+                ($p['spec_name'] ?? '')
+            );
+            return strpos($searchIn, strtolower($keyword)) !== false;
+        });
+        
+        return ['success' => true, 'data' => array_values($filtered)];
+    }
+    
+    /**
+     * Get product with all price tiers
+     */
+    public function getProductWithPrices($sku)
+    {
+        $result = $this->getProductBySku($sku);
+        if (!$result['success']) return $result;
+        
+        $product = $result['data'];
+        
+        // Format prices
+        $prices = [];
+        foreach ($product['product_price'] ?? [] as $p) {
+            $prices[] = [
+                'group' => $p['customer_group'] ?? 'Unknown',
+                'price' => floatval($p['price']),
+                'unit' => $p['unit'] ?? '',
+                'enabled' => ($p['enable'] ?? '1') == '1'
+            ];
+        }
+        
+        return [
+            'success' => true,
+            'product' => $product,
+            'prices' => $prices
+        ];
+    }
+}

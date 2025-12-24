@@ -1,0 +1,227 @@
+/**
+ * Advanced Analytics Dashboard Styles
+ */
+
+/* Stats Cards Animation */
+.stats-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* Chart Container */
+.chart-container {
+    position: relative;
+    min-height: 200px;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
+/* Funnel Chart */
+.funnel-stage {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.funnel-bar {
+    height: 40px;
+    background: linear-gradient(90deg, #06C755 0%, #05a648 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+    transition: width 0.5s ease;
+}
+
+.funnel-bar-label {
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Real-time Pulse */
+.realtime-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Loading Skeleton */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.skeleton-text {
+    height: 16px;
+    margin-bottom: 8px;
+}
+
+.skeleton-title {
+    height: 24px;
+    width: 60%;
+    margin-bottom: 12px;
+}
+
+.skeleton-chart {
+    height: 200px;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Period Selector */
+.period-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.period-btn:hover {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+.period-btn.active {
+    background: #06C755;
+    color: white;
+    border-color: #06C755;
+}
+
+/* Data Table */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    text-align: left;
+    padding: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table td {
+    padding: 12px;
+    font-size: 14px;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.data-table tr:hover td {
+    background: #f8fafc;
+}
+
+/* Metric Badge */
+.metric-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.metric-badge.positive {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.metric-badge.negative {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.metric-badge.neutral {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* Tooltip */
+.chart-tooltip {
+    position: absolute;
+    background: #1e293b;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.chart-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px 6px 0;
+    border-style: solid;
+    border-color: #1e293b transparent transparent;
+}
+
+/* Progress Ring */
+.progress-ring {
+    transform: rotate(-90deg);
+}
+
+.progress-ring-circle {
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .chart-container canvas {
+        max-height: 250px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .chart-container {
+        page-break-inside: avoid;
+    }
+    
+    .stats-card {
+        box-shadow: none;
+        border: 1px solid #e2e8f0;
+    }
+}

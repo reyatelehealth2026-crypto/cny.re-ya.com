@@ -1,0 +1,137 @@
+{
+  "type": "bubble",
+  "size": "kilo",
+  "hero": {
+    "type": "video",
+    "url": "https://drive.google.com/uc?export=download&id=1OWvnjcQsnGgYpp2qVvkrNyBtahJgTaBd",
+    "previewUrl": "https://lh3.googleusercontent.com/d/1OWvnjcQsnGgYpp2qVvkrNyBtahJgTaBd",
+    "altContent": {
+      "type": "image",
+      "size": "full",
+      "aspectRatio": "20:13",
+      "aspectMode": "cover",
+      "url": "https://lh3.googleusercontent.com/d/1OWvnjcQsnGgYpp2qVvkrNyBtahJgTaBd"
+    }
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#11B0A6",
+    "paddingAll": "20px",
+    "contents": [
+      {
+        "type": "text",
+        "text": "🏥 TELECARE",
+        "color": "#FFFFFF",
+        "weight": "bold",
+        "size": "xl",
+        "align": "center"
+      },
+      {
+        "type": "text",
+        "text": "ยินดีต้อนรับคุณ{displayName}",
+        "color": "#E0F7F5",
+        "size": "sm",
+        "align": "center",
+        "margin": "md"
+      },
+      {
+        "type": "text",
+        "text": "{shopName}",
+        "color": "#FFFFFF",
+        "size": "md",
+        "weight": "bold",
+        "align": "center",
+        "margin": "sm"
+      },
+      {
+        "type": "separator",
+        "margin": "lg",
+        "color": "#FFFFFF40"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "margin": "lg",
+        "spacing": "sm",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "vertical",
+            "flex": 1,
+            "alignItems": "center",
+            "contents": [
+              {
+                "type": "text",
+                "text": "🤖",
+                "size": "xl"
+              },
+              {
+                "type": "text",
+                "text": "AI Chat",
+                "size": "xxs",
+                "color": "#FFFFFF",
+                "margin": "sm"
+              }
+            ],
+            "action": {
+              "type": "message",
+              "label": "AI Chat",
+              "text": "@ai"
+            }
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "flex": 1,
+            "alignItems": "center",
+            "contents": [
+              {
+                "type": "text",
+                "text": "💊",
+                "size": "xl"
+              },
+              {
+                "type": "text",
+                "text": "Shop",
+                "size": "xxs",
+                "color": "#FFFFFF",
+                "margin": "sm"
+              }
+            ],
+            "action": {
+              "type": "uri",
+              "label": "Shop",
+              "uri": "{liffUrl}"
+            }
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "flex": 1,
+            "alignItems": "center",
+            "contents": [
+              {
+                "type": "text",
+                "text": "📅",
+                "size": "xl"
+              },
+              {
+                "type": "text",
+                "text": "นัดหมาย",
+                "size": "xxs",
+                "color": "#FFFFFF",
+                "margin": "sm"
+              }
+            ],
+            "action": {
+              "type": "uri",
+              "label": "นัดหมาย",
+              "uri": "{liffUrl}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

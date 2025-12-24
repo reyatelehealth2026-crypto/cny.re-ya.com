@@ -1,0 +1,40 @@
+# Configuration (contains sensitive data)
+config/config.php
+config/installed.lock
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+!uploads/products/.htaccess
+!uploads/slips/.htaccess
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Composer (if used)
+vendor/
+composer.lock
+
+# Node (if used)
+node_modules/
+
+# Test files
+test*.php
+!test/
+
+# Temporary files
+*.tmp
+*.temp
+cache/
