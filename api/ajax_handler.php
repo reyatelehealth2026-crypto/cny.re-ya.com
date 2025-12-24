@@ -505,7 +505,7 @@ try {
             // Get products for AI knowledge base
             $products = [];
             try {
-                $sql = "SELECT name, price, description FROM business_items WHERE is_active = 1";
+                $sql = "SELECT name, price, description FROM products WHERE is_active = 1";
                 $params = [];
                 
                 if ($currentBotId) {
@@ -527,9 +527,7 @@ try {
             $query = trim($_GET['q'] ?? '');
             $products = [];
             if (strlen($query) >= 1) {
-                $table = 'business_items';
-                try { $db->query("SELECT 1 FROM business_items LIMIT 1"); } 
-                catch (Exception $e) { $table = 'products'; }
+                $table = 'products';
                 
                 $search = '%' . $query . '%';
                 $sql = "SELECT id, name, sku, barcode, price, stock, unit FROM {$table} 

@@ -217,11 +217,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             try {
                 $stmt = $db->prepare("
-                    SELECT id, name, price, generic_name, dosage_form, strength, usage_instructions
-                    FROM business_items 
+                    SELECT id, name, price, generic_name, description, usage_instructions
+                    FROM products 
                     WHERE is_active = 1 
                     AND (line_account_id = ? OR line_account_id IS NULL)
-                    ORDER BY category, name
+                    ORDER BY category_id, name
                     LIMIT 100
                 ");
                 $stmt->execute([$lineAccountId]);
