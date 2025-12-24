@@ -305,9 +305,13 @@ function handleCheck($db) {
     
     error_log("check: Found user id={$user['id']}, is_registered={$user['is_registered']}, member_id={$user['member_id']}");
     
+    // has_profile = true ถ้ามี first_name (กรอกข้อมูลแล้วจริงๆ)
+    $hasProfile = !empty($user['first_name']);
+    
     jsonResponse(true, 'OK', [
         'exists' => true,
         'is_registered' => (bool)$user['is_registered'],
+        'has_profile' => $hasProfile,
         'member_id' => $user['member_id'],
         'first_name' => $user['first_name'],
         'last_name' => $user['last_name'],

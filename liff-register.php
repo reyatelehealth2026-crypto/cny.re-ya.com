@@ -588,11 +588,37 @@ $baseUrl = rtrim(BASE_URL, '/');
         try {
             const response = await fetch(`${BASE_URL}/api/member.php?action=check&line_user_id=${userId}&line_account_id=${ACCOUNT_ID}`);
             const data = await response.json();
+            console.log('Check registration:', data);
             
-            if (data.success && data.is_registered) {
-                // Already registered, redirect to edit mode
-                window.location.href = `${BASE_URL}/liff-register.php?account=${ACCOUNT_ID}&edit=1`;
+            // ถ้าสมัครแล้วและมี first_name (กรอกข้อมูลแล้วจริงๆ) → ไปหน้า member card
+            if (data.success && data.is_registered && data.has_profile) {
+                // ถามว่าจะแก้ไขข้อมูลหรือไม่
+                const result = await Swal.fire({
+                    icon: 'info',
+                    title: 'คุณเป็นสมาชิกแล้ว',
+                    text: 'ต้องการแก้ไขข้อมูลหรือไม่?',
+                    showCancelButton: true,
+                    confirmButtonText: 'แก้ไขข้อมูล',
+                    cancelButtonText: 'ดูบัตรสมาชิก',
+                    confirmButtonColor: '#11B0A6'
+                });
+                
+                if (result.isConfirmed) {
+                    // Load existing data for editing
+                    await loadExistingData();
+                    // Enable submit button
+                    document.getElementById('btnSubmit').disabled = false;
+                    // Hide consent section if exists
+                    const consentSection = document.querySelector('.section-header i.fa-shield-alt')?.closest('.section-header');
+                    if (consentSection) {
+                        consentSection.style.display = 'none';
+                        consentSection.nextElementSibling?.remove(); // Remove consent cards
+                    }
+                } else {
+                    window.location.href = `${BASE_URL}/liff-app.php?account=${ACCOUNT_ID}`;
+                }
             }
+            // ถ้ายังไม่สมัคร หรือยังไม่ได้กรอกข้อมูล → แสดงฟอร์มสมัครปกติ
         } catch (e) {
             console.error('Check registration error:', e);
         }
