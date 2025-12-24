@@ -4,6 +4,8 @@
  * - สินค้าเด่น (Featured): แสดงในหน้าแรก
  * - Best Seller: แสดงเป็นสินค้าขายดีในแต่ละหมวดหมู่
  */
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
