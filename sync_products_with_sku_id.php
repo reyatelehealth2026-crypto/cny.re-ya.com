@@ -8,8 +8,8 @@
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-ini_set('memory_limit', '512M');
-set_time_limit(300);
+ini_set('memory_limit', '1024M'); // Increased to 1GB
+set_time_limit(600);
 
 require_once 'config/config.php';
 require_once 'config/database.php';
@@ -336,7 +336,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['run'])) {
     }
     
     $products = json_decode($response, true);
-    unset($response);
+    unset($response); // Free memory immediately
+    gc_collect_cycles(); // Force garbage collection
     
     if (!is_array($products)) {
         echo "❌ Invalid API response\n";
