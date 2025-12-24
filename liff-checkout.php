@@ -982,6 +982,18 @@ if ($debugMode) {
                     return;
                 }
                 
+                // Debug: Check orderId before upload
+                console.log('=== SLIP UPLOAD DEBUG ===');
+                console.log('orderId:', orderId, typeof orderId);
+                console.log('userId:', userId);
+                console.log('slipFile:', slipFile?.name, slipFile?.size);
+                
+                if (!orderId) {
+                    Swal.fire({ icon: 'error', title: 'ไม่พบ Order ID', text: 'กรุณาสร้างคำสั่งซื้อก่อน', confirmButtonColor: '#11B0A6' });
+                    showLoading(false);
+                    return;
+                }
+                
                 // Upload slip
                 const formData = new FormData();
                 formData.append('action', 'upload_slip');
@@ -989,16 +1001,20 @@ if ($debugMode) {
                 formData.append('user_id', userId);
                 formData.append('slip', slipFile);
                 
+                console.log('Uploading to:', `${BASE_URL}/api/checkout.php`);
+                
                 const response = await fetch(`${BASE_URL}/api/checkout.php`, {
                     method: 'POST',
                     body: formData
                 });
                 
                 const result = await response.json();
+                console.log('Upload result:', result);
                 
                 if (result.success) {
                     showSuccess('ส่งสลิปสำเร็จ!', 'รอตรวจสอบการชำระเงิน');
                 } else {
+                    console.error('Upload failed:', result);
                     Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: result.message || 'กรุณาลองใหม่', confirmButtonColor: '#11B0A6' });
                 }
             }

@@ -698,10 +698,18 @@ function sendOrderConfirmation($order, $items) {
 function handleUploadSlip() {
     global $db;
     
+    // Debug logging
+    error_log("=== handleUploadSlip START ===");
+    error_log("POST data: " . json_encode($_POST));
+    error_log("FILES: " . json_encode(array_keys($_FILES)));
+    
     $orderId = $_POST['order_id'] ?? null;
     $userId = $_POST['user_id'] ?? null;
     
+    error_log("orderId: {$orderId}, userId: {$userId}");
+    
     if (!$orderId) {
+        error_log("ERROR: Order ID required");
         jsonResponse(false, 'Order ID required');
     }
     
