@@ -7,13 +7,14 @@
 require_once 'config/config.php';
 require_once 'includes/header.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['admin_user_id'])) {
+// Check if user is logged in (use same session as header.php)
+if (!isset($_SESSION['admin_user']['id'])) {
     header('Location: /auth/login.php');
     exit;
 }
 
-$adminName = $_SESSION['admin_name'] ?? 'User';
+$adminName = $_SESSION['admin_user']['display_name'] ?? $_SESSION['admin_user']['username'] ?? 'User';
+$pageTitle = 'Kiro Assistant';
 ?>
 
 <div class="container-fluid py-4">

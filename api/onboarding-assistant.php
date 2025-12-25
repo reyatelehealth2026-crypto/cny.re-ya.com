@@ -18,16 +18,16 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Check authentication
-if (!isset($_SESSION['admin_user_id']) || !isset($_SESSION['line_account_id'])) {
+// Check authentication (use same session as header.php)
+if (!isset($_SESSION['admin_user']['id']) || !isset($_SESSION['current_bot_id'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
-$adminUserId = $_SESSION['admin_user_id'];
-$lineAccountId = $_SESSION['line_account_id'];
-$adminName = $_SESSION['admin_name'] ?? 'User';
+$adminUserId = $_SESSION['admin_user']['id'];
+$lineAccountId = $_SESSION['current_bot_id'];
+$adminName = $_SESSION['admin_user']['display_name'] ?? $_SESSION['admin_user']['username'] ?? 'User';
 
 try {
     $db = Database::getInstance()->getConnection();
