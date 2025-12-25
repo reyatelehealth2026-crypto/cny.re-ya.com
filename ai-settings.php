@@ -41,17 +41,13 @@ function getAISetting($db, $key, $botId = null) {
 
 function saveAISetting($db, $key, $value, $botId = null) {
     try {
-        if ($botId) {
-            $stmt = $db->prepare("INSERT INTO ai_settings (line_account_id, setting_key, setting_value) VALUES (?, ?, ?) 
-                                  ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt->execute([$botId, $key, $value]);
-        } else {
-            $stmt = $db->prepare("INSERT INTO ai_settings (setting_key, setting_value) VALUES (?, ?) 
-                                  ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt->execute([$key, $value]);
-        }
+        // Always include line_account_id in INSERT for proper UNIQUE KEY matching
+        $stmt = $db->prepare("INSERT INTO ai_settings (line_account_id, setting_key, setting_value) VALUES (?, ?, ?) 
+                              ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        $stmt->execute([$botId, $key, $value]);
         return true;
     } catch (Exception $e) {
+        error_log("saveAISetting error: " . $e->getMessage());
         return false;
     }
 }
