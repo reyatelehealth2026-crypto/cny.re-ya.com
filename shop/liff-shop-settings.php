@@ -186,6 +186,7 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </div>
     </div>
+</div>
 
 <!-- Display Settings -->
 <div class="bg-white rounded-xl shadow mb-6">

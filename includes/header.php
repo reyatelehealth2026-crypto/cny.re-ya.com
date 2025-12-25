@@ -208,7 +208,8 @@ $menuSections = [
             ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories'],
             ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions'],
             ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard'],
-            ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/liff-shop-settings', 'page' => 'liff-shop-settings'],
+            ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/settings', 'page' => 'settings'],
+            ['icon' => 'fa-mobile-alt', 'label' => 'ตั้งค่า LIFF Shop', 'url' => '/shop/liff-shop-settings', 'page' => 'liff-shop-settings'],
         ])
     ],
     'membership' => [
