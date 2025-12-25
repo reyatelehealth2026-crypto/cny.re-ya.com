@@ -350,16 +350,24 @@ class OnboardingAssistant {
             return $topicResponses['crm_analytics'];
         }
         
+        // Check for casual/unclear messages - provide helpful menu
+        $casualKeywords = ['โหลด', 'ลอง', 'ทดสอบ', 'test', 'ดู', 'อะไร', 'ยังไง', 'อย่างไร', 'ทำไง', 'ช่วย', 'help'];
+        foreach ($casualKeywords as $keyword) {
+            if (mb_strpos($message, $keyword) !== false) {
+                return "ผมช่วยคุณได้หลายอย่างครับ! 🚀\n\n**📌 ตั้งค่าพื้นฐาน:**\n• วิธีเชื่อมต่อ LINE OA\n• วิธีตั้งค่าร้านค้า\n• วิธีเพิ่มสินค้า\n• วิธีสร้าง Rich Menu\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign (แคมเปญอัตโนมัติ)\n• การติดแท็กลูกค้า\n• Customer Segments\n• ตั้งเวลาส่ง Broadcast\n• สร้างโปรโมชั่น/คูปอง\n\n**ลองพิมพ์คำถามเช่น:**\n• \"วิธีเชื่อมต่อ LINE\"\n• \"วิธีสร้าง Drip Campaign\"\n• \"วิธีติดแท็กลูกค้า\"\n\nหรือกดปุ่มคำถามด้านขวามือได้เลยครับ 👉";
+            }
+        }
+        
         // Use intent-based fallback
         $intent = $this->promptBuilder->extractIntent($message);
         $primaryIntent = $intent['primary_intent'];
         
         $responses = [
-            'greeting' => "สวัสดีครับ! 👋 Kiro Assistant พร้อมช่วยคุณตั้งค่าและใช้งานระบบ LINE CRM ครับ\n\nถามผมได้เลยว่าต้องการทำอะไร หรือดูรายการตั้งค่าที่แนะนำได้ที่ Checklist ด้านข้างครับ",
-            'help' => "ผมช่วยคุณได้หลายอย่างครับ:\n\n• ตั้งค่าการเชื่อมต่อ LINE\n• ตั้งค่าร้านค้าและสินค้า\n• ตั้งค่า LIFF Apps\n• สร้าง Rich Menu\n• ตั้งค่า Auto Reply\n• เปิดใช้ AI Chat\n\nบอกผมได้เลยว่าต้องการทำอะไรครับ",
-            'feature_info' => "ฟีเจอร์หลักของระบบ:\n\n• **Inbox** - จัดการข้อความลูกค้า\n• **Shop** - ร้านค้าออนไลน์\n• **Broadcast** - ส่งข้อความหาลูกค้า\n• **Rich Menu** - เมนูลัดใน LINE\n• **Auto Reply** - ตอบกลับอัตโนมัติ\n• **AI Chat** - AI ตอบแชท\n• **Loyalty** - ระบบแต้มสะสม\n\nสนใจฟีเจอร์ไหนเป็นพิเศษครับ?",
+            'greeting' => "สวัสดีครับ! 👋 RE-YA Assistant พร้อมช่วยคุณตั้งค่าและใช้งานระบบ LINE CRM ครับ\n\nถามผมได้เลยว่าต้องการทำอะไร หรือดูรายการตั้งค่าที่แนะนำได้ที่ Checklist ด้านข้างครับ",
+            'help' => "ผมช่วยคุณได้หลายอย่างครับ:\n\n**📌 ตั้งค่าพื้นฐาน:**\n• ตั้งค่าการเชื่อมต่อ LINE\n• ตั้งค่าร้านค้าและสินค้า\n• ตั้งค่า LIFF Apps\n• สร้าง Rich Menu\n• ตั้งค่า Auto Reply\n• เปิดใช้ AI Chat\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign\n• Customer Segments\n• การติดแท็ก\n• โปรโมชั่น/คูปอง\n\nบอกผมได้เลยว่าต้องการทำอะไรครับ",
+            'feature_info' => "ฟีเจอร์หลักของระบบ:\n\n**📱 พื้นฐาน:**\n• **Inbox** - จัดการข้อความลูกค้า\n• **Shop** - ร้านค้าออนไลน์\n• **Broadcast** - ส่งข้อความหาลูกค้า\n• **Rich Menu** - เมนูลัดใน LINE\n• **Auto Reply** - ตอบกลับอัตโนมัติ\n• **AI Chat** - AI ตอบแชท\n• **Loyalty** - ระบบแต้มสะสม\n\n**🚀 ขั้นสูง:**\n• **Drip Campaign** - แคมเปญอัตโนมัติ\n• **Segments** - กลุ่มลูกค้า\n• **Tags** - ติดแท็กลูกค้า\n• **Promotions** - โปรโมชั่น/คูปอง\n\nสนใจฟีเจอร์ไหนเป็นพิเศษครับ?",
             'status' => "ดูสถานะการตั้งค่าได้ที่ Checklist ด้านข้างครับ หรือกดปุ่ม 'ตรวจสอบสถานะระบบ' เพื่อ Health Check",
-            'general' => "ผมเข้าใจครับ ถ้าต้องการความช่วยเหลือเพิ่มเติม ลองถามเรื่องที่ต้องการได้เลยครับ เช่น:\n\n• วิธีเชื่อมต่อ LINE\n• วิธีตั้งค่าร้านค้า\n• วิธีใช้ฟีเจอร์ต่างๆ\n\nหรือดู Checklist ด้านข้างเพื่อดูรายการที่ต้องตั้งค่าครับ"
+            'general' => "ผมช่วยคุณได้หลายอย่างครับ! 🚀\n\n**📌 ตั้งค่าพื้นฐาน:**\n• วิธีเชื่อมต่อ LINE OA\n• วิธีตั้งค่าร้านค้า\n• วิธีเพิ่มสินค้า\n• วิธีสร้าง Rich Menu\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign (แคมเปญอัตโนมัติ)\n• การติดแท็กลูกค้า\n• Customer Segments\n• ตั้งเวลาส่ง Broadcast\n• สร้างโปรโมชั่น/คูปอง\n\n**ลองพิมพ์คำถามเช่น:**\n• \"วิธีเชื่อมต่อ LINE\"\n• \"วิธีสร้าง Drip Campaign\"\n• \"วิธีติดแท็กลูกค้า\"\n\nหรือกดปุ่มคำถามด้านขวามือได้เลยครับ 👉"
         ];
         
         return $responses[$primaryIntent] ?? $responses['general'];
