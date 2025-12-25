@@ -74,6 +74,53 @@ $productsPerCategory = (int)getLiffShopSetting($db, $lineAccountId, 'products_pe
 $banners = getLiffShopSetting($db, $lineAccountId, 'banners', []);
 if (!is_array($banners)) $banners = [];
 
+// Get promotion settings (shared with liff-promotions.php)
+function getPromoSetting($db, $lineAccountId, $key, $default = null) {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM promotion_settings WHERE line_account_id = ? AND setting_key = ?");
+        $stmt->execute([$lineAccountId, $key]);
+        $value = $stmt->fetchColumn();
+        if ($value === false) return $default;
+        $decoded = json_decode($value, true);
+        return $decoded !== null ? $decoded : $value;
+    } catch (Exception $e) { return $default; }
+}
+
+$promoSettings = [
+    'image_size' => getPromoSetting($db, $lineAccountId, 'image_size', 'medium'),
+    'image_ratio' => getPromoSetting($db, $lineAccountId, 'image_ratio', '1:1'),
+    'columns_mobile' => (int)getPromoSetting($db, $lineAccountId, 'columns_mobile', 2),
+    'columns_desktop' => (int)getPromoSetting($db, $lineAccountId, 'columns_desktop', 4),
+    'primary_color' => getPromoSetting($db, $lineAccountId, 'primary_color', '#11B0A6'),
+    'sale_badge_color' => getPromoSetting($db, $lineAccountId, 'sale_badge_color', '#EF4444'),
+    'bestseller_badge_color' => getPromoSetting($db, $lineAccountId, 'bestseller_badge_color', '#F59E0B'),
+    'featured_badge_color' => getPromoSetting($db, $lineAccountId, 'featured_badge_color', '#8B5CF6'),
+    'card_style' => getPromoSetting($db, $lineAccountId, 'card_style', 'rounded'),
+    'card_shadow' => getPromoSetting($db, $lineAccountId, 'card_shadow', 'sm'),
+    'show_sku' => getPromoSetting($db, $lineAccountId, 'show_sku', '0'),
+    'show_stock' => getPromoSetting($db, $lineAccountId, 'show_stock', '0'),
+    'banner_height_mobile' => (int)getPromoSetting($db, $lineAccountId, 'banner_height_mobile', 160),
+    'banner_height_desktop' => (int)getPromoSetting($db, $lineAccountId, 'banner_height_desktop', 200),
+    'banner_autoplay' => getPromoSetting($db, $lineAccountId, 'banner_autoplay', '1'),
+    'banner_interval' => (int)getPromoSetting($db, $lineAccountId, 'banner_interval', 5000),
+];
+
+// Image size mapping
+$imageSizes = ['small' => '120px', 'medium' => '160px', 'large' => '200px', 'xlarge' => '240px'];
+$imageSize = $imageSizes[$promoSettings['image_size']] ?? '160px';
+
+// Card border radius
+$cardRadius = ['square' => '0', 'rounded' => '8px', 'rounded-lg' => '16px', 'rounded-xl' => '24px'];
+$borderRadius = $cardRadius[$promoSettings['card_style']] ?? '16px';
+
+// Shadow mapping
+$shadows = ['none' => 'none', 'sm' => '0 2px 8px rgba(0,0,0,0.06)', 'md' => '0 4px 12px rgba(0,0,0,0.1)', 'lg' => '0 8px 24px rgba(0,0,0,0.15)'];
+$cardShadow = $shadows[$promoSettings['card_shadow']] ?? $shadows['sm'];
+
+// Image ratio
+$ratios = ['1:1' => '100%', '4:3' => '75%', '3:4' => '133.33%', '16:9' => '56.25%'];
+$paddingRatio = $ratios[$promoSettings['image_ratio']] ?? '100%';
+
 // Check columns
 $hasIsFeatured = $hasIsBestseller = false;
 try {
@@ -308,17 +355,28 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --primary: #11B0A6; --danger: #EF4444; --warning: #F59E0B; }
+        :root { 
+            --primary: <?= $promoSettings['primary_color'] ?>; 
+            --danger: <?= $promoSettings['sale_badge_color'] ?>; 
+            --warning: <?= $promoSettings['bestseller_badge_color'] ?>;
+            --featured: <?= $promoSettings['featured_badge_color'] ?>;
+            --card-radius: <?= $borderRadius ?>;
+            --image-size: <?= $imageSize ?>;
+            --cols-mobile: <?= $promoSettings['columns_mobile'] ?>;
+            --cols-desktop: <?= $promoSettings['columns_desktop'] ?>;
+            --banner-height-mobile: <?= $promoSettings['banner_height_mobile'] ?>px;
+            --banner-height-desktop: <?= $promoSettings['banner_height_desktop'] ?>px;
+        }
         body { font-family: 'Sarabun', sans-serif; background: #F8FAFC; }
         .scroll-x { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
         .scroll-x::-webkit-scrollbar { display: none; }
-        .scroll-item { scroll-snap-align: start; flex-shrink: 0; }
+        .scroll-item { scroll-snap-align: start; flex-shrink: 0; width: var(--image-size); }
         
         /* Best Seller Card - กรอบเด่น */
         .bestseller-card {
             background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-            border: 2px solid #F59E0B;
-            border-radius: 16px;
+            border: 2px solid var(--warning);
+            border-radius: var(--card-radius);
             position: relative;
             overflow: hidden;
         }
@@ -326,7 +384,7 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
             content: '🔥 BEST SELLER';
             position: absolute;
             top: 0; left: 0; right: 0;
-            background: linear-gradient(90deg, #EF4444, #DC2626);
+            background: linear-gradient(90deg, var(--danger), #DC2626);
             color: white;
             font-size: 10px;
             font-weight: bold;
@@ -338,14 +396,14 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
         
         /* Featured Card */
         .featured-card {
-            border: 2px solid #F59E0B;
-            border-radius: 16px;
+            border: 2px solid var(--featured);
+            border-radius: var(--card-radius);
             position: relative;
         }
         .featured-badge {
             position: absolute;
             top: 8px; right: 8px;
-            background: #F59E0B;
+            background: var(--featured);
             color: white;
             font-size: 10px;
             padding: 2px 8px;
@@ -357,12 +415,27 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
         /* Product Card */
         .product-card {
             background: white;
-            border-radius: 16px;
+            border-radius: var(--card-radius);
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            box-shadow: <?= $cardShadow ?>;
             transition: transform 0.15s;
         }
         .product-card:active { transform: scale(0.98); }
+        
+        /* Product Image with ratio */
+        .product-image-wrapper { position: relative; padding-bottom: <?= $paddingRatio ?>; overflow: hidden; background: #f3f4f6; }
+        .product-image-wrapper img, .product-image-wrapper .placeholder { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .product-image-wrapper .placeholder { display: flex; align-items: center; justify-content: center; }
+        
+        /* Product Grid */
+        .product-grid { 
+            display: grid; 
+            grid-template-columns: repeat(var(--cols-mobile), 1fr); 
+            gap: 12px; 
+        }
+        @media (min-width: 768px) {
+            .product-grid { grid-template-columns: repeat(var(--cols-desktop), 1fr); }
+        }
         
         /* Section Header */
         .section-header {
@@ -388,6 +461,10 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
             font-size: 16px;
         }
         
+        /* Price colors */
+        .price-primary { color: var(--primary); }
+        .price-sale { color: var(--danger); }
+        
         /* Bottom Nav */
         .bottom-nav {
             position: fixed;
@@ -403,15 +480,15 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
         .nav-item.active { color: var(--primary); }
         .nav-item i { font-size: 20px; margin-bottom: 2px; }
         
-        .cart-badge { position: absolute; top: -5px; right: -5px; background: #EF4444; color: white; font-size: 10px; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .cart-badge { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; font-size: 10px; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         
         /* Banner Carousel - Responsive */
-        .banner-carousel { position: relative; overflow: hidden; border-radius: 16px; }
+        .banner-carousel { position: relative; overflow: hidden; border-radius: var(--card-radius); }
         .banner-track { display: flex; transition: transform 0.4s ease-out; }
         .banner-slide { flex-shrink: 0; width: 100%; }
-        .banner-slide img { width: 100%; height: 160px; object-fit: cover; border-radius: 16px; }
+        .banner-slide img { width: 100%; height: var(--banner-height-mobile); object-fit: cover; border-radius: var(--card-radius); }
         @media (min-width: 640px) {
-            .banner-slide img { height: 200px; }
+            .banner-slide img { height: var(--banner-height-desktop); }
         }
         .banner-dots { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
         .banner-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.2s; }
@@ -541,7 +618,7 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
             <p>ไม่พบสินค้า</p>
         </div>
         <?php else: ?>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="product-grid">
             <?php foreach ($filteredProducts as $p): 
                 $price = $p['sale_price'] ?: $p['price'];
                 $originalPrice = $p['sale_price'] ? $p['price'] : null;
@@ -553,21 +630,27 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 <?php if ($isFeatured && !$isBestseller): ?>
                 <span class="featured-badge text-[8px] px-1.5">⭐</span>
                 <?php endif; ?>
-                <div class="<?= $isBestseller ? 'card-img' : '' ?> aspect-square bg-gray-100 flex items-center justify-center">
+                <div class="<?= $isBestseller ? 'card-img' : '' ?> product-image-wrapper">
                     <?php if ($p['image_url']): ?>
-                    <img src="<?= htmlspecialchars($p['image_url']) ?>" class="w-full h-full object-cover" loading="lazy">
+                    <img src="<?= htmlspecialchars($p['image_url']) ?>" loading="lazy">
                     <?php else: ?>
-                    <i class="fas fa-image text-2xl text-gray-300"></i>
+                    <div class="placeholder"><i class="fas fa-image text-2xl text-gray-300"></i></div>
                     <?php endif; ?>
                 </div>
                 <div class="p-2 <?= $isBestseller ? 'bg-white' : '' ?>">
                     <h3 class="text-xs font-medium text-gray-800 line-clamp-2 h-8"><?= htmlspecialchars($p['name']) ?></h3>
+                    <?php if ($promoSettings['show_sku'] == '1' && !empty($p['sku'])): ?>
+                    <p class="text-[10px] text-gray-400"><?= htmlspecialchars($p['sku']) ?></p>
+                    <?php endif; ?>
                     <div class="mt-1">
-                        <span class="<?= $isBestseller ? 'text-red-600' : 'text-teal-600' ?> font-bold text-sm">฿<?= number_format($price) ?></span>
+                        <span class="<?= $isBestseller ? 'price-sale' : 'price-primary' ?> font-bold text-sm">฿<?= number_format($price) ?></span>
                         <?php if ($originalPrice): ?>
                         <span class="text-gray-400 text-[10px] line-through ml-1">฿<?= number_format($originalPrice) ?></span>
                         <?php endif; ?>
                     </div>
+                    <?php if ($promoSettings['show_stock'] == '1'): ?>
+                    <p class="text-[10px] text-gray-500">คงเหลือ <?= number_format($p['stock'] ?? 0) ?></p>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -621,7 +704,7 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 <div class="section-icon bg-red-100">🔥</div>
                 <span>สินค้าขายดี</span>
             </div>
-            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&bestseller=1" class="text-sm text-teal-600">ดูทั้งหมด</a>
+            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&bestseller=1" class="text-sm" style="color: var(--primary)">ดูทั้งหมด</a>
         </div>
         
         <div class="scroll-x">
@@ -629,23 +712,29 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 $price = $p['sale_price'] ?: $p['price'];
                 $originalPrice = $p['sale_price'] ? $p['price'] : null;
             ?>
-            <div class="scroll-item w-40">
+            <div class="scroll-item">
                 <div class="bestseller-card" onclick="showProduct(<?= $p['id'] ?>)">
-                    <div class="card-img aspect-square bg-white flex items-center justify-center">
+                    <div class="card-img product-image-wrapper bg-white">
                         <?php if ($p['image_url']): ?>
-                        <img src="<?= htmlspecialchars($p['image_url']) ?>" class="w-full h-full object-cover">
+                        <img src="<?= htmlspecialchars($p['image_url']) ?>" loading="lazy">
                         <?php else: ?>
-                        <i class="fas fa-image text-3xl text-gray-300"></i>
+                        <div class="placeholder"><i class="fas fa-image text-3xl text-gray-300"></i></div>
                         <?php endif; ?>
                     </div>
                     <div class="p-3 bg-white">
                         <h3 class="text-sm font-medium text-gray-800 line-clamp-2 h-10"><?= htmlspecialchars($p['name']) ?></h3>
+                        <?php if ($promoSettings['show_sku'] == '1' && !empty($p['sku'])): ?>
+                        <p class="text-xs text-gray-400"><?= htmlspecialchars($p['sku']) ?></p>
+                        <?php endif; ?>
                         <div class="mt-2 flex items-center gap-2">
-                            <span class="text-red-600 font-bold">฿<?= number_format($price) ?></span>
+                            <span class="price-sale font-bold">฿<?= number_format($price) ?></span>
                             <?php if ($originalPrice): ?>
                             <span class="text-gray-400 text-xs line-through">฿<?= number_format($originalPrice) ?></span>
                             <?php endif; ?>
                         </div>
+                        <?php if ($promoSettings['show_stock'] == '1'): ?>
+                        <p class="text-xs text-gray-500 mt-1">คงเหลือ <?= number_format($p['stock'] ?? 0) ?></p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -662,7 +751,7 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 <div class="section-icon bg-yellow-100">⭐</div>
                 <span>สินค้าแนะนำ</span>
             </div>
-            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&featured=1" class="text-sm text-teal-600">ดูทั้งหมด</a>
+            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&featured=1" class="text-sm" style="color: var(--primary)">ดูทั้งหมด</a>
         </div>
         
         <div class="scroll-x">
@@ -670,24 +759,30 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 $price = $p['sale_price'] ?: $p['price'];
                 $originalPrice = $p['sale_price'] ? $p['price'] : null;
             ?>
-            <div class="scroll-item w-36">
+            <div class="scroll-item">
                 <div class="featured-card product-card" onclick="showProduct(<?= $p['id'] ?>)">
                     <span class="featured-badge">⭐ แนะนำ</span>
-                    <div class="aspect-square bg-gray-100 flex items-center justify-center">
+                    <div class="product-image-wrapper">
                         <?php if ($p['image_url']): ?>
-                        <img src="<?= htmlspecialchars($p['image_url']) ?>" class="w-full h-full object-cover">
+                        <img src="<?= htmlspecialchars($p['image_url']) ?>" loading="lazy">
                         <?php else: ?>
-                        <i class="fas fa-image text-3xl text-gray-300"></i>
+                        <div class="placeholder"><i class="fas fa-image text-3xl text-gray-300"></i></div>
                         <?php endif; ?>
                     </div>
                     <div class="p-3">
                         <h3 class="text-sm font-medium text-gray-800 line-clamp-2 h-10"><?= htmlspecialchars($p['name']) ?></h3>
+                        <?php if ($promoSettings['show_sku'] == '1' && !empty($p['sku'])): ?>
+                        <p class="text-xs text-gray-400"><?= htmlspecialchars($p['sku']) ?></p>
+                        <?php endif; ?>
                         <div class="mt-2">
-                            <span class="text-teal-600 font-bold">฿<?= number_format($price) ?></span>
+                            <span class="price-primary font-bold">฿<?= number_format($price) ?></span>
                             <?php if ($originalPrice): ?>
                             <span class="text-gray-400 text-xs line-through ml-1">฿<?= number_format($originalPrice) ?></span>
                             <?php endif; ?>
                         </div>
+                        <?php if ($promoSettings['show_stock'] == '1'): ?>
+                        <p class="text-xs text-gray-500 mt-1">คงเหลือ <?= number_format($p['stock'] ?? 0) ?></p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -709,7 +804,7 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 <div class="section-icon bg-gray-100"><?= $icon ?></div>
                 <span><?= htmlspecialchars($catName) ?></span>
             </div>
-            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&category=<?= $catId ?>" class="text-sm text-teal-600">ดูทั้งหมด</a>
+            <a href="liff-shop.php?user=<?= $userId ?>&account=<?= $lineAccountId ?>&category=<?= $catId ?>" class="text-sm" style="color: var(--primary)">ดูทั้งหมด</a>
         </div>
         
         <div class="scroll-x">
@@ -719,27 +814,33 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
                 $isBestseller = (int)($p['is_bestseller'] ?? 0);
                 $isFeatured = (int)($p['is_featured'] ?? 0);
             ?>
-            <div class="scroll-item w-32">
+            <div class="scroll-item">
                 <div class="<?= $isBestseller ? 'bestseller-card' : ($isFeatured ? 'featured-card product-card' : 'product-card') ?>" 
                      onclick="showProduct(<?= $p['id'] ?>)">
                     <?php if ($isFeatured && !$isBestseller): ?>
                     <span class="featured-badge text-[8px] px-1.5">⭐</span>
                     <?php endif; ?>
-                    <div class="<?= $isBestseller ? 'card-img' : '' ?> aspect-square bg-gray-100 flex items-center justify-center">
+                    <div class="<?= $isBestseller ? 'card-img' : '' ?> product-image-wrapper">
                         <?php if ($p['image_url']): ?>
-                        <img src="<?= htmlspecialchars($p['image_url']) ?>" class="w-full h-full object-cover" loading="lazy">
+                        <img src="<?= htmlspecialchars($p['image_url']) ?>" loading="lazy">
                         <?php else: ?>
-                        <i class="fas fa-image text-2xl text-gray-300"></i>
+                        <div class="placeholder"><i class="fas fa-image text-2xl text-gray-300"></i></div>
                         <?php endif; ?>
                     </div>
                     <div class="p-2 <?= $isBestseller ? 'bg-white' : '' ?>">
                         <h3 class="text-[11px] font-medium text-gray-800 line-clamp-2 h-8 leading-tight"><?= htmlspecialchars($p['name']) ?></h3>
+                        <?php if ($promoSettings['show_sku'] == '1' && !empty($p['sku'])): ?>
+                        <p class="text-[9px] text-gray-400"><?= htmlspecialchars($p['sku']) ?></p>
+                        <?php endif; ?>
                         <div class="mt-1">
-                            <span class="<?= $isBestseller ? 'text-red-600' : 'text-teal-600' ?> font-bold text-sm">฿<?= number_format($price) ?></span>
+                            <span class="<?= $isBestseller ? 'price-sale' : 'price-primary' ?> font-bold text-sm">฿<?= number_format($price) ?></span>
                             <?php if ($originalPrice): ?>
                             <span class="text-gray-400 text-[9px] line-through block">฿<?= number_format($originalPrice) ?></span>
                             <?php endif; ?>
                         </div>
+                        <?php if ($promoSettings['show_stock'] == '1'): ?>
+                        <p class="text-[9px] text-gray-500">คงเหลือ <?= number_format($p['stock'] ?? 0) ?></p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -1290,19 +1391,23 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
     function nextSlide() { goToSlide(currentSlide + 1); }
     function prevSlide() { goToSlide(currentSlide - 1); }
     
-    // Auto slide every 5 seconds
+    // Auto slide every X seconds (from settings)
+    const BANNER_INTERVAL = <?= (int)$promoSettings['banner_interval'] ?>;
+    const BANNER_AUTOPLAY = <?= $promoSettings['banner_autoplay'] == '1' ? 'true' : 'false' ?>;
     let autoSlideInterval;
-    if (totalSlides > 1) {
+    if (totalSlides > 1 && BANNER_AUTOPLAY) {
         autoSlideInterval = setInterval(() => {
             goToSlide(currentSlide + 1);
-        }, 5000);
+        }, BANNER_INTERVAL);
         
         // Pause on hover
         const carousel = document.getElementById('bannerCarousel');
         if (carousel) {
             carousel.addEventListener('mouseenter', () => clearInterval(autoSlideInterval));
             carousel.addEventListener('mouseleave', () => {
-                autoSlideInterval = setInterval(() => goToSlide(currentSlide + 1), 5000);
+                if (BANNER_AUTOPLAY) {
+                    autoSlideInterval = setInterval(() => goToSlide(currentSlide + 1), BANNER_INTERVAL);
+                }
             });
         }
     }
