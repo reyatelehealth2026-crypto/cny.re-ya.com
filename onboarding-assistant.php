@@ -34,8 +34,9 @@ $pageTitle = 'Kiro Assistant';
                         <button onclick="runHealthCheck()" title="Health Check" class="p-2 hover:bg-white/20 rounded-lg transition">
                             <i class="fas fa-heartbeat"></i>
                         </button>
-                        <button onclick="clearrash"></i>le="Clear History" class="p-2 hover:bg-white/20 rounded-lg transition">
+                        <button onclick="clearHistory()" title="Clear History" class="p-2 hover:bg-white/20 rounded-lg transition">
                             <i class="fas fa-trash"></i>
+
                         </button>
                     </div>
                 </div>
