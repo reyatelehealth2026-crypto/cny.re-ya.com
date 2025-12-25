@@ -144,7 +144,7 @@ try {
     } catch (Exception $e) {}
     
     echo "<h2>✅ Migration Complete!</h2>";
-    echo "<p><a href='loyalty-points.php'>Go to Loyalty Points</a> | <a href='debug_loyalty.php'>Debug</a></p>";
+    echo "<p><a href='liff-redeem-points.php'>Go to Loyalty (LIFF)</a> | <a href='debug_loyalty.php'>Debug</a></p>";
     
 } catch (Exception $e) {
     echo "<p class='error'>❌ Error: " . $e->getMessage() . "</p>";

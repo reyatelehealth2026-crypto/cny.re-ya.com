@@ -568,7 +568,7 @@ echo "<a href='debug_system.php' class='btn'>🔍 Debug System</a>";
 echo "<a href='users.php' class='btn'>👥 Users</a>";
 echo "<a href='messages.php' class='btn'>💬 Messages</a>";
 echo "<a href='shop/index.php' class='btn'>🛒 Shop</a>";
-echo "<a href='loyalty-points.php' class='btn'>💎 Loyalty</a>";
+echo "<a href='liff-redeem-points.php' class='btn'>💎 Loyalty (LIFF)</a>";
 echo "<a href='rich-menu.php' class='btn'>📱 Rich Menu</a>";
 echo "</div>";
 

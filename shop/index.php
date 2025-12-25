@@ -289,7 +289,7 @@ $statusLabels = [
         <p class="text-xs text-gray-500">จัดการ</p>
     </a>
     
-    <a href="../loyalty-points.php" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition-shadow text-center">
+    <a href="../liff-redeem-points.php" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition-shadow text-center">
         <div class="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center mx-auto mb-2">
             <i class="fas fa-coins text-yellow-500 text-2xl"></i>
         </div>

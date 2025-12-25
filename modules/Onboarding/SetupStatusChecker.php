@@ -78,8 +78,8 @@ class SetupStatusChecker {
             ],
             'loyalty' => [
                 'label' => 'ตั้งค่าแต้มสะสม',
-                'description' => 'เปิดใช้ระบบแต้มสะสมสำหรับลูกค้า',
-                'url' => '/loyalty-points.php',
+                'description' => 'เปิดใช้ระบบแต้มสะสมสำหรับลูกค้า (LIFF)',
+                'url' => '/liff-redeem-points.php',
                 'icon' => 'fas fa-coins'
             ],
             'member_card' => [

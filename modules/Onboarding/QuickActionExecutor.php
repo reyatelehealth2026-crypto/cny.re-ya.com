@@ -63,7 +63,7 @@ class QuickActionExecutor {
         'go_loyalty' => [
             'label' => 'ไปตั้งค่าแต้มสะสม',
             'type' => 'navigate',
-            'url' => '/loyalty-points.php',
+            'url' => '/liff-redeem-points.php',
             'icon' => 'fas fa-coins'
         ],
         'go_inbox' => [

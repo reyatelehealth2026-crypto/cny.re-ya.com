@@ -54,7 +54,6 @@ $availableMenus = [
     'sync' => ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => 'sync-dashboard.php', 'color' => 'sky'],
     'ai-settings' => ['icon' => 'fa-brain', 'label' => 'AI Settings', 'url' => 'ai-pharmacy-settings.php', 'color' => 'violet'],
     'members' => ['icon' => 'fa-id-card', 'label' => 'สมาชิก', 'url' => 'members.php', 'color' => 'rose'],
-    'rewards' => ['icon' => 'fa-gift', 'label' => 'ของรางวัล', 'url' => 'rewards.php', 'color' => 'fuchsia'],
     'categories' => ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => 'shop/categories.php', 'color' => 'lime'],
     'templates' => ['icon' => 'fa-file-alt', 'label' => 'Templates', 'url' => 'templates.php', 'color' => 'slate'],
 ];

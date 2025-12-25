@@ -456,7 +456,7 @@ $links = [
     'user-detail.php?id=' . $userId => '👤 User Detail',
     'messages.php' => '💬 Messages',
     'rich-menu.php' => '📱 Rich Menu',
-    'loyalty-points.php' => '💎 Loyalty Points',
+    'liff-redeem-points.php' => '💎 Loyalty (LIFF)',
     'shop/index.php' => '🛒 Shop',
     'debug_tags.php?user_id=' . $userId => '🏷️ Debug Tags',
     'debug_rich_menu.php' => '🎨 Debug Rich Menu'

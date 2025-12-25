@@ -56,4 +56,4 @@ try {
     echo "<pre>" . $e->getTraceAsString() . "</pre>";
 }
 
-echo "<hr><p><a href='run_loyalty_migration.php'>Run Migration</a> | <a href='loyalty-points.php'>Loyalty Points</a></p>";
+echo "<hr><p><a href='run_loyalty_migration.php'>Run Migration</a> | <a href='liff-redeem-points.php'>Loyalty (LIFF)</a></p>";
