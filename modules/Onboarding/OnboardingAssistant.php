@@ -235,8 +235,19 @@ class OnboardingAssistant {
             
             'loyalty' => "**ระบบแต้มสะสม** 🪙\n\nให้ลูกค้าสะสมแต้มเมื่อซื้อสินค้า\n\n**วิธีตั้งค่า:**\n1. ไปที่ Loyalty Points\n2. เปิดใช้งานระบบแต้ม\n3. ตั้งค่าอัตราการได้รับแต้ม\n4. สร้างรางวัลแลกแต้ม\n\n👉 [ไปตั้งค่าแต้มสะสม](/loyalty-points.php)",
             
-            'line_connection' => "**การเชื่อมต่อ LINE OA** 💚\n\n**วิธีเชื่อมต่อ:**\n1. ไปที่ LINE Developers Console\n2. เลือก Provider และ Channel\n3. ไปที่ Messaging API settings\n4. คัดลอก Channel Access Token\n5. คัดลอก Channel Secret\n6. นำมาใส่ในระบบ\n\n👉 [ไปตั้งค่า LINE Account](/line-accounts.php)"
+            'line_connection' => "**การเชื่อมต่อ LINE OA** 💚\n\n**วิธีเชื่อมต่อ:**\n1. ไปที่ LINE Developers Console\n2. เลือก Provider และ Channel\n3. ไปที่ Messaging API settings\n4. คัดลอก Channel Access Token\n5. คัดลอก Channel Secret\n6. นำมาใส่ในระบบ\n\n👉 [ไปตั้งค่า LINE Account](/line-accounts.php)",
+            
+            'bug_report' => "**รายงานปัญหา/บัค** 🐛\n\nขอบคุณที่แจ้งปัญหาครับ! กรุณาบอกรายละเอียดเพิ่มเติม:\n\n1. **หน้าที่เกิดปัญหา**: URL หรือชื่อหน้า\n2. **อาการ**: เกิดอะไรขึ้น (error 500, หน้าว่าง, ข้อมูลไม่แสดง)\n3. **ขั้นตอน**: ทำอะไรก่อนเกิดปัญหา\n4. **Error message**: ถ้ามี\n\nผมจะช่วยวิเคราะห์และแนะนำวิธีแก้ไขครับ"
         ];
+        
+        // Check for bug report keywords
+        if (mb_strpos($message, 'บัค') !== false || mb_strpos($message, 'bug') !== false || 
+            mb_strpos($message, 'error') !== false || mb_strpos($message, 'ผิดพลาด') !== false ||
+            mb_strpos($message, '500') !== false || mb_strpos($message, 'ไม่ทำงาน') !== false ||
+            mb_strpos($message, 'พัง') !== false || mb_strpos($message, 'ปัญหา') !== false ||
+            mb_strpos($message, 'หน้าว่าง') !== false || mb_strpos($message, 'ไม่แสดง') !== false) {
+            return $this->analyzeBugReport($message);
+        }
         
         // Check each topic
         foreach ($topicResponses as $topic => $response) {
