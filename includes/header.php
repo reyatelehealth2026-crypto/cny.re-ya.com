@@ -306,6 +306,7 @@ $menuSections = [
     <link rel="apple-touch-icon-precomposed" href="/assets/images/3.png?v=2">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1112,15 +1113,43 @@ $menuSections = [
                 </div>
                 
                 <div class="header-actions">
-                    <!-- AI Chat -->
-                    <a href="<?= $baseUrl ?>ai-chat.php" class="header-btn" title="AI Chat - คุยกับ AI" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white;">
-                        <i class="fas fa-comments"></i>
-                    </a>
-                    
-                    <!-- Onboarding Assistant -->
-                    <a href="<?= $baseUrl ?>onboarding-assistant.php" class="header-btn" title="Kiro Assistant - ผู้ช่วยตั้งค่าระบบ" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white;">
-                        <i class="fas fa-robot"></i>
-                    </a>
+                    <!-- AI Tools Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="header-btn ai-tools-btn" title="AI Tools" style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white;">
+                            <i class="fas fa-brain"></i>
+                            <i class="fas fa-chevron-down text-xs ml-1"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                            <a href="<?= $baseUrl ?>ai-chat.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                    <i class="fas fa-comments text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-800">AI Chat</div>
+                                    <div class="text-xs text-gray-500">คุยกับ AI ทั่วไป</div>
+                                </div>
+                            </a>
+                            <a href="<?= $baseUrl ?>onboarding-assistant.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                                    <i class="fas fa-robot text-purple-600"></i>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-800">Setup Assistant</div>
+                                    <div class="text-xs text-gray-500">ผู้ช่วยตั้งค่าระบบ</div>
+                                </div>
+                            </a>
+                            <a href="<?= $baseUrl ?>ai-settings.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                    <i class="fas fa-cog text-gray-600"></i>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-800">AI Settings</div>
+                                    <div class="text-xs text-gray-500">ตั้งค่า API Key</div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
                     
                     <!-- Quick Actions -->
                     <a href="<?= $baseUrl ?>inbox.php" class="header-btn" title="Inbox (Real-time)">

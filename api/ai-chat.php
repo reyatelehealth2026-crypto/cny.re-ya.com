@@ -102,7 +102,7 @@ function getGeminiApiKey($db, $lineAccountId) {
  * Call Gemini AI API
  */
 function callGeminiAI($apiKey, $message, $history = []) {
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $apiKey;
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $apiKey;
     
     // Build system prompt
     $systemPrompt = "คุณคือ AI Assistant ที่ช่วยเหลือผู้ใช้งานระบบ LINE CRM สำหรับร้านค้า/ร้านขายยา
