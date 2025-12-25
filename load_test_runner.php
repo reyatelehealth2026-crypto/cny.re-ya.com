@@ -3,12 +3,41 @@
  * Load Test Runner - ทำการทดสอบจริง
  */
 
+// Suppress all errors from output
+error_reporting(0);
+ini_set('display_errors', 0);
+
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
 set_time_limit(300);
 ini_set('memory_limit', '512M');
 
-require_once 'config/config.php';
-require_once 'config/database.php';
+// Error handler to return JSON
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    echo json_encode([
+        'error' => true,
+        'message' => $errstr,
+        'file' => basename($errfile),
+        'line' => $errline
+    ]);
+    exit;
+});
+
+set_exception_handler(function($e) {
+    echo json_encode([
+        'error' => true,
+        'message' => $e->getMessage()
+    ]);
+    exit;
+});
+
+try {
+    require_once 'config/config.php';
+    require_once 'config/database.php';
+} catch (Exception $e) {
+    echo json_encode(['error' => true, 'message' => 'Config error: ' . $e->getMessage()]);
+    exit;
+}
 
 $type = $_GET['type'] ?? 'database';
 $concurrentUsers = min(500, max(1, (int)($_GET['users'] ?? 10)));
@@ -44,8 +73,14 @@ function testDatabase($db) {
         $stmt = $db->query("SELECT * FROM messages ORDER BY id DESC LIMIT 10");
         $stmt->fetchAll();
         
-        $stmt = $db->query("SELECT COUNT(*) FROM business_items WHERE is_active = 1");
-        $stmt->fetchColumn();
+        // Try business_items first, fallback to products
+        try {
+            $stmt = $db->query("SELECT COUNT(*) FROM business_items WHERE is_active = 1");
+            $stmt->fetchColumn();
+        } catch (Exception $e) {
+            $stmt = $db->query("SELECT COUNT(*) FROM products WHERE is_active = 1");
+            $stmt->fetchColumn();
+        }
         
         return [
             'success' => true,
@@ -160,7 +195,13 @@ function testChat($db) {
 }
 
 // Run tests
-$db = Database::getInstance()->getConnection();
+try {
+    $db = Database::getInstance()->getConnection();
+} catch (Exception $e) {
+    echo json_encode(['error' => true, 'message' => 'Database connection failed: ' . $e->getMessage()]);
+    exit;
+}
+
 $baseUrl = rtrim(BASE_URL, '/');
 
 $totalRequests = $concurrentUsers * $requestsPerUser;
