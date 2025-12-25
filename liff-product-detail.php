@@ -19,8 +19,8 @@ if (!$productId) {
 
 // Get product
 $stmt = $db->prepare("SELECT p.*, c.name as category_name 
-    FROM products p 
-    LEFT JOIN product_categories c ON p.category_id = c.id 
+    FROM business_items p 
+    LEFT JOIN item_categories c ON p.category_id = c.id 
     WHERE p.id = ?");
 $stmt->execute([$productId]);
 $product = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -33,7 +33,7 @@ if (!$product) {
 // Check columns
 $columns = [];
 try {
-    $stmt = $db->query("SHOW COLUMNS FROM products");
+    $stmt = $db->query("SHOW COLUMNS FROM business_items");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $columns[] = $row['Field'];
     }

@@ -77,7 +77,7 @@ if (!is_array($banners)) $banners = [];
 // Check columns
 $hasIsFeatured = $hasIsBestseller = false;
 try {
-    $cols = $db->query("SHOW COLUMNS FROM products")->fetchAll(PDO::FETCH_COLUMN);
+    $cols = $db->query("SHOW COLUMNS FROM business_items")->fetchAll(PDO::FETCH_COLUMN);
     $hasIsFeatured = in_array('is_featured', $cols);
     $hasIsBestseller = in_array('is_bestseller', $cols);
 } catch (Exception $e) {}
@@ -212,7 +212,7 @@ if ($isFiltered) {
         $whereClause = implode(' AND ', $where);
         
         // Count total
-        $countSql = "SELECT COUNT(*) FROM products WHERE $whereClause";
+        $countSql = "SELECT COUNT(*) FROM business_items WHERE $whereClause";
         $stmt = $db->prepare($countSql);
         $stmt->execute($params);
         $totalProducts = (int)$stmt->fetchColumn();
@@ -221,7 +221,7 @@ if ($isFiltered) {
         // Get products with pagination
         $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id,
                        $featuredCol as is_featured, $bestsellerCol as is_bestseller
-                FROM products WHERE $whereClause ORDER BY id DESC LIMIT $perPage OFFSET $offset";
+                FROM business_items WHERE $whereClause ORDER BY id DESC LIMIT $perPage OFFSET $offset";
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $filteredProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -234,7 +234,7 @@ if (!$isFiltered && $showBestsellers && $hasIsBestseller) {
     try {
         $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id,
                        COALESCE(is_featured, 0) as is_featured, COALESCE(is_bestseller, 0) as is_bestseller
-                FROM products WHERE is_active = 1 AND is_bestseller = 1";
+                FROM business_items WHERE is_active = 1 AND is_bestseller = 1";
         // ไม่ filter ตาม line_account_id - แสดงสินค้าทั้งหมด
         $sql .= " ORDER BY id DESC LIMIT 10";
         $bestSellers = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
@@ -247,7 +247,7 @@ if (!$isFiltered && $showFeatured && $hasIsFeatured) {
     try {
         $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id,
                        COALESCE(is_featured, 0) as is_featured, COALESCE(is_bestseller, 0) as is_bestseller
-                FROM products WHERE is_active = 1 AND is_featured = 1";
+                FROM business_items WHERE is_active = 1 AND is_featured = 1";
         // ไม่ filter ตาม line_account_id - แสดงสินค้าทั้งหมด
         $sql .= " ORDER BY id DESC LIMIT 10";
         $featuredProducts = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
@@ -268,7 +268,7 @@ if (!$isFiltered) {
             // ไม่ filter ตาม line_account_id - แสดงสินค้าทั้งหมด
             $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id,
                            $featuredCol as is_featured, $bestsellerCol as is_bestseller
-                    FROM products WHERE is_active = 1 AND category_id = ?";
+                    FROM business_items WHERE is_active = 1 AND category_id = ?";
             $sql .= " ORDER BY $orderBy LIMIT " . $productsPerCategory;
             
             $params = [$cat['id']];

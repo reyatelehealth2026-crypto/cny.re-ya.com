@@ -370,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 // Update stock for cash payment (immediate)
                 foreach ($itemsArr as $item) {
                     if (!empty($item['product_id']) && !empty($item['qty'])) {
-                        $stmt = $db->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
+                        $stmt = $db->prepare("UPDATE business_items SET stock = stock - ? WHERE id = ? AND stock >= ?");
                         $stmt->execute([$item['qty'], $item['product_id'], $item['qty']]);
                     }
                 }
@@ -403,7 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 foreach ($itemsArr as &$item) {
                     if (!empty($item['product_id']) && empty($item['image'])) {
                         try {
-                            $stmt = $db->prepare("SELECT image_url FROM products WHERE id = ?");
+                            $stmt = $db->prepare("SELECT image_url FROM business_items WHERE id = ?");
                             $stmt->execute([$item['product_id']]);
                             $product = $stmt->fetch(PDO::FETCH_ASSOC);
                             if ($product && !empty($product['image_url'])) {
