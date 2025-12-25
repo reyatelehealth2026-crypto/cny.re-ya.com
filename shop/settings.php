@@ -391,7 +391,7 @@ $bankAccounts = json_decode($settings['bank_accounts'] ?? '{"banks":[]}', true)[
                             <input type="text" name="bank_name[]" value="<?= htmlspecialchars($bank['name']) ?>" placeholder="ธนาคาร" class="flex-1 px-4 py-2 border rounded-lg">
                             <input type="text" name="bank_account[]" value="<?= htmlspecialchars($bank['account']) ?>" placeholder="เลขบัญชี" class="flex-1 px-4 py-2 border rounded-lg">
                             <input type="text" name="bank_holder[]" value="<?= htmlspecialchars($bank['holder']) ?>" placeholder="ชื่อบัญชี" class="flex-1 px-4 py-2 border rounded-lg">
-                            <button type="button" onclick="this.parentElement.remove()" class="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg"><i class="fas fa-times"></i></button>
+                              <button type="button" onclick="this.parentElement.remove()" class="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg"><i class="fas fa-times"></i></button>
                         </div>
                         <?php endforeach; ?>
                     </div>

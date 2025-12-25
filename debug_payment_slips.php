@@ -1,4 +1,4 @@
-<?php
+ยphp
 /**
  * Debug Payment Slips
  * ตรวจสอบปัญหาสลิปไม่แสดง

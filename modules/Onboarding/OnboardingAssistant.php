@@ -237,6 +237,28 @@ class OnboardingAssistant {
             
             'line_connection' => "**การเชื่อมต่อ LINE OA** 💚\n\n**วิธีเชื่อมต่อ:**\n1. ไปที่ LINE Developers Console\n2. เลือก Provider และ Channel\n3. ไปที่ Messaging API settings\n4. คัดลอก Channel Access Token\n5. คัดลอก Channel Secret\n6. นำมาใส่ในระบบ\n\n👉 [ไปตั้งค่า LINE Account](/line-accounts.php)",
             
+            // === Advanced Marketing Features ===
+            
+            'drip_campaign' => "**Drip Campaign (แคมเปญอัตโนมัติ)** 💧\n\nส่งข้อความอัตโนมัติตามลำดับเวลาที่กำหนด เหมาะสำหรับ:\n• Welcome Series - ต้อนรับสมาชิกใหม่\n• Nurture Campaign - ดูแลลูกค้าต่อเนื่อง\n• Re-engagement - ดึงลูกค้าเก่ากลับมา\n\n**วิธีสร้าง Drip Campaign:**\n1. ไปที่ Drip Campaigns\n2. กด 'สร้างแคมเปญใหม่'\n3. ตั้งชื่อและเลือก Trigger (เช่น สมัครสมาชิก)\n4. เพิ่ม Steps (ข้อความ + ระยะเวลา)\n5. เปิดใช้งาน\n\n**ตัวอย่าง Welcome Series:**\n• Day 0: ยินดีต้อนรับ + แนะนำร้าน\n• Day 3: แนะนำสินค้าขายดี\n• Day 7: ส่งคูปองส่วนลด\n\n👉 [ไปสร้าง Drip Campaign](/drip-campaigns.php)",
+            
+            'user_tags' => "**การติดแท็กลูกค้า** 🏷️\n\nจัดกลุ่มลูกค้าด้วย Tags เพื่อส่งข้อความตรงกลุ่มเป้าหมาย\n\n**ประเภท Tags:**\n• **Manual Tags** - ติดเอง เช่น VIP, ลูกค้าประจำ\n• **Auto Tags** - ติดอัตโนมัติตามพฤติกรรม\n\n**วิธีติด Tags:**\n1. ไปที่หน้า Users หรือ User Detail\n2. เลือกลูกค้า\n3. กด 'เพิ่ม Tag'\n4. เลือกหรือสร้าง Tag ใหม่\n\n**Auto Tag Rules:**\nตั้งกฎให้ติด Tag อัตโนมัติ เช่น:\n• ซื้อครบ 3 ครั้ง → ติด 'ลูกค้าประจำ'\n• ยอดซื้อ > 5000 → ติด 'VIP'\n• ไม่ซื้อ 30 วัน → ติด 'Inactive'\n\n👉 [จัดการ Tags](/user-tags.php)\n👉 [ตั้งค่า Auto Tag](/auto-tag-rules.php)",
+            
+            'scheduled_broadcast' => "**การตั้งเวลาส่ง Broadcast** ⏰\n\nตั้งเวลาส่งข้อความล่วงหน้า\n\n**วิธีตั้งเวลา:**\n1. ไปที่ Broadcast\n2. สร้างข้อความ\n3. เลือก 'ตั้งเวลาส่ง' แทน 'ส่งทันที'\n4. เลือกวันที่และเวลา\n5. กดบันทึก\n\n**Tips:**\n• ส่งช่วง 10:00-12:00 หรือ 18:00-20:00 มี Open Rate สูง\n• หลีกเลี่ยงส่งดึกเกินไป\n• ตรวจสอบ Preview ก่อนตั้งเวลา\n\n👉 [ไปตั้งเวลา Broadcast](/broadcast.php)",
+            
+            'customer_segments' => "**Customer Segments (กลุ่มลูกค้า)** 👥\n\nสร้างกลุ่มลูกค้าตามเงื่อนไขที่กำหนด\n\n**ตัวอย่าง Segments:**\n• **New Customers** - สมัครภายใน 7 วัน\n• **Active Buyers** - ซื้อภายใน 30 วัน\n• **High Value** - ยอดซื้อรวม > 10,000\n• **At Risk** - ไม่ซื้อ 60 วัน\n• **VIP** - ซื้อ > 5 ครั้ง + ยอด > 20,000\n\n**วิธีสร้าง Segment:**\n1. ไปที่ Customer Segments\n2. กด 'สร้าง Segment'\n3. ตั้งชื่อและเงื่อนไข\n4. Preview จำนวนลูกค้า\n5. บันทึก\n\n**ใช้งาน:**\n• เลือก Segment ตอนส่ง Broadcast\n• ใช้เป็น Trigger ใน Drip Campaign\n\n👉 [จัดการ Segments](/customer-segments.php)",
+            
+            'link_tracking' => "**Link Tracking (ติดตามลิงก์)** 🔗\n\nวัดผลว่าลูกค้าคลิกลิงก์ไหนบ้าง\n\n**วิธีใช้:**\n1. ไปที่ Link Tracking\n2. สร้าง Tracked Link\n3. ใส่ URL ปลายทาง\n4. คัดลอก Tracking URL ไปใช้\n\n**ข้อมูลที่ได้:**\n• จำนวนคลิก\n• Unique clicks\n• เวลาที่คลิก\n• ใครคลิกบ้าง\n\n**ใช้ใน Broadcast:**\nระบบจะสร้าง Tracking Link อัตโนมัติ\n\n👉 [ไป Link Tracking](/link-tracking.php)",
+            
+            'broadcast_analytics' => "**Broadcast Analytics (วิเคราะห์ผล)** 📊\n\nดูผลลัพธ์การส่ง Broadcast\n\n**Metrics สำคัญ:**\n• **Sent** - ส่งสำเร็จกี่คน\n• **Delivered** - ส่งถึงกี่คน\n• **Read** - อ่านกี่คน (Open Rate)\n• **Clicked** - คลิกลิงก์กี่คน (CTR)\n\n**วิธีดู:**\n1. ไปที่ Broadcast Stats\n2. เลือก Broadcast ที่ต้องการ\n3. ดูรายละเอียด\n\n**Tips:**\n• Open Rate ดี = 60%+\n• CTR ดี = 5%+\n• ทดสอบ A/B เพื่อปรับปรุง\n\n👉 [ดู Broadcast Stats](/broadcast-stats.php)",
+            
+            'flex_builder' => "**Flex Message Builder** 🎨\n\nสร้างข้อความ Flex สวยๆ แบบ Drag & Drop\n\n**ประเภท Flex:**\n• **Bubble** - การ์ดเดี่ยว\n• **Carousel** - การ์ดหลายใบเลื่อนได้\n\n**วิธีใช้:**\n1. ไปที่ Flex Builder\n2. เลือก Template หรือสร้างใหม่\n3. ลาก Components มาวาง\n4. ปรับแต่งสี ขนาด ข้อความ\n5. Preview และบันทึก\n\n**ใช้งาน:**\n• ใช้ใน Broadcast\n• ใช้ใน Auto Reply\n• ใช้ใน Drip Campaign\n\n👉 [ไป Flex Builder](/flex-builder.php)",
+            
+            'scheduled_reports' => "**Scheduled Reports (รายงานอัตโนมัติ)** 📈\n\nตั้งเวลาส่งรายงานอัตโนมัติ\n\n**ประเภทรายงาน:**\n• Daily Summary - สรุปรายวัน\n• Weekly Report - สรุปรายสัปดาห์\n• Monthly Report - สรุปรายเดือน\n\n**ข้อมูลในรายงาน:**\n• ยอดขาย\n• จำนวนออเดอร์\n• สมาชิกใหม่\n• ข้อความที่ได้รับ\n\n**วิธีตั้งค่า:**\n1. ไปที่ Scheduled Reports\n2. เลือกประเภทรายงาน\n3. ตั้งเวลาส่ง\n4. เลือกช่องทาง (Email/LINE)\n5. เปิดใช้งาน\n\n👉 [ตั้งค่า Reports](/scheduled-reports.php)",
+            
+            'promotions' => "**โปรโมชั่นและคูปอง** 🎁\n\nสร้างโปรโมชั่นดึงดูดลูกค้า\n\n**ประเภทโปรโมชั่น:**\n• **ส่วนลดเปอร์เซ็นต์** - ลด 10%, 20%\n• **ส่วนลดบาท** - ลด 100, 200 บาท\n• **ส่งฟรี** - ฟรีค่าส่ง\n• **ซื้อ X แถม Y** - ซื้อ 2 แถม 1\n\n**วิธีสร้าง:**\n1. ไปที่ Promotions\n2. กด 'สร้างโปรโมชั่น'\n3. เลือกประเภท\n4. ตั้งเงื่อนไข (ขั้นต่ำ, วันหมดอายุ)\n5. สร้างโค้ดคูปอง\n6. เปิดใช้งาน\n\n👉 [จัดการโปรโมชั่น](/shop/promotions.php)",
+            
+            'crm_analytics' => "**CRM Analytics** 📊\n\nวิเคราะห์ข้อมูลลูกค้าเชิงลึก\n\n**Dashboard:**\n• **Overview** - ภาพรวมลูกค้า\n• **Acquisition** - ลูกค้าใหม่\n• **Engagement** - การมีส่วนร่วม\n• **Revenue** - รายได้\n\n**Metrics:**\n• Customer Lifetime Value (CLV)\n• Retention Rate\n• Churn Rate\n• Average Order Value\n\n👉 [ดู CRM Analytics](/crm-analytics.php)\n👉 [Executive Dashboard](/executive-dashboard.php)",
+            
             'bug_report' => "**รายงานปัญหา/บัค** 🐛\n\nขอบคุณที่แจ้งปัญหาครับ! กรุณาบอกรายละเอียดเพิ่มเติม:\n\n1. **หน้าที่เกิดปัญหา**: URL หรือชื่อหน้า\n2. **อาการ**: เกิดอะไรขึ้น (error 500, หน้าว่าง, ข้อมูลไม่แสดง)\n3. **ขั้นตอน**: ทำอะไรก่อนเกิดปัญหา\n4. **Error message**: ถ้ามี\n\nผมจะช่วยวิเคราะห์และแนะนำวิธีแก้ไขครับ"
         ];
         
@@ -283,6 +305,49 @@ class OnboardingAssistant {
         }
         if (mb_strpos($message, 'จ่าย') !== false || mb_strpos($message, 'ชำระ') !== false) {
             return $topicResponses['payment'];
+        }
+        
+        // Advanced Marketing keyword checks
+        if (mb_strpos($message, 'drip') !== false || mb_strpos($message, 'ดริป') !== false || 
+            mb_strpos($message, 'แคมเปญ') !== false || mb_strpos($message, 'campaign') !== false ||
+            mb_strpos($message, 'อัตโนมัติ') !== false || mb_strpos($message, 'automation') !== false) {
+            return $topicResponses['drip_campaign'];
+        }
+        if (mb_strpos($message, 'tag') !== false || mb_strpos($message, 'แท็ก') !== false || 
+            mb_strpos($message, 'ติดแท็ก') !== false || mb_strpos($message, 'จัดกลุ่ม') !== false) {
+            return $topicResponses['user_tags'];
+        }
+        if (mb_strpos($message, 'ตั้งเวลา') !== false || mb_strpos($message, 'schedule') !== false ||
+            mb_strpos($message, 'ล่วงหน้า') !== false) {
+            return $topicResponses['scheduled_broadcast'];
+        }
+        if (mb_strpos($message, 'segment') !== false || mb_strpos($message, 'เซกเมนต์') !== false ||
+            mb_strpos($message, 'กลุ่มลูกค้า') !== false) {
+            return $topicResponses['customer_segments'];
+        }
+        if (mb_strpos($message, 'tracking') !== false || mb_strpos($message, 'ติดตาม') !== false ||
+            mb_strpos($message, 'วัดผล') !== false || mb_strpos($message, 'คลิก') !== false) {
+            return $topicResponses['link_tracking'];
+        }
+        if (mb_strpos($message, 'analytics') !== false || mb_strpos($message, 'วิเคราะห์') !== false ||
+            mb_strpos($message, 'สถิติ') !== false || mb_strpos($message, 'stats') !== false) {
+            return $topicResponses['broadcast_analytics'];
+        }
+        if (mb_strpos($message, 'flex') !== false || mb_strpos($message, 'builder') !== false ||
+            mb_strpos($message, 'สร้างข้อความ') !== false || mb_strpos($message, 'การ์ด') !== false) {
+            return $topicResponses['flex_builder'];
+        }
+        if (mb_strpos($message, 'report') !== false || mb_strpos($message, 'รายงาน') !== false) {
+            return $topicResponses['scheduled_reports'];
+        }
+        if (mb_strpos($message, 'โปรโมชั่น') !== false || mb_strpos($message, 'promotion') !== false ||
+            mb_strpos($message, 'คูปอง') !== false || mb_strpos($message, 'coupon') !== false ||
+            mb_strpos($message, 'ส่วนลด') !== false || mb_strpos($message, 'discount') !== false) {
+            return $topicResponses['promotions'];
+        }
+        if (mb_strpos($message, 'crm') !== false || mb_strpos($message, 'dashboard') !== false ||
+            mb_strpos($message, 'executive') !== false) {
+            return $topicResponses['crm_analytics'];
         }
         
         // Use intent-based fallback

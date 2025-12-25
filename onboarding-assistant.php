@@ -101,7 +101,10 @@ $pageTitle = 'Kiro Assistant';
                 <h6 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <i class="fas fa-lightbulb text-yellow-500"></i>ลองถาม
                 </h6>
-                <div class="space-y-2">
+                
+                <!-- Basic Setup -->
+                <p class="text-xs text-gray-500 mb-2">📌 ตั้งค่าพื้นฐาน</p>
+                <div class="space-y-2 mb-4">
                     <button onclick="askQuestion('วิธีเชื่อมต่อ LINE OA')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fab fa-line text-green-500"></i>วิธีเชื่อมต่อ LINE OA
                     </button>
@@ -110,6 +113,29 @@ $pageTitle = 'Kiro Assistant';
                     </button>
                     <button onclick="askQuestion('ระบบนี้ทำอะไรได้บ้าง')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fas fa-question-circle text-purple-500"></i>ระบบนี้ทำอะไรได้บ้าง
+                    </button>
+                </div>
+                
+                <!-- Advanced Marketing -->
+                <p class="text-xs text-gray-500 mb-2">🚀 การตลาดขั้นสูง</p>
+                <div class="space-y-2">
+                    <button onclick="askQuestion('วิธีสร้าง Drip Campaign')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-tint text-blue-400"></i>Drip Campaign
+                    </button>
+                    <button onclick="askQuestion('วิธีติดแท็กลูกค้า')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-tags text-orange-500"></i>การติดแท็กลูกค้า
+                    </button>
+                    <button onclick="askQuestion('วิธีสร้าง Customer Segment')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-users text-indigo-500"></i>Customer Segments
+                    </button>
+                    <button onclick="askQuestion('วิธีตั้งเวลาส่ง Broadcast')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-clock text-teal-500"></i>ตั้งเวลาส่ง Broadcast
+                    </button>
+                    <button onclick="askQuestion('วิธีสร้างโปรโมชั่น')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-gift text-pink-500"></i>โปรโมชั่น/คูปอง
+                    </button>
+                    <button onclick="askQuestion('วิธีใช้ Flex Builder')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-palette text-purple-500"></i>Flex Message Builder
                     </button>
                 </div>
             </div>

@@ -15,16 +15,16 @@ date_default_timezone_set('Asia/Bangkok');
 // DATABASE CONFIGURATION
 // ============================================
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'your_database_name');
-define('DB_USER', 'your_database_user');
-define('DB_PASS', 'your_database_password');
+define('DB_NAME', 'reyacrm');
+define('DB_USER', 'linecrm_v1');
+define('DB_PASS', 'linecrm_v1');
 
 // ============================================
 // APPLICATION CONFIGURATION
 // ============================================
-define('APP_NAME', 'LINE CRM Pharmacy');
-define('APP_URL', 'https://yourdomain.com/v1');
-define('BASE_URL', 'https://yourdomain.com/v1');
+define('APP_NAME', 're-ya');
+define('APP_URL', 'https:///re-ya.com');
+define('BASE_URL', 'https://re-ya.com');
 define('TIMEZONE', 'Asia/Bangkok');
 
 // ============================================
