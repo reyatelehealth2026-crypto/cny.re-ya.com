@@ -60,9 +60,11 @@ try {
 $apiKey = $settings['gemini_api_key'] ?? '';
 if (empty($apiKey)) {
     try {
-        $stmt = $db->prepare("SELECT setting_value FROM ai_settings WHERE setting_key = 'gemini_api_key' AND line_account_id = ?");
+        // ai_settings uses column-based structure
+        $stmt = $db->prepare("SELECT gemini_api_key FROM ai_settings WHERE line_account_id = ? LIMIT 1");
         $stmt->execute([$currentBotId]);
-        $apiKey = $stmt->fetchColumn() ?: '';
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $apiKey = $result['gemini_api_key'] ?? '';
     } catch (Exception $e) {}
 }
 
@@ -105,8 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $stmt->execute(array_values($data));
             
-            $stmt = $db->prepare("INSERT INTO ai_settings (line_account_id, setting_key, setting_value) VALUES (?, 'gemini_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt->execute([$currentBotId, $data['gemini_api_key']]);
+            // Also update ai_settings table (column-based structure)
+            $stmt = $db->prepare("INSERT INTO ai_settings (line_account_id, gemini_api_key, is_enabled, system_prompt, model) 
+                VALUES (?, ?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE gemini_api_key = VALUES(gemini_api_key), is_enabled = VALUES(is_enabled), system_prompt = VALUES(system_prompt), model = VALUES(model)");
+            $stmt->execute([$currentBotId, $data['gemini_api_key'], $data['is_enabled'], $data['system_prompt'], $data['model']]);
             
             $success = 'บันทึกการตั้งค่าสำเร็จ';
             

@@ -1,6 +1,4 @@
-[Tue Dec 23 20:01:22.262163 2025] [lsapi:warn] [pid 4129086:tid 4129106] [remote 223.204.216.99:54314] [host likesms.net] Backend log: get_card: line_user_id=Ub85be041ec79c72b08d3ff7143f8d691, line_account_id=3, user_found=yes (id=72), is_registered=1\n, referer: https://likesms.net/v1/liff-app.php?code=khZ1AS9F1hKMT9v6eUPD&state=dduGDGBD0W44&liffClientId=2008477880&liffRedirectUri=https%3A%2F%2Flikesms.net%2Fv1%2Fliff-app.php
-[Tue Dec 23 20:01:22.317255 2025] [lsapi:warn] [pid 4129086:tid 4129107] [remote 223.204.216.99:54314] [host likesms.net] Backend log: handleGetPharmacists: Found 2 pharmacists\n, referer: https://likesms.net/v1/liff-app.php?code=khZ1AS9F1hKMT9v6eUPD&state=dduGDGBD0W44&liffClientId=2008477880&liffRedirectUri=https%3A%2F%2Flikesms.net%2Fv1%2Fliff-app.php
-[Tue Dec 23 20:02:22.430081 2025] [lsapi:error] [pid 4129086:tid 4129129] [remote 171.4.131.34:55900] [host likesms.net] Backend fatal error: PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'line_account_id' in 'WHERE' in /home/zseqjlsz/domains/likesms.net/public_html/v1/dynamic-rich-menu.php:149\nStack trace:\n#0 /home/zseqjlsz/domains/likesms.net/public_html/v1/dynamic-rich-menu.php(149): PDO->prepare()\n#1 {main}\n  thrown in /home/zseqjlsz/domains/likesms.net/public_html/v1/dynamic-rich-menu.php on line 149\n, referer: https://likesms.net/v1/index.php
+    <?php
     /**
      * Video Call Pro - UI + API
      * ถ้ามี appointment parameter = แสดงหน้า UI
@@ -47,7 +45,7 @@
     }
 
     // Check if this is a UI request (has appointment or pharmacist param and no action)
-    $isUIRequest = (isset($_GET['appointment']) || isset($_GET['pharmacist'])) && !isset($_GET['action']) && $_SERVER['REQUEST_METHOD'] === 'GET';
+    $isUIRequest = (isset($_GET['appointment']) || isset($_GET['pharmacist']) || (!isset($_GET['action']) && $_SERVER['REQUEST_METHOD'] === 'GET' && empty($_POST))) && !isset($_GET['action']);
 
     if (!$isUIRequest) {
         // API Mode
@@ -100,6 +98,9 @@
         $lineAccountId = $_GET['account'] ?? 1;
         $appointmentInfo = null;
         $pharmacistInfo = null;
+        
+        // If no appointment or pharmacist, show default video call page
+        $showDefaultPage = !$appointmentId && !$pharmacistId;
 
         if ($appointmentId) {
             try {

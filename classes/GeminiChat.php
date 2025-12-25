@@ -54,19 +54,17 @@ class GeminiChat
                 }
             }
             
-            // Fallback: ตาราง ai_settings เดิม
-            $stmt = $this->db->prepare("SELECT setting_value FROM ai_settings WHERE setting_key = 'gemini_api_key' AND line_account_id = ?");
+            // Fallback: ตาราง ai_settings (column-based structure)
+            $stmt = $this->db->prepare("SELECT gemini_api_key, is_enabled, system_prompt, model FROM ai_settings WHERE line_account_id = ? LIMIT 1");
             $stmt->execute([$this->lineAccountId]);
-            $this->apiKey = $stmt->fetchColumn() ?: '';
+            $aiSettings = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            $stmt = $this->db->prepare("SELECT setting_value FROM ai_settings WHERE setting_key = 'ai_enabled' AND line_account_id = ?");
-            $stmt->execute([$this->lineAccountId]);
-            $enabled = $stmt->fetchColumn();
-            $this->settings['is_enabled'] = ($enabled === '1');
-            
-            $stmt = $this->db->prepare("SELECT setting_value FROM ai_settings WHERE setting_key = 'system_prompt' AND line_account_id = ?");
-            $stmt->execute([$this->lineAccountId]);
-            $this->settings['system_prompt'] = $stmt->fetchColumn() ?: '';
+            if ($aiSettings) {
+                $this->apiKey = $aiSettings['gemini_api_key'] ?? '';
+                $this->settings['is_enabled'] = ($aiSettings['is_enabled'] == 1);
+                $this->settings['system_prompt'] = $aiSettings['system_prompt'] ?? '';
+                $this->model = $aiSettings['model'] ?? self::DEFAULT_MODEL;
+            }
             
         } catch (Exception $e) {
             error_log("GeminiChat loadSettings error: " . $e->getMessage());

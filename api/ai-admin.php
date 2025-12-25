@@ -945,12 +945,13 @@ function askGeminiAI($db, $message, $botId) {
         }
     }
     
-    // ดึง API Key จาก database
+    // ดึง API Key จาก database (column-based structure)
     $apiKey = null;
     try {
-        $stmt = $db->prepare("SELECT setting_value FROM ai_settings WHERE setting_key = 'gemini_api_key' AND (line_account_id = ? OR line_account_id IS NULL) ORDER BY line_account_id DESC LIMIT 1");
+        $stmt = $db->prepare("SELECT gemini_api_key FROM ai_settings WHERE (line_account_id = ? OR line_account_id IS NULL) ORDER BY line_account_id DESC LIMIT 1");
         $stmt->execute([$botId]);
-        $apiKey = $stmt->fetchColumn();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $apiKey = $result['gemini_api_key'] ?? null;
     } catch (Exception $e) {}
     
     // ถ้าไม่มี API Key ให้แสดง help message
