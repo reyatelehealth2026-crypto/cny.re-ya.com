@@ -66,20 +66,28 @@ try {
     echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
 }
 
-// Test insert
-echo "<h3>4. Test Insert</h3>";
+// Test insert/update
+echo "<h3>4. Test Insert/Update</h3>";
 try {
-    $testKey = 'test_key_' . time();
-    $stmt = $db->prepare("INSERT INTO ai_settings (line_account_id, setting_key, setting_value) VALUES (?, ?, ?) 
-                          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-    $result = $stmt->execute([null, $testKey, 'test_value']);
-    echo "<p style='color:green'>✅ Insert test passed! (key: $testKey)</p>";
+    // Check if gemini_api_key column exists
+    $stmt = $db->query("SHOW COLUMNS FROM ai_settings LIKE 'gemini_api_key'");
+    if ($stmt->rowCount() == 0) {
+        $db->exec("ALTER TABLE ai_settings ADD COLUMN gemini_api_key VARCHAR(255) DEFAULT NULL");
+        echo "<p style='color:green'>✅ Added gemini_api_key column</p>";
+    } else {
+        echo "<p style='color:blue'>ℹ️ gemini_api_key column exists</p>";
+    }
     
-    // Clean up
-    $db->prepare("DELETE FROM ai_settings WHERE setting_key = ?")->execute([$testKey]);
-    echo "<p>Cleaned up test data</p>";
+    // Test update existing record
+    $stmt = $db->query("SELECT id FROM ai_settings LIMIT 1");
+    $existing = $stmt->fetch();
+    if ($existing) {
+        echo "<p style='color:green'>✅ Found existing record (id: {$existing['id']}), can update</p>";
+    } else {
+        echo "<p style='color:yellow'>⚠️ No existing records, will insert new</p>";
+    }
 } catch (Exception $e) {
-    echo "<p style='color:red'>❌ Insert failed: " . $e->getMessage() . "</p>";
+    echo "<p style='color:red'>❌ Error: " . $e->getMessage() . "</p>";
 }
 
 // Session info
