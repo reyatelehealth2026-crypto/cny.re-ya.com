@@ -7,7 +7,7 @@
 require_once 'config/config.php';
 require_once 'includes/header.php';
 
-// Check if user is logged in (use same session as header.php)
+// Check if user is logged in
 if (!isset($_SESSION['admin_user']['id'])) {
     header('Location: /auth/login.php');
     exit;
@@ -17,118 +17,98 @@ $adminName = $_SESSION['admin_user']['display_name'] ?? $_SESSION['admin_user'][
 $pageTitle = 'Kiro Assistant';
 ?>
 
-<div class="container-fluid py-4">
-    <div class="row">
+<div class="p-4 lg:p-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main Chat Area -->
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-3 flex justify-between items-center">
                     <div>
-                        <h5 class="mb-0">
-                            <i class="fas fa-robot me-2"></i>Kiro Assistant
+                        <h5 class="font-semibold flex items-center gap-2">
+                            <i class="fas fa-robot"></i>RE-YA  Assistant
                         </h5>
-                        <small class="opacity-75">ผู้ช่วย AI สำหรับการตั้งค่าและใช้งานระบบ</small>
+                        <small class="text-purple-200 text-xs">ผู้ช่วย AI สำหรับการตั้งค่าและใช้งานระบบ</small>
                     </div>
-                    <div>
-                        <button class="btn btn-outline-light btn-sm" onclick="runHealthCheck()" title="Health Check">
+                    <div class="flex gap-2">
+                        <button onclick="runHealthCheck()" title="Health Check" class="p-2 hover:bg-white/20 rounded-lg transition">
                             <i class="fas fa-heartbeat"></i>
                         </button>
-                        <button class="btn btn-outline-light btn-sm ms-1" onclick="clearHistory()" title="Clear History">
+                        <button onclick="clearrash"></i>le="Clear History" class="p-2 hover:bg-white/20 rounded-lg transition">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </div>
                 
-                <div class="card-body p-0">
-                    <!-- Chat Messages -->
-                    <div id="chatMessages" class="chat-messages p-3" style="height: 500px; overflow-y: auto;">
-                        <!-- Messages will be loaded here -->
-                        <div class="text-center text-muted py-5" id="loadingIndicator">
-                            <div class="spinner-border text-primary mb-3" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <p>กำลังโหลด...</p>
-                        </div>
+                <!-- Chat Messages -->
+                <div id="chatMessages" class="h-96 overflow-y-auto p-4 bg-gray-50">
+                    <div class="text-center text-gray-400 py-10" id="loadingIndicator">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
+                        <p>กำลังโหลด...</p>
                     </div>
-                    
-                    <!-- Quick Actions -->
-                    <div id="quickActions" class="border-top p-2 bg-light" style="display: none;">
-                        <div class="d-flex flex-wrap gap-2" id="quickActionButtons">
-                            <!-- Quick action buttons will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Chat Input -->
-                    <div class="border-top p-3">
-                        <form id="chatForm" class="d-flex gap-2">
-                            <input type="text" 
-                                   id="chatInput" 
-                                   class="form-control" 
-                                   placeholder="พิมพ์ข้อความ... (เช่น วิธีเชื่อมต่อ LINE, ตั้งค่าร้านค้ายังไง)"
-                                   autocomplete="off">
-                            <button type="submit" class="btn btn-primary px-4" id="sendBtn">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </form>
-                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div id="quickActions" class="border-t p-3 bg-gray-50 hidden">
+                    <div class="flex flex-wrap gap-2" id="quickActionButtons"></div>
+                </div>
+                
+                <!-- Chat Input -->
+                <div class="border-t p-3">
+                    <form id="chatForm" class="flex gap-2">
+                        <input type="text" 
+                               id="chatInput" 
+                               class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                               placeholder="พิมพ์ข้อความ... (เช่น วิธีเชื่อมต่อ LINE)"
+                               autocomplete="off">
+                        <button type="submit" id="sendBtn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
         
-        <!-- Sidebar - Checklist -->
-        <div class="col-lg-4">
+        <!-- Sidebar -->
+        <div class="space-y-4">
             <!-- Progress Card -->
-            <div class="card shadow-sm mb-3">
-                <div class="card-body">
-                    <h6 class="card-title mb-3">
-                        <i class="fas fa-tasks me-2 text-primary"></i>ความคืบหน้าการตั้งค่า
-                    </h6>
-                    <div class="progress mb-2" style="height: 20px;">
-                        <div class="progress-bar bg-success" 
-                             id="progressBar" 
-                             role="progressbar" 
-                             style="width: 0%">
-                            <span id="progressText">0%</span>
-                        </div>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h6 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <i class="fas fa-tasks text-purple-600"></i>ความคืบหน้าการตั้งค่า
+                </h6>
+                <div class="w-full bg-gray-200 rounded-full h-5 mb-2">
+                    <div id="progressBar" class="bg-green-500 h-5 rounded-full transition-all duration-500 flex items-center justify-center text-white text-xs font-medium" style="width: 0%">
+                        <span id="progressText">0%</span>
                     </div>
-                    <small class="text-muted" id="progressStatus">กำลังตรวจสอบ...</small>
                 </div>
+                <small class="text-gray-500" id="progressStatus">กำลังตรวจสอบ...</small>
             </div>
             
             <!-- Checklist Card -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0">
-                        <i class="fas fa-clipboard-check me-2"></i>รายการตั้งค่า
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 border-b">
+                    <h6 class="font-semibold text-gray-700 flex items-center gap-2">
+                        <i class="fas fa-clipboard-check"></i>รายการตั้งค่า
                     </h6>
                 </div>
-                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
-                    <div id="checklistContainer">
-                        <!-- Checklist will be loaded here -->
-                    </div>
-                </div>
+                <div id="checklistContainer" class="max-h-80 overflow-y-auto"></div>
             </div>
             
             <!-- Help Card -->
-            <div class="card shadow-sm mt-3">
-                <div class="card-body">
-                    <h6 class="card-title">
-                        <i class="fas fa-lightbulb me-2 text-warning"></i>ลองถาม
-                    </h6>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary btn-sm text-start" onclick="askQuestion('วิธีเชื่อมต่อ LINE OA')">
-                            <i class="fab fa-line me-2"></i>วิธีเชื่อมต่อ LINE OA
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm text-start" onclick="askQuestion('วิธีตั้งค่าร้านค้า')">
-                            <i class="fas fa-store me-2"></i>วิธีตั้งค่าร้านค้า
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm text-start" onclick="askQuestion('ระบบนี้ทำอะไรได้บ้าง')">
-                            <i class="fas fa-question-circle me-2"></i>ระบบนี้ทำอะไรได้บ้าง
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm text-start" onclick="askQuestion('แนะนำฟีเจอร์สำหรับร้านค้า')">
-                            <i class="fas fa-magic me-2"></i>แนะนำฟีเจอร์
-                        </button>
-                    </div>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h6 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <i class="fas fa-lightbulb text-yellow-500"></i>ลองถาม
+                </h6>
+                <div class="space-y-2">
+                    <button onclick="askQuestion('วิธีเชื่อมต่อ LINE OA')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fab fa-line text-green-500"></i>วิธีเชื่อมต่อ LINE OA
+                    </button>
+                    <button onclick="askQuestion('วิธีตั้งค่าร้านค้า')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-store text-blue-500"></i>วิธีตั้งค่าร้านค้า
+                    </button>
+                    <button onclick="askQuestion('ระบบนี้ทำอะไรได้บ้าง')" class="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        <i class="fas fa-question-circle text-purple-500"></i>ระบบนี้ทำอะไรได้บ้าง
+                    </button>
                 </div>
             </div>
         </div>
@@ -136,116 +116,58 @@ $pageTitle = 'Kiro Assistant';
 </div>
 
 <style>
-.chat-messages {
-    background: #f8f9fa;
-}
-
 .message {
     max-width: 85%;
     margin-bottom: 1rem;
     animation: fadeIn 0.3s ease;
 }
-
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
-
-.message-user {
-    margin-left: auto;
-}
-
+.message-user { margin-left: auto; }
 .message-user .message-content {
-    background: #0d6efd;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
     color: white;
     border-radius: 18px 18px 4px 18px;
 }
-
-.message-assistant {
-    margin-right: auto;
-}
-
+.message-assistant { margin-right: auto; }
 .message-assistant .message-content {
     background: white;
-    border: 1px solid #dee2e6;
+    border: 1px solid #e5e7eb;
     border-radius: 18px 18px 18px 4px;
 }
-
 .message-content {
     padding: 12px 16px;
     word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-
-.message-content p:last-child {
-    margin-bottom: 0;
-}
-
-.message-content a {
-    color: inherit;
-    text-decoration: underline;
-}
-
-.message-user .message-content a {
-    color: #fff;
-}
-
-.checklist-category {
-    border-bottom: 1px solid #dee2e6;
-}
-
-.checklist-category:last-child {
-    border-bottom: none;
-}
-
+.message-content a { text-decoration: underline; }
 .checklist-item {
-    padding: 10px 15px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
     cursor: pointer;
     transition: background 0.2s;
 }
-
-.checklist-item:hover {
-    background: #f8f9fa;
-}
-
-.checklist-item:last-child {
-    border-bottom: none;
-}
-
-.checklist-item.completed {
-    background: #d4edda;
-}
-
-.checklist-item.completed .item-icon {
-    color: #28a745;
-}
-
+.checklist-item:hover { background: #f9fafb; }
+.checklist-item.completed { background: #dcfce7; }
 .typing-indicator {
     display: flex;
     gap: 4px;
     padding: 12px 16px;
 }
-
 .typing-indicator span {
     width: 8px;
     height: 8px;
-    background: #6c757d;
+    background: #9ca3af;
     border-radius: 50%;
     animation: typing 1.4s infinite;
 }
-
 .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
 .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
 @keyframes typing {
     0%, 60%, 100% { transform: translateY(0); }
     30% { transform: translateY(-10px); }
-}
-
-.quick-action-btn {
-    font-size: 0.85rem;
-    padding: 6px 12px;
-    border-radius: 20px;
 }
 </style>
 
@@ -253,163 +175,90 @@ $pageTitle = 'Kiro Assistant';
 const API_URL = '/api/onboarding-assistant.php';
 let isLoading = false;
 
-// Initialize
 document.addEventListener('DOMContentLoaded', function() {
     loadWelcomeMessage();
     loadChecklist();
-    
-    // Chat form submit
     document.getElementById('chatForm').addEventListener('submit', function(e) {
         e.preventDefault();
         sendMessage();
     });
 });
 
-// Load welcome message
 async function loadWelcomeMessage() {
     try {
         const response = await fetch(`${API_URL}?action=welcome`);
         const data = await response.json();
-        
         document.getElementById('loadingIndicator').style.display = 'none';
-        
-        if (data.success) {
-            addMessage(data.message, 'assistant');
-        }
-        
-        // Load suggestions
-        loadSuggestions();
+        if (data.success) addMessage(data.message, 'assistant');
     } catch (error) {
-        console.error('Error loading welcome:', error);
-        document.getElementById('loadingIndicator').innerHTML = '<p class="text-danger">เกิดข้อผิดพลาด</p>';
+        console.error('Error:', error);
+        document.getElementById('loadingIndicator').innerHTML = '<p class="text-red-500">เกิดข้อผิดพลาด</p>';
     }
 }
 
-// Load checklist
 async function loadChecklist() {
     try {
         const response = await fetch(`${API_URL}?action=checklist`);
         const data = await response.json();
-        
         if (data.success) {
             renderChecklist(data.data);
             updateProgress(data.data.completion_percent);
         }
     } catch (error) {
-        console.error('Error loading checklist:', error);
+        console.error('Error:', error);
     }
 }
 
-// Render checklist
 function renderChecklist(checklistData) {
     const container = document.getElementById('checklistContainer');
     const status = checklistData.status;
+    const labels = { 'essential': '🔴 จำเป็น', 'recommended': '🟡 แนะนำ', 'advanced': '🟢 ขั้นสูง' };
     
     let html = '';
-    
-    const categoryLabels = {
-        'essential': '🔴 จำเป็น',
-        'recommended': '🟡 แนะนำ',
-        'advanced': '🟢 ขั้นสูง'
-    };
-    
     for (const [category, items] of Object.entries(status)) {
-        html += `<div class="checklist-category">
-            <div class="px-3 py-2 bg-light border-bottom">
-                <strong>${categoryLabels[category] || category}</strong>
-            </div>`;
-        
+        html += `<div class="px-4 py-2 bg-gray-100 text-sm font-semibold text-gray-600">${labels[category] || category}</div>`;
         for (const [key, item] of Object.entries(items)) {
-            const isCompleted = item.completed;
-            html += `
-                <div class="checklist-item ${isCompleted ? 'completed' : ''}" 
-                     onclick="handleChecklistClick('${key}', '${item.url}')">
-                    <div class="d-flex align-items-center">
-                        <i class="${item.icon || 'fas fa-circle'} me-3 item-icon ${isCompleted ? 'text-success' : 'text-muted'}"></i>
-                        <div class="flex-grow-1">
-                            <div class="fw-medium">${item.label}</div>
-                            <small class="text-muted">${item.description}</small>
-                        </div>
-                        <i class="fas ${isCompleted ? 'fa-check-circle text-success' : 'fa-chevron-right text-muted'}"></i>
+            const done = item.completed;
+            html += `<div class="checklist-item ${done ? 'completed' : ''}" onclick="handleChecklistClick('${key}', '${item.url}')">
+                <div class="flex items-center gap-3">
+                    <i class="${item.icon || 'fas fa-circle'} ${done ? 'text-green-500' : 'text-gray-400'}"></i>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-sm text-gray-800 truncate">${item.label}</div>
+                        <div class="text-xs text-gray-500 truncate">${item.description}</div>
                     </div>
-                </div>`;
+                    <i class="fas ${done ? 'fa-check-circle text-green-500' : 'fa-chevron-right text-gray-300'}"></i>
+                </div>
+            </div>`;
         }
-        
-        html += '</div>';
     }
-    
     container.innerHTML = html;
 }
 
-// Update progress bar
 function updateProgress(percent) {
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    const progressStatus = document.getElementById('progressStatus');
-    
-    progressBar.style.width = percent + '%';
-    progressText.textContent = percent + '%';
-    
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    const status = document.getElementById('progressStatus');
+    bar.style.width = percent + '%';
+    text.textContent = percent + '%';
     if (percent === 100) {
-        progressStatus.textContent = '🎉 ตั้งค่าครบถ้วนแล้ว!';
-        progressBar.classList.remove('bg-warning', 'bg-danger');
-        progressBar.classList.add('bg-success');
+        status.textContent = '🎉 ตั้งค่าครบถ้วนแล้ว!';
+        bar.className = 'bg-green-500 h-5 rounded-full transition-all duration-500 flex items-center justify-center text-white text-xs font-medium';
     } else if (percent >= 50) {
-        progressStatus.textContent = 'กำลังไปได้ดี!';
-        progressBar.classList.remove('bg-success', 'bg-danger');
-        progressBar.classList.add('bg-warning');
+        status.textContent = 'กำลังไปได้ดี!';
+        bar.className = 'bg-yellow-500 h-5 rounded-full transition-all duration-500 flex items-center justify-center text-white text-xs font-medium';
     } else {
-        progressStatus.textContent = 'เริ่มต้นตั้งค่ากันเลย';
-        progressBar.classList.remove('bg-success', 'bg-warning');
+        status.textContent = 'เริ่มต้นตั้งค่ากันเลย';
     }
 }
 
-// Load suggestions
-async function loadSuggestions() {
-    try {
-        const response = await fetch(`${API_URL}?action=suggestions`);
-        const data = await response.json();
-        
-        if (data.success && Object.keys(data.data).length > 0) {
-            renderQuickActions(data.data);
-        }
-    } catch (error) {
-        console.error('Error loading suggestions:', error);
-    }
-}
-
-// Render quick actions
-function renderQuickActions(actions) {
-    const container = document.getElementById('quickActionButtons');
-    const wrapper = document.getElementById('quickActions');
-    
-    let html = '';
-    for (const [key, action] of Object.entries(actions)) {
-        html += `
-            <button class="btn btn-outline-primary quick-action-btn" 
-                    onclick="executeAction('${key}')">
-                <i class="${action.icon || 'fas fa-arrow-right'} me-1"></i>
-                ${action.label}
-            </button>`;
-    }
-    
-    if (html) {
-        container.innerHTML = html;
-        wrapper.style.display = 'block';
-    }
-}
-
-// Send message
 async function sendMessage() {
     const input = document.getElementById('chatInput');
     const message = input.value.trim();
-    
     if (!message || isLoading) return;
     
     input.value = '';
     addMessage(message, 'user');
     showTypingIndicator();
-    
     isLoading = true;
     document.getElementById('sendBtn').disabled = true;
     
@@ -419,160 +268,85 @@ async function sendMessage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message })
         });
-        
         const data = await response.json();
         hideTypingIndicator();
-        
         if (data.success) {
             addMessage(data.message, 'assistant');
-            
-            // Update checklist if status changed
-            if (data.setup_status) {
-                renderChecklist({ status: data.setup_status });
-            }
-            if (data.completion_percent !== undefined) {
-                updateProgress(data.completion_percent);
-            }
-            
-            // Update quick actions
-            if (data.suggested_actions) {
-                renderQuickActions(data.suggested_actions);
-            }
+            if (data.setup_status) renderChecklist({ status: data.setup_status });
+            if (data.completion_percent !== undefined) updateProgress(data.completion_percent);
         } else {
-            addMessage('ขออภัย เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'assistant');
+            addMessage('ขออภัย เกิดข้อผิดพลาด', 'assistant');
         }
     } catch (error) {
-        console.error('Error sending message:', error);
         hideTypingIndicator();
-        addMessage('ขออภัย ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่อีกครั้ง', 'assistant');
+        addMessage('ขออภัย ไม่สามารถเชื่อมต่อได้', 'assistant');
     }
-    
     isLoading = false;
     document.getElementById('sendBtn').disabled = false;
 }
 
-// Add message to chat
 function addMessage(content, role) {
     const container = document.getElementById('chatMessages');
-    
-    // Convert markdown-like formatting
-    content = formatMessage(content);
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message message-${role}`;
-    messageDiv.innerHTML = `<div class="message-content">${content}</div>`;
-    
-    container.appendChild(messageDiv);
+    content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="underline">$1</a>')
+                     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                     .replace(/\n/g, '<br>');
+    const div = document.createElement('div');
+    div.className = `message message-${role}`;
+    div.innerHTML = `<div class="message-content">${content}</div>`;
+    container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
-// Format message content
-function formatMessage(content) {
-    // Convert markdown links [text](url) to HTML
-    content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-    
-    // Convert **bold** to <strong>
-    content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    
-    // Convert newlines to <br>
-    content = content.replace(/\n/g, '<br>');
-    
-    // Convert bullet points
-    content = content.replace(/^• /gm, '&bull; ');
-    content = content.replace(/^- /gm, '&bull; ');
-    
-    return content;
-}
-
-// Show typing indicator
 function showTypingIndicator() {
     const container = document.getElementById('chatMessages');
-    const typingDiv = document.createElement('div');
-    typingDiv.id = 'typingIndicator';
-    typingDiv.className = 'message message-assistant';
-    typingDiv.innerHTML = `
-        <div class="message-content typing-indicator">
-            <span></span><span></span><span></span>
-        </div>`;
-    container.appendChild(typingDiv);
+    const div = document.createElement('div');
+    div.id = 'typingIndicator';
+    div.className = 'message message-assistant';
+    div.innerHTML = '<div class="message-content typing-indicator"><span></span><span></span><span></span></div>';
+    container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
-// Hide typing indicator
 function hideTypingIndicator() {
-    const indicator = document.getElementById('typingIndicator');
-    if (indicator) indicator.remove();
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
 }
 
-// Ask predefined question
-function askQuestion(question) {
-    document.getElementById('chatInput').value = question;
+function askQuestion(q) {
+    document.getElementById('chatInput').value = q;
     sendMessage();
 }
 
-// Handle checklist item click
 function handleChecklistClick(key, url) {
     askQuestion(`ช่วยแนะนำเรื่อง ${key} หน่อย`);
 }
 
-// Execute quick action
-async function executeAction(actionName) {
-    try {
-        const response = await fetch(`${API_URL}?action=execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action_name: actionName })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            if (data.type === 'navigate' && data.url) {
-                window.location.href = data.url;
-            } else if (data.message) {
-                addMessage(data.message, 'assistant');
-            }
-        }
-    } catch (error) {
-        console.error('Error executing action:', error);
-    }
-}
-
-// Run health check
 async function runHealthCheck() {
     addMessage('กำลังตรวจสอบสถานะระบบ...', 'assistant');
     showTypingIndicator();
-    
     try {
         const response = await fetch(`${API_URL}?action=health`);
         const data = await response.json();
-        
         hideTypingIndicator();
-        
-        let message = data.message + '\n\n';
+        let msg = data.message + '\n\n';
         for (const [key, check] of Object.entries(data.checks || {})) {
             const icon = check.status === 'ok' ? '✅' : (check.status === 'warning' ? '⚠️' : '❌');
-            message += `${icon} ${key}: ${check.message}\n`;
+            msg += `${icon} ${key}: ${check.message}\n`;
         }
-        
-        addMessage(message, 'assistant');
+        addMessage(msg, 'assistant');
     } catch (error) {
         hideTypingIndicator();
         addMessage('❌ ไม่สามารถตรวจสอบสถานะได้', 'assistant');
     }
 }
 
-// Clear history
 async function clearHistory() {
     if (!confirm('ต้องการล้างประวัติการสนทนาหรือไม่?')) return;
-    
     try {
         await fetch(`${API_URL}?action=clear_history`, { method: 'POST' });
         document.getElementById('chatMessages').innerHTML = '';
         loadWelcomeMessage();
-    } catch (error) {
-        console.error('Error clearing history:', error);
-    }
+    } catch (error) {}
 }
 </script>
 
