@@ -119,13 +119,19 @@ $quickAccessMenus = [
     'appointments' => ['icon' => 'fa-calendar-check', 'label' => 'นัดหมาย', 'url' => '/appointments-admin', 'page' => 'appointments-admin', 'color' => 'amber'],
     'pharmacist' => ['icon' => 'fa-user-md', 'label' => 'เภสัชกร', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard', 'color' => 'emerald'],
     'sync' => ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard', 'color' => 'sky'],
-    'ai-settings' => ['icon' => 'fa-brain', 'label' => 'AI Settings', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings', 'color' => 'violet'],
+    'ai-settings' => ['icon' => 'fa-brain', 'label' => 'AI Settings', 'url' => '/ai-settings', 'page' => 'ai-settings', 'color' => 'violet'],
+    'ai-chat' => ['icon' => 'fa-comments', 'label' => 'AI แชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings', 'color' => 'fuchsia'],
+    'ai-studio' => ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio', 'color' => 'rose'],
     'members' => ['icon' => 'fa-id-card', 'label' => 'สมาชิก', 'url' => '/members', 'page' => 'members', 'color' => 'rose'],
     'rewards' => ['icon' => 'fa-gift', 'label' => 'ของรางวัล', 'url' => '/rewards', 'page' => 'rewards', 'color' => 'fuchsia'],
+    'loyalty' => ['icon' => 'fa-coins', 'label' => 'แต้มสะสม', 'url' => '/loyalty-points', 'page' => 'loyalty-points', 'color' => 'yellow'],
     'categories' => ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories', 'color' => 'lime'],
     'templates' => ['icon' => 'fa-file-alt', 'label' => 'Templates', 'url' => '/templates', 'page' => 'templates', 'color' => 'slate'],
     'scheduled-reports' => ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports', 'color' => 'amber'],
     'executive' => ['icon' => 'fa-chart-line', 'label' => 'Executive', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard', 'color' => 'indigo'],
+    'video-call' => ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro', 'color' => 'red'],
+    'triage' => ['icon' => 'fa-stethoscope', 'label' => 'Triage', 'url' => '/triage-analytics', 'page' => 'triage-analytics', 'color' => 'emerald'],
+    'drug' => ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions', 'color' => 'red'],
 ];
 
 // Get user's quick access preferences
@@ -152,7 +158,7 @@ foreach ($userQuickAccess as $key) {
     }
 }
 
-// Menu structure with collapsible submenus
+// Menu structure with collapsible submenus - Optimized & Consolidated
 $menuSections = [
     'quick' => [
         'title' => '⚡ Quick Access',
@@ -164,17 +170,19 @@ $menuSections = [
         'title' => '',
         'items' => [
             ['icon' => 'fa-th-large', 'label' => 'Dashboard', 'url' => '/', 'page' => 'index'],
-            ['icon' => 'fa-chart-line', 'label' => '📊 Executive Dashboard', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard'],
+            ['icon' => 'fa-chart-line', 'label' => '📊 Executive', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard'],
         ]
     ],
     'messaging' => [
-        'title' => 'แชทและลูกค้า',
+        'title' => 'แชท & ลูกค้า',
         'icon' => 'fa-comments',
         'collapsible' => true,
         'items' => [
             ['icon' => 'fa-inbox', 'label' => 'กล่องข้อความ', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages],
             ['icon' => 'fa-users', 'label' => 'รายชื่อลูกค้า', 'url' => '/users', 'page' => 'users'],
             ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply'],
+            ['icon' => 'fa-tags', 'label' => 'แท็กลูกค้า', 'url' => '/user-tags', 'page' => 'user-tags'],
+            ['icon' => 'fa-filter', 'label' => 'กลุ่มลูกค้า', 'url' => '/customer-segments', 'page' => 'customer-segments'],
         ]
     ],
     'broadcast' => [
@@ -184,8 +192,8 @@ $menuSections = [
         'items' => [
             ['icon' => 'fa-paper-plane', 'label' => 'ส่งข้อความ', 'url' => '/broadcast', 'page' => 'broadcast'],
             ['icon' => 'fa-layer-group', 'label' => 'แคตตาล็อก', 'url' => '/broadcast-catalog-v2', 'page' => 'broadcast-catalog-v2'],
-            ['icon' => 'fa-box', 'label' => 'สินค้าโปรโมท', 'url' => '/broadcast-products', 'page' => 'broadcast-products'],
             ['icon' => 'fa-chart-bar', 'label' => 'สถิติ', 'url' => '/broadcast-stats', 'page' => 'broadcast-stats'],
+            ['icon' => 'fa-paper-plane', 'label' => 'Drip Campaign', 'url' => '/drip-campaigns', 'page' => 'drip-campaigns'],
         ]
     ],
     'shop' => [
@@ -197,74 +205,77 @@ $menuSections = [
             ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow'],
             $pendingSlips > 0 ? ['icon' => 'fa-file-invoice', 'label' => 'รอตรวจสลิป', 'url' => '/shop/orders?pending_slip=1', 'page' => '', 'badge' => $pendingSlips, 'badgeColor' => 'orange'] : null,
             ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products'],
-            ['icon' => 'fa-star', 'label' => 'สินค้าเด่น', 'url' => '/shop/promotions', 'page' => 'promotions'],
             ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories'],
-            ['icon' => 'fa-store', 'label' => 'ตั้งค่าหน้าร้าน LIFF', 'url' => '/shop/liff-shop-settings', 'page' => 'liff-shop-settings'],
-            ['icon' => 'fa-file-import', 'label' => 'นำเข้าสินค้า', 'url' => '/shop/import-products', 'page' => 'import-products'],
-            ['icon' => 'fa-coins', 'label' => 'แต้มสะสม', 'url' => '/loyalty-points', 'page' => 'loyalty-points'],
-            ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/settings', 'page' => 'settings', 'folder' => 'shop'],
+            ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions'],
+            ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard'],
+            ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/liff-shop-settings', 'page' => 'liff-shop-settings'],
         ])
     ],
     'membership' => [
-        'title' => 'สมาชิก & LIFF',
+        'title' => 'สมาชิก & แต้ม',
         'icon' => 'fa-id-card',
         'collapsible' => true,
         'items' => [
             ['icon' => 'fa-users', 'label' => 'จัดการสมาชิก', 'url' => '/members', 'page' => 'members'],
-            ['icon' => 'fa-gift', 'label' => 'ของรางวัลแลกแต้ม', 'url' => '/rewards', 'page' => 'rewards'],
+            ['icon' => 'fa-coins', 'label' => 'แต้มสะสม', 'url' => '/loyalty-points', 'page' => 'loyalty-points'],
+            ['icon' => 'fa-gift', 'label' => 'ของรางวัล', 'url' => '/rewards', 'page' => 'rewards'],
             ['icon' => 'fa-calendar-check', 'label' => 'นัดหมาย', 'url' => '/appointments-admin', 'page' => 'appointments-admin'],
-            ['icon' => 'fa-user-md', 'label' => 'เภสัชกร', 'url' => '/pharmacists', 'page' => 'pharmacists'],
         ]
     ],
-    'crm' => [
-        'title' => 'CRM',
-        'icon' => 'fa-users-cog',
+    'pharmacy' => [
+        'title' => '🏥 เภสัชกร & AI',
+        'icon' => 'fa-user-md',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-chart-pie', 'label' => 'วิเคราะห์ลูกค้า', 'url' => '/crm-analytics', 'page' => 'crm-analytics'],
-            ['icon' => 'fa-tags', 'label' => 'แท็กลูกค้า', 'url' => '/user-tags', 'page' => 'user-tags'],
-            ['icon' => 'fa-filter', 'label' => 'กลุ่มลูกค้า', 'url' => '/customer-segments', 'page' => 'customer-segments'],
-            ['icon' => 'fa-paper-plane', 'label' => 'Drip Campaign', 'url' => '/drip-campaigns', 'page' => 'drip-campaigns'],
-            ['icon' => 'fa-link', 'label' => 'ติดตามลิงก์', 'url' => '/link-tracking', 'page' => 'link-tracking'],
-            ['icon' => 'fa-users-rectangle', 'label' => 'กลุ่ม LINE', 'url' => '/line-groups', 'page' => 'line-groups'],
+            ['icon' => 'fa-user-md', 'label' => 'Dashboard เภสัชกร', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard'],
+            ['icon' => 'fa-users', 'label' => 'จัดการเภสัชกร', 'url' => '/pharmacists', 'page' => 'pharmacists'],
+            ['icon' => 'fa-stethoscope', 'label' => 'Triage Analytics', 'url' => '/triage-analytics', 'page' => 'triage-analytics'],
+            ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions'],
+            ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro'],
+            ['icon' => 'fa-cog', 'label' => 'ตั้งค่า AI เภสัช', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings'],
+        ]
+    ],
+    'ai' => [
+        'title' => '🤖 AI Tools',
+        'icon' => 'fa-robot',
+        'collapsible' => true,
+        'items' => [
+            ['icon' => 'fa-comments', 'label' => 'AI ตอบแชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings'],
+            ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio'],
+            ['icon' => 'fa-image', 'label' => 'AI สร้างรูป', 'url' => '/ai-image', 'page' => 'ai-image'],
+            ['icon' => 'fa-key', 'label' => 'ตั้งค่า API Key', 'url' => '/ai-settings', 'page' => 'ai-settings'],
         ]
     ],
     'tools' => [
-        'title' => 'เครื่องมือ',
+        'title' => 'เครื่องมือ LINE',
         'icon' => 'fa-tools',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro'],
             ['icon' => 'fa-th-large', 'label' => 'Rich Menu', 'url' => '/rich-menu', 'page' => 'rich-menu'],
-            ['icon' => 'fa-layer-group', 'label' => 'Rich Menu สลับหน้า', 'url' => '/rich-menu-switch', 'page' => 'rich-menu-switch'],
             ['icon' => 'fa-random', 'label' => 'Dynamic Rich Menu', 'url' => '/dynamic-rich-menu', 'page' => 'dynamic-rich-menu'],
             ['icon' => 'fa-puzzle-piece', 'label' => 'Flex Builder', 'url' => '/flex-builder', 'page' => 'flex-builder'],
             ['icon' => 'fa-hand-wave', 'label' => 'ข้อความต้อนรับ', 'url' => '/welcome-settings', 'page' => 'welcome-settings'],
             ['icon' => 'fa-clock', 'label' => 'ตั้งเวลาส่ง', 'url' => '/scheduled', 'page' => 'scheduled'],
-            ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports'],
+            ['icon' => 'fa-users-rectangle', 'label' => 'กลุ่ม LINE', 'url' => '/line-groups', 'page' => 'line-groups'],
         ]
     ],
-    'ai' => [
-        'title' => 'AI & เภสัชกร',
-        'icon' => 'fa-robot',
+    'analytics' => [
+        'title' => 'รายงาน & สถิติ',
+        'icon' => 'fa-chart-pie',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-user-md', 'label' => '🏥 เภสัชกร Dashboard', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard'],
-            ['icon' => 'fa-stethoscope', 'label' => 'Triage Analytics', 'url' => '/triage-analytics', 'page' => 'triage-analytics'],
-            ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions'],
-            ['icon' => 'fa-cog', 'label' => 'ตั้งค่า AI เภสัช', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings'],
-            ['icon' => 'fa-comments', 'label' => 'AI ตอบแชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings'],
-            ['icon' => 'fa-image', 'label' => 'AI สร้างรูป', 'url' => '/ai-image', 'page' => 'ai-image'],
-            ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI เขียนคอนเทนต์', 'url' => '/ai-studio', 'page' => 'ai-studio'],
+            ['icon' => 'fa-chart-bar', 'label' => 'สถิติทั่วไป', 'url' => '/analytics', 'page' => 'analytics'],
+            ['icon' => 'fa-chart-line', 'label' => 'วิเคราะห์ขั้นสูง', 'url' => '/advanced-analytics', 'page' => 'advanced-analytics'],
+            ['icon' => 'fa-chart-pie', 'label' => 'CRM Analytics', 'url' => '/crm-analytics', 'page' => 'crm-analytics'],
+            ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports'],
+            ['icon' => 'fa-link', 'label' => 'ติดตามลิงก์', 'url' => '/link-tracking', 'page' => 'link-tracking'],
         ]
     ],
     'settings' => [
-        'title' => 'ตั้งค่า',
+        'title' => 'ตั้งค่าระบบ',
         'icon' => 'fa-cog',
         'collapsible' => true,
         'items' => array_filter([
-            ['icon' => 'fa-chart-bar', 'label' => 'สถิติ', 'url' => '/analytics', 'page' => 'analytics'],
-            ['icon' => 'fa-chart-line', 'label' => 'วิเคราะห์ขั้นสูง', 'url' => '/advanced-analytics', 'page' => 'advanced-analytics'],
             isSuperAdmin() ? ['icon' => 'fa-layer-group', 'label' => 'บัญชี LINE', 'url' => '/line-accounts', 'page' => 'line-accounts'] : null,
             ['icon' => 'fa-mobile-screen', 'label' => 'ตั้งค่า LIFF', 'url' => '/liff-settings', 'page' => 'liff-settings'],
             ['icon' => 'fa-shield-alt', 'label' => 'Consent/PDPA', 'url' => '/consent-management', 'page' => 'consent-management'],
