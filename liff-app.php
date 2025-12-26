@@ -13,7 +13,8 @@ $db = Database::getInstance()->getConnection();
 
 // Get parameters
 $page = $_GET['page'] ?? 'home';
-$lineAccountId = $_GET['account'] ?? 1;
+$lineAccountId = $_GET['account'] ?? null;
+$liffIdParam = $_GET['liff_id'] ?? null;
 
 // Include LIFF helper
 if (file_exists('includes/liff-helper.php')) {
@@ -26,11 +27,42 @@ $shopName = 'ร้านค้า';
 $shopLogo = '';
 $companyName = 'MedCare';
 
+// Build LIFF ID to Account mapping for JavaScript
+$liffToAccountMap = [];
 try {
-    // First get line_account data
-    $stmt = $db->prepare("SELECT * FROM line_accounts WHERE id = ? OR is_default = 1 ORDER BY (id = ?) DESC, is_default DESC LIMIT 1");
-    $stmt->execute([$lineAccountId, $lineAccountId]);
-    $account = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmtAll = $db->query("SELECT id, liff_id FROM line_accounts WHERE liff_id IS NOT NULL AND liff_id != ''");
+    while ($row = $stmtAll->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['liff_id']) {
+            $liffToAccountMap[$row['liff_id']] = (int)$row['id'];
+        }
+    }
+} catch (Exception $e) {}
+
+try {
+    // Priority: 1) liff_id param, 2) account param, 3) default
+    if ($liffIdParam) {
+        // Find account by LIFF ID
+        $stmt = $db->prepare("SELECT * FROM line_accounts WHERE liff_id = ? LIMIT 1");
+        $stmt->execute([$liffIdParam]);
+        $account = $stmt->fetch(PDO::FETCH_ASSOC);
+    } elseif ($lineAccountId) {
+        // Find by account ID
+        $stmt = $db->prepare("SELECT * FROM line_accounts WHERE id = ? LIMIT 1");
+        $stmt->execute([$lineAccountId]);
+        $account = $stmt->fetch(PDO::FETCH_ASSOC);
+    } else {
+        // Get default account
+        $stmt = $db->prepare("SELECT * FROM line_accounts WHERE is_default = 1 LIMIT 1");
+        $stmt->execute();
+        $account = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If no default, get first one
+        if (!$account) {
+            $stmt = $db->prepare("SELECT * FROM line_accounts ORDER BY id LIMIT 1");
+            $stmt->execute();
+            $account = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+    }
     
     if ($account) {
         $lineAccountId = $account['id'];
@@ -48,9 +80,12 @@ try {
                 $companyName = $shopName;
             }
         } catch (Exception $e2) {}
+    } else {
+        $lineAccountId = 1; // Fallback
     }
 } catch (Exception $e) {
     error_log("liff-app.php: Error getting account: " . $e->getMessage());
+    $lineAccountId = 1;
 }
 
 $baseUrl = rtrim(BASE_URL, '/');
@@ -492,6 +527,9 @@ const CONFIG = {
     SHOP_LOGO: '<?= addslashes($shopLogo) ?>'
 };
 
+// LIFF ID to Account ID mapping (for auto-detection)
+const LIFF_TO_ACCOUNT = <?= json_encode($liffToAccountMap) ?>;
+
 // Debug: แสดง config
 console.log('🔧 CONFIG:', CONFIG);
 console.log('🔧 LIFF_ID:', CONFIG.LIFF_ID || 'NOT SET');
@@ -504,17 +542,43 @@ let userId = null;
 document.addEventListener('DOMContentLoaded', initLiff);
 
 async function initLiff() {
-    if (!CONFIG.LIFF_ID) {
-        console.log('No LIFF ID configured');
-        showGuestCard();
-        hideLoading();
-        loadAvailablePharmacists();
-        return;
+    // ถ้าไม่มี LIFF ID ใน config ให้ลอง init ด้วย LIFF ID จาก URL หรือ default
+    let liffIdToUse = CONFIG.LIFF_ID;
+    
+    // ถ้าไม่มี LIFF ID เลย ให้แสดง guest card
+    if (!liffIdToUse) {
+        // ลองหา LIFF ID จาก URL params (กรณีเปิดจาก liff.line.me)
+        const urlParams = new URLSearchParams(window.location.search);
+        const liffState = urlParams.get('liff.state');
+        
+        if (!liffState) {
+            console.log('No LIFF ID configured');
+            showGuestCard();
+            hideLoading();
+            loadAvailablePharmacists();
+            return;
+        }
     }
     
     try {
-        await liff.init({ liffId: CONFIG.LIFF_ID });
+        await liff.init({ liffId: liffIdToUse });
         console.log('LIFF initialized, isLoggedIn:', liff.isLoggedIn(), 'isInClient:', liff.isInClient());
+        console.log('Actual LIFF ID used:', liff.id);
+        
+        // ตรวจสอบว่า LIFF ID ที่ใช้ตรงกับ account ที่ PHP set ไว้หรือไม่
+        const actualLiffId = liff.id;
+        if (actualLiffId && LIFF_TO_ACCOUNT[actualLiffId]) {
+            const correctAccountId = LIFF_TO_ACCOUNT[actualLiffId];
+            if (correctAccountId !== CONFIG.ACCOUNT_ID) {
+                console.log(`Account mismatch! Expected: ${correctAccountId}, Got: ${CONFIG.ACCOUNT_ID}. Redirecting...`);
+                // Redirect ไปหน้าเดิมแต่ใช้ account ที่ถูกต้อง
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('account', correctAccountId);
+                currentUrl.searchParams.set('liff_id', actualLiffId);
+                window.location.replace(currentUrl.toString());
+                return;
+            }
+        }
         
         if (!liff.isLoggedIn()) {
             // ถ้าอยู่ใน LINE app ให้ login อัตโนมัติ

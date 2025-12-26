@@ -601,29 +601,35 @@ function handleCreateOrder($data) {
             $stmt = $db->prepare("UPDATE business_items SET stock = stock - ? WHERE id = ? AND stock >= ?");
             $stmt->execute([$item['quantity'], $item['product_id'], $item['quantity']]);
             
-            // บันทึก stock movement (ถ้ามีตาราง)
+            // บันทึก stock movement
             try {
-                $stmtStock = $db->prepare("SELECT stock FROM business_items WHERE id = ?");
-                $stmtStock->execute([$item['product_id']]);
-                $currentStock = $stmtStock->fetchColumn();
-                
-                $stmt = $db->prepare("
-                    INSERT INTO stock_movements 
-                    (line_account_id, product_id, movement_type, quantity, stock_before, stock_after, reference_type, reference_id, reference_number, notes)
-                    VALUES (?, ?, 'sale', ?, ?, ?, 'order', ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $lineAccountId,
-                    $item['product_id'],
-                    -$item['quantity'],
-                    $currentStock + $item['quantity'],
-                    $currentStock,
-                    $orderId,
-                    $orderNumber,
-                    'ขายสินค้า: ' . $item['name']
-                ]);
+                // ตรวจสอบว่าตาราง stock_movements มีหรือไม่
+                $tableCheck = $db->query("SHOW TABLES LIKE 'stock_movements'");
+                if ($tableCheck->rowCount() > 0) {
+                    $stmtStock = $db->prepare("SELECT stock FROM business_items WHERE id = ?");
+                    $stmtStock->execute([$item['product_id']]);
+                    $currentStock = $stmtStock->fetchColumn();
+                    
+                    $stmt = $db->prepare("
+                        INSERT INTO stock_movements 
+                        (line_account_id, product_id, movement_type, quantity, stock_before, stock_after, reference_type, reference_id, reference_number, notes, created_by)
+                        VALUES (?, ?, 'sale', ?, ?, ?, 'order', ?, ?, ?, NULL)
+                    ");
+                    $stmt->execute([
+                        $lineAccountId,
+                        $item['product_id'],
+                        -$item['quantity'],
+                        $currentStock + $item['quantity'],
+                        $currentStock,
+                        $orderId,
+                        $orderNumber,
+                        'ขายสินค้า: ' . $item['name']
+                    ]);
+                    error_log("Stock movement recorded: product_id={$item['product_id']}, qty=-{$item['quantity']}, order={$orderNumber}");
+                }
             } catch (Exception $e) {
-                // stock_movements table might not exist, ignore
+                // Log error but don't fail the order
+                error_log("Stock movement error: " . $e->getMessage());
             }
         }
         
