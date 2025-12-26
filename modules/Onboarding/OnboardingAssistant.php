@@ -211,43 +211,43 @@ class OnboardingAssistant {
     private function getFallbackResponse(string $message): string {
         $message = mb_strtolower($message);
         
-        // Check for specific topics in message
+        // Check for specific topics in message - SHORT responses with links
         $topicResponses = [
-            'member_card' => "**บัตรสมาชิกดิจิทัล (Member Card)** 🎫\n\nบัตรสมาชิกช่วยให้ลูกค้าดูข้อมูลสมาชิก แต้มสะสม และสิทธิพิเศษได้ใน LINE\n\n**วิธีตั้งค่า:**\n1. ไปที่ LIFF Settings\n2. สร้าง LIFF App สำหรับ Member Card\n3. คัดลอก LIFF ID มาใส่ในช่อง 'LIFF Member ID'\n\n👉 [ไปตั้งค่า LIFF](/liff-settings.php)\n👉 [จัดการสมาชิก](/members.php)",
+            'member_card' => "**บัตรสมาชิกดิจิทัล** 🎫\n\nตั้งค่าบัตรสมาชิกและ LIFF ได้ที่หน้าตั้งค่าครับ\n\n👉 [ตั้งค่า LIFF](/liff-settings.php)\n👉 [จัดการสมาชิก](/members.php)",
             
-            'shop_info' => "**ข้อมูลร้านค้า** 🏪\n\nตั้งค่าข้อมูลพื้นฐานของร้านเพื่อแสดงให้ลูกค้าเห็น\n\n**หน้าตั้งค่าร้านค้า (shop/settings.php):**\n• ชื่อร้าน, โลโก้\n• ที่อยู่, เบอร์ติดต่อ, อีเมล\n• ค่าจัดส่ง, ส่งฟรีขั้นต่ำ\n• COD (เก็บเงินปลายทาง)\n• บัญชีธนาคาร, PromptPay\n• LINE ID, Facebook, Instagram\n\n**หน้าตั้งค่า LIFF Shop:**\n• การแสดงผลหน้าร้าน\n• หมวดหมู่, แบนเนอร์\n\n👉 [ตั้งค่าร้านค้า](/shop/settings.php)\n👉 [ตั้งค่า LIFF Shop](/shop/liff-shop-settings.php)",
+            'shop_info' => "**ข้อมูลร้านค้า** 🏪\n\nตั้งค่าข้อมูลร้าน ค่าส่ง บัญชีธนาคาร ได้ที่หน้าตั้งค่าร้านค้าครับ\n\n👉 [ตั้งค่าร้านค้า](/shop/settings.php)\n👉 [ตั้งค่า LIFF Shop](/shop/liff-shop-settings.php)",
             
-            'products' => "**การจัดการสินค้า** 📦\n\n**วิธีเพิ่มสินค้า:**\n1. ไปที่ Shop > Products\n2. กด 'เพิ่มสินค้า'\n3. กรอกข้อมูล: ชื่อ, ราคา, รูปภาพ\n4. เลือกหมวดหมู่\n5. กดบันทึก\n\n**Tips:**\n• ใส่รูปภาพคุณภาพดี\n• เขียนรายละเอียดให้ครบ\n\n👉 [ไปจัดการสินค้า](/shop/products.php)",
+            'products' => "**จัดการสินค้า** 📦\n\nเพิ่ม แก้ไข ลบสินค้าได้ที่หน้าสินค้าครับ\n\n👉 [จัดการสินค้า](/shop/products.php)\n👉 [หมวดหมู่](/shop/categories.php)",
             
-            'webhook' => "**การตั้งค่า Webhook** 🔗\n\nWebhook ใช้รับข้อความจาก LINE\n\n**วิธีตั้งค่า:**\n1. ไปที่ LINE Developers Console\n2. เลือก Channel > Messaging API\n3. ในส่วน Webhook settings:\n   - เปิด 'Use webhook'\n   - ใส่ Webhook URL ของระบบ\n   - กด Verify\n\n👉 [ไปตั้งค่า LINE Account](/line-accounts.php)",
+            'webhook' => "**Webhook** 🔗\n\nตั้งค่า Webhook URL ได้ที่หน้า LINE Account ครับ\n\n👉 [ตั้งค่า LINE Account](/line-accounts.php)",
             
-            'liff_shop' => "**LIFF Shop** 🛒\n\nร้านค้าออนไลน์ที่เปิดใน LINE App\n\n**วิธีตั้งค่า:**\n1. สร้าง LIFF App ใน LINE Console\n2. ตั้ง Endpoint URL เป็น URL ของระบบ\n3. คัดลอก LIFF ID มาใส่\n\n👉 [ไปตั้งค่า LIFF](/liff-settings.php)",
+            'liff_shop' => "**LIFF Shop** 🛒\n\nตั้งค่า LIFF ID สำหรับร้านค้าออนไลน์ได้ที่หน้า LIFF Settings ครับ\n\n👉 [ตั้งค่า LIFF](/liff-settings.php)",
             
-            'payment' => "**การชำระเงิน** 💳\n\n**ช่องทางที่รองรับ:**\n• โอนเงินผ่านธนาคาร\n• PromptPay\n\n**วิธีตั้งค่า:**\n1. ไปที่ Shop Settings\n2. เพิ่มบัญชีธนาคาร หรือ\n3. ใส่เบอร์ PromptPay\n\n👉 [ไปตั้งค่าการชำระเงิน](/shop/liff-shop-settings.php)",
+            'payment' => "**การชำระเงิน** 💳\n\nตั้งค่าบัญชีธนาคาร PromptPay ได้ที่หน้าตั้งค่าร้านค้าครับ\n\n👉 [ตั้งค่าร้านค้า](/shop/settings.php)",
             
-            'rich_menu' => "**Rich Menu** 📱\n\nเมนูลัดที่แสดงด้านล่างห้องแชท\n\n**วิธีสร้าง:**\n1. ไปที่ Rich Menu\n2. กด 'สร้าง Rich Menu'\n3. อัพโหลดรูปภาพ (2500x1686 px)\n4. กำหนด Action สำหรับแต่ละปุ่ม\n5. เปิดใช้งาน\n\n👉 [ไปสร้าง Rich Menu](/rich-menu.php)",
+            'rich_menu' => "**Rich Menu** 📱\n\nสร้างและจัดการ Rich Menu ได้ที่หน้า Rich Menu ครับ\n\n👉 [จัดการ Rich Menu](/rich-menu.php)\n👉 [Dynamic Rich Menu](/dynamic-rich-menu.php)",
             
-            'auto_reply' => "**ข้อความตอบกลับอัตโนมัติ** 🤖\n\nตอบกลับอัตโนมัติเมื่อลูกค้าส่งข้อความที่ตรงกับ keyword\n\n**วิธีตั้งค่า:**\n1. ไปที่ Auto Reply\n2. กด 'เพิ่มข้อความตอบกลับ'\n3. กำหนด Keyword\n4. กำหนดข้อความตอบกลับ\n5. เปิดใช้งาน\n\n👉 [ไปตั้งค่า Auto Reply](/auto-reply.php)",
+            'auto_reply' => "**ตอบกลับอัตโนมัติ** 🤖\n\nตั้งค่า Keyword และข้อความตอบกลับได้ที่หน้า Auto Reply ครับ\n\n👉 [ตั้งค่า Auto Reply](/auto-reply.php)",
             
-            'ai_chat' => "**AI Chat** 🧠\n\nใช้ AI ตอบคำถามลูกค้าอัตโนมัติ\n\n**วิธีเปิดใช้งาน:**\n1. ไปที่ AI Settings\n2. ใส่ Gemini API Key\n3. เปิดใช้งาน AI Chat\n4. ตั้งค่า Prompt\n\n**การขอ API Key:**\nไปที่ Google AI Studio > สร้าง API Key\n\n👉 [ไปตั้งค่า AI](/ai-settings.php)",
+            'ai_chat' => "**AI Chat** 🧠\n\nตั้งค่า API Key และเปิดใช้ AI ได้ที่หน้า AI Settings ครับ\n\n👉 [ตั้งค่า AI](/ai-settings.php)\n👉 [AI Chat Settings](/ai-chat-settings.php)",
             
-            'broadcast' => "**Broadcast** 📢\n\nส่งข้อความถึงลูกค้าหลายคนพร้อมกัน\n\n**วิธีส่ง:**\n1. ไปที่ Broadcast\n2. กด 'สร้าง Broadcast'\n3. เลือกกลุ่มเป้าหมาย\n4. สร้างข้อความ\n5. ส่งทันทีหรือตั้งเวลา\n\n👉 [ไปส่ง Broadcast](/broadcast.php)",
+            'broadcast' => "**Broadcast** 📢\n\nส่งข้อความหาลูกค้าได้ที่หน้า Broadcast ครับ\n\n👉 [ส่ง Broadcast](/broadcast.php)\n👉 [ดูสถิติ](/broadcast-stats.php)",
             
-            'loyalty' => "**ระบบแต้มสะสม & รางวัล** 🪙\n\nให้ลูกค้าสะสมแต้มเมื่อซื้อสินค้า และแลกรางวัลผ่าน LINE LIFF\n\n**สำหรับ Admin:**\n• จัดการรางวัล - loyalty-rewards.php\n• ดูประวัติการแลก\n• ตั้งค่าระบบแต้ม\n\n**สำหรับลูกค้า (LIFF):**\n• ดูแต้มสะสม - liff-points-history.php\n• แลกแต้ม - liff-redeem-points.php\n• บัตรสมาชิก - liff-member-card.php\n\n**วิธีตั้งค่า:**\n1. ไปที่ รางวัลแลกแต้ม\n2. เพิ่มรางวัลที่ต้องการ\n3. ตั้งค่าแต้มที่ใช้แลก\n4. เปิดใช้งาน\n\n👉 [จัดการรางวัล (Admin)](/loyalty-rewards.php)\n👉 [แลกแต้ม (LIFF)](/liff-redeem-points.php)",
+            'loyalty' => "**ระบบแต้มสะสม** 🪙\n\nจัดการรางวัลและตั้งค่าระบบแต้มได้ที่หน้ารางวัลแลกแต้มครับ\n\n👉 [จัดการรางวัล](/loyalty-rewards.php)",
             
-            'line_connection' => "**การเชื่อมต่อ LINE OA** 💚\n\n**วิธีเชื่อมต่อ:**\n1. ไปที่ LINE Developers Console\n2. เลือก Provider และ Channel\n3. ไปที่ Messaging API settings\n4. คัดลอก Channel Access Token\n5. คัดลอก Channel Secret\n6. นำมาใส่ในระบบ\n\n👉 [ไปตั้งค่า LINE Account](/line-accounts.php)",
+            'line_connection' => "**เชื่อมต่อ LINE OA** 💚\n\nใส่ Channel Access Token และ Channel Secret ได้ที่หน้า LINE Account ครับ\n\n👉 [ตั้งค่า LINE Account](/line-accounts.php)",
             
             // === Advanced Marketing Features ===
             
-            'drip_campaign' => "**Drip Campaign (แคมเปญอัตโนมัติ)** 💧\n\nส่งข้อความอัตโนมัติตามลำดับเวลาที่กำหนด เหมาะสำหรับ:\n• Welcome Series - ต้อนรับสมาชิกใหม่\n• Nurture Campaign - ดูแลลูกค้าต่อเนื่อง\n• Re-engagement - ดึงลูกค้าเก่ากลับมา\n\n**วิธีสร้าง Drip Campaign:**\n1. ไปที่ Drip Campaigns\n2. กด 'สร้างแคมเปญใหม่'\n3. ตั้งชื่อและเลือก Trigger (เช่น สมัครสมาชิก)\n4. เพิ่ม Steps (ข้อความ + ระยะเวลา)\n5. เปิดใช้งาน\n\n**ตัวอย่าง Welcome Series:**\n• Day 0: ยินดีต้อนรับ + แนะนำร้าน\n• Day 3: แนะนำสินค้าขายดี\n• Day 7: ส่งคูปองส่วนลด\n\n👉 [ไปสร้าง Drip Campaign](/drip-campaigns.php)",
+            'drip_campaign' => "**Drip Campaign** 💧\n\nสร้างแคมเปญส่งข้อความอัตโนมัติได้ที่หน้า Drip Campaigns ครับ\n\n👉 [สร้าง Drip Campaign](/drip-campaigns.php)",
             
-            'user_tags' => "**การติดแท็กลูกค้า** 🏷️\n\nจัดกลุ่มลูกค้าด้วย Tags เพื่อส่งข้อความตรงกลุ่มเป้าหมาย\n\n**ประเภท Tags:**\n• **Manual Tags** - ติดเอง เช่น VIP, ลูกค้าประจำ\n• **Auto Tags** - ติดอัตโนมัติตามพฤติกรรม\n\n**วิธีติด Tags:**\n1. ไปที่หน้า Users หรือ User Detail\n2. เลือกลูกค้า\n3. กด 'เพิ่ม Tag'\n4. เลือกหรือสร้าง Tag ใหม่\n\n**Auto Tag Rules:**\nตั้งกฎให้ติด Tag อัตโนมัติ เช่น:\n• ซื้อครบ 3 ครั้ง → ติด 'ลูกค้าประจำ'\n• ยอดซื้อ > 5000 → ติด 'VIP'\n• ไม่ซื้อ 30 วัน → ติด 'Inactive'\n\n👉 [จัดการ Tags](/user-tags.php)\n👉 [ตั้งค่า Auto Tag](/auto-tag-rules.php)",
+            'user_tags' => "**แท็กลูกค้า** 🏷️\n\nจัดการ Tags และตั้งกฎ Auto Tag ได้ที่หน้า Tags ครับ\n\n👉 [จัดการ Tags](/user-tags.php)\n👉 [Auto Tag Rules](/auto-tag-rules.php)",
             
-            'scheduled_broadcast' => "**การตั้งเวลาส่ง Broadcast** ⏰\n\nตั้งเวลาส่งข้อความล่วงหน้า\n\n**วิธีตั้งเวลา:**\n1. ไปที่ Broadcast\n2. สร้างข้อความ\n3. เลือก 'ตั้งเวลาส่ง' แทน 'ส่งทันที'\n4. เลือกวันที่และเวลา\n5. กดบันทึก\n\n**Tips:**\n• ส่งช่วง 10:00-12:00 หรือ 18:00-20:00 มี Open Rate สูง\n• หลีกเลี่ยงส่งดึกเกินไป\n• ตรวจสอบ Preview ก่อนตั้งเวลา\n\n👉 [ไปตั้งเวลา Broadcast](/broadcast.php)",
+            'scheduled_broadcast' => "**ตั้งเวลาส่ง** ⏰\n\nตั้งเวลาส่ง Broadcast ล่วงหน้าได้ที่หน้า Broadcast ครับ\n\n👉 [ตั้งเวลา Broadcast](/broadcast.php)\n👉 [ดูรายการตั้งเวลา](/scheduled.php)",
             
-            'customer_segments' => "**Customer Segments (กลุ่มลูกค้า)** 👥\n\nสร้างกลุ่มลูกค้าตามเงื่อนไขที่กำหนด\n\n**ตัวอย่าง Segments:**\n• **New Customers** - สมัครภายใน 7 วัน\n• **Active Buyers** - ซื้อภายใน 30 วัน\n• **High Value** - ยอดซื้อรวม > 10,000\n• **At Risk** - ไม่ซื้อ 60 วัน\n• **VIP** - ซื้อ > 5 ครั้ง + ยอด > 20,000\n\n**วิธีสร้าง Segment:**\n1. ไปที่ Customer Segments\n2. กด 'สร้าง Segment'\n3. ตั้งชื่อและเงื่อนไข\n4. Preview จำนวนลูกค้า\n5. บันทึก\n\n**ใช้งาน:**\n• เลือก Segment ตอนส่ง Broadcast\n• ใช้เป็น Trigger ใน Drip Campaign\n\n👉 [จัดการ Segments](/customer-segments.php)",
+            'customer_segments' => "**กลุ่มลูกค้า** 👥\n\nสร้างกลุ่มลูกค้าตามเงื่อนไขได้ที่หน้า Segments ครับ\n\n👉 [จัดการ Segments](/customer-segments.php)",
             
-            'link_tracking' => "**Link Tracking (ติดตามลิงก์)** 🔗\n\nวัดผลว่าลูกค้าคลิกลิงก์ไหนบ้าง\n\n**วิธีใช้:**\n1. ไปที่ Link Tracking\n2. สร้าง Tracked Link\n3. ใส่ URL ปลายทาง\n4. คัดลอก Tracking URL ไปใช้\n\n**ข้อมูลที่ได้:**\n• จำนวนคลิก\n• Unique clicks\n• เวลาที่คลิก\n• ใครคลิกบ้าง\n\n**ใช้ใน Broadcast:**\nระบบจะสร้าง Tracking Link อัตโนมัติ\n\n👉 [ไป Link Tracking](/link-tracking.php)",
+            'link_tracking' => "**ติดตามลิงก์** 🔗\n\nสร้าง Tracking Link และดูสถิติคลิกได้ที่หน้า Link Tracking ครับ\n\n👉 [Link Tracking](/link-tracking.php)",
             
             'broadcast_analytics' => "**Broadcast Analytics (วิเคราะห์ผล)** 📊\n\nดูผลลัพธ์การส่ง Broadcast\n\n**Metrics สำคัญ:**\n• **Sent** - ส่งสำเร็จกี่คน\n• **Delivered** - ส่งถึงกี่คน\n• **Read** - อ่านกี่คน (Open Rate)\n• **Clicked** - คลิกลิงก์กี่คน (CTR)\n\n**วิธีดู:**\n1. ไปที่ Broadcast Stats\n2. เลือก Broadcast ที่ต้องการ\n3. ดูรายละเอียด\n\n**Tips:**\n• Open Rate ดี = 60%+\n• CTR ดี = 5%+\n• ทดสอบ A/B เพื่อปรับปรุง\n\n👉 [ดู Broadcast Stats](/broadcast-stats.php)",
             
@@ -257,9 +257,17 @@ class OnboardingAssistant {
             
             'promotions' => "**โปรโมชั่นและคูปอง** 🎁\n\nสร้างโปรโมชั่นดึงดูดลูกค้า\n\n**ประเภทโปรโมชั่น:**\n• **ส่วนลดเปอร์เซ็นต์** - ลด 10%, 20%\n• **ส่วนลดบาท** - ลด 100, 200 บาท\n• **ส่งฟรี** - ฟรีค่าส่ง\n• **ซื้อ X แถม Y** - ซื้อ 2 แถม 1\n\n**วิธีสร้าง:**\n1. ไปที่ Promotions\n2. กด 'สร้างโปรโมชั่น'\n3. เลือกประเภท\n4. ตั้งเงื่อนไข (ขั้นต่ำ, วันหมดอายุ)\n5. สร้างโค้ดคูปอง\n6. เปิดใช้งาน\n\n👉 [จัดการโปรโมชั่น](/shop/promotions.php)",
             
-            'crm_analytics' => "**CRM Analytics** 📊\n\nวิเคราะห์ข้อมูลลูกค้าเชิงลึก\n\n**Dashboard:**\n• **Overview** - ภาพรวมลูกค้า\n• **Acquisition** - ลูกค้าใหม่\n• **Engagement** - การมีส่วนร่วม\n• **Revenue** - รายได้\n\n**Metrics:**\n• Customer Lifetime Value (CLV)\n• Retention Rate\n• Churn Rate\n• Average Order Value\n\n👉 [ดู CRM Analytics](/crm-analytics.php)\n👉 [Executive Dashboard](/executive-dashboard.php)",
+            'broadcast_analytics' => "**สถิติ Broadcast** 📊\n\nดูผลลัพธ์การส่ง Broadcast ได้ที่หน้า Broadcast Stats ครับ\n\n👉 [ดูสถิติ Broadcast](/broadcast-stats.php)",
             
-            'bug_report' => "**รายงานปัญหา/บัค** 🐛\n\nขอบคุณที่แจ้งปัญหาครับ! กรุณาบอกรายละเอียดเพิ่มเติม:\n\n1. **หน้าที่เกิดปัญหา**: URL หรือชื่อหน้า\n2. **อาการ**: เกิดอะไรขึ้น (error 500, หน้าว่าง, ข้อมูลไม่แสดง)\n3. **ขั้นตอน**: ทำอะไรก่อนเกิดปัญหา\n4. **Error message**: ถ้ามี\n\nผมจะช่วยวิเคราะห์และแนะนำวิธีแก้ไขครับ"
+            'flex_builder' => "**Flex Builder** 🎨\n\nสร้างข้อความ Flex สวยๆ ได้ที่หน้า Flex Builder ครับ\n\n👉 [Flex Builder](/flex-builder.php)",
+            
+            'scheduled_reports' => "**รายงานอัตโนมัติ** 📈\n\nตั้งเวลาส่งรายงานอัตโนมัติได้ที่หน้า Scheduled Reports ครับ\n\n👉 [ตั้งค่ารายงาน](/scheduled-reports.php)",
+            
+            'promotions' => "**โปรโมชั่น** 🎁\n\nสร้างโปรโมชั่นและคูปองได้ที่หน้า Promotions ครับ\n\n👉 [จัดการโปรโมชั่น](/shop/promotions.php)",
+            
+            'crm_analytics' => "**CRM Analytics** 📊\n\nดูสถิติและวิเคราะห์ข้อมูลลูกค้าได้ที่หน้า Analytics ครับ\n\n👉 [CRM Analytics](/crm-analytics.php)\n👉 [Executive Dashboard](/executive-dashboard.php)",
+            
+            'bug_report' => "**รายงานปัญหา** 🐛\n\nกรุณาบอกรายละเอียด: หน้าที่เกิดปัญหา, อาการ, Error message (ถ้ามี) ครับ"
         ];
         
         // Check for bug report keywords
@@ -350,11 +358,11 @@ class OnboardingAssistant {
             return $topicResponses['crm_analytics'];
         }
         
-        // Check for casual/unclear messages - provide helpful menu
+        // Check for casual/unclear messages - provide helpful menu with links
         $casualKeywords = ['โหลด', 'ลอง', 'ทดสอบ', 'test', 'ดู', 'อะไร', 'ยังไง', 'อย่างไร', 'ทำไง', 'ช่วย', 'help'];
         foreach ($casualKeywords as $keyword) {
             if (mb_strpos($message, $keyword) !== false) {
-                return "ผมช่วยคุณได้หลายอย่างครับ! 🚀\n\n**📌 ตั้งค่าพื้นฐาน:**\n• วิธีเชื่อมต่อ LINE OA\n• วิธีตั้งค่าร้านค้า\n• วิธีเพิ่มสินค้า\n• วิธีสร้าง Rich Menu\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign (แคมเปญอัตโนมัติ)\n• การติดแท็กลูกค้า\n• Customer Segments\n• ตั้งเวลาส่ง Broadcast\n• สร้างโปรโมชั่น/คูปอง\n\n**ลองพิมพ์คำถามเช่น:**\n• \"วิธีเชื่อมต่อ LINE\"\n• \"วิธีสร้าง Drip Campaign\"\n• \"วิธีติดแท็กลูกค้า\"\n\nหรือกดปุ่มคำถามด้านขวามือได้เลยครับ 👉";
+                return "ผมช่วยคุณได้ครับ! 🚀 บอกได้เลยว่าต้องการทำอะไร\n\n**หน้าหลักๆ:**\n👉 [ตั้งค่า LINE](/line-accounts.php)\n👉 [ตั้งค่าร้านค้า](/shop/settings.php)\n👉 [จัดการสินค้า](/shop/products.php)\n👉 [Rich Menu](/rich-menu.php)\n👉 [Broadcast](/broadcast.php)\n👉 [AI Settings](/ai-settings.php)";
             }
         }
         
@@ -363,11 +371,11 @@ class OnboardingAssistant {
         $primaryIntent = $intent['primary_intent'];
         
         $responses = [
-            'greeting' => "สวัสดีครับ! 👋 RE-YA Assistant พร้อมช่วยคุณตั้งค่าและใช้งานระบบ LINE CRM ครับ\n\nถามผมได้เลยว่าต้องการทำอะไร หรือดูรายการตั้งค่าที่แนะนำได้ที่ Checklist ด้านข้างครับ",
-            'help' => "ผมช่วยคุณได้หลายอย่างครับ:\n\n**📌 ตั้งค่าพื้นฐาน:**\n• ตั้งค่าการเชื่อมต่อ LINE\n• ตั้งค่าร้านค้าและสินค้า\n• ตั้งค่า LIFF Apps\n• สร้าง Rich Menu\n• ตั้งค่า Auto Reply\n• เปิดใช้ AI Chat\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign\n• Customer Segments\n• การติดแท็ก\n• โปรโมชั่น/คูปอง\n\nบอกผมได้เลยว่าต้องการทำอะไรครับ",
-            'feature_info' => "ฟีเจอร์หลักของระบบ:\n\n**📱 พื้นฐาน:**\n• **Inbox** - จัดการข้อความลูกค้า\n• **Shop** - ร้านค้าออนไลน์\n• **Broadcast** - ส่งข้อความหาลูกค้า\n• **Rich Menu** - เมนูลัดใน LINE\n• **Auto Reply** - ตอบกลับอัตโนมัติ\n• **AI Chat** - AI ตอบแชท\n• **Loyalty** - ระบบแต้มสะสม\n\n**🚀 ขั้นสูง:**\n• **Drip Campaign** - แคมเปญอัตโนมัติ\n• **Segments** - กลุ่มลูกค้า\n• **Tags** - ติดแท็กลูกค้า\n• **Promotions** - โปรโมชั่น/คูปอง\n\nสนใจฟีเจอร์ไหนเป็นพิเศษครับ?",
-            'status' => "ดูสถานะการตั้งค่าได้ที่ Checklist ด้านข้างครับ หรือกดปุ่ม 'ตรวจสอบสถานะระบบ' เพื่อ Health Check",
-            'general' => "ผมช่วยคุณได้หลายอย่างครับ! 🚀\n\n**📌 ตั้งค่าพื้นฐาน:**\n• วิธีเชื่อมต่อ LINE OA\n• วิธีตั้งค่าร้านค้า\n• วิธีเพิ่มสินค้า\n• วิธีสร้าง Rich Menu\n\n**🚀 การตลาดขั้นสูง:**\n• Drip Campaign (แคมเปญอัตโนมัติ)\n• การติดแท็กลูกค้า\n• Customer Segments\n• ตั้งเวลาส่ง Broadcast\n• สร้างโปรโมชั่น/คูปอง\n\n**ลองพิมพ์คำถามเช่น:**\n• \"วิธีเชื่อมต่อ LINE\"\n• \"วิธีสร้าง Drip Campaign\"\n• \"วิธีติดแท็กลูกค้า\"\n\nหรือกดปุ่มคำถามด้านขวามือได้เลยครับ 👉"
+            'greeting' => "สวัสดีครับ! 👋 ผมพร้อมช่วยคุณตั้งค่าระบบครับ บอกได้เลยว่าต้องการทำอะไร หรือดู Checklist ด้านข้างได้เลย",
+            'help' => "ผมช่วยคุณได้ครับ! บอกได้เลยว่าต้องการตั้งค่าอะไร\n\n👉 [LINE Account](/line-accounts.php)\n👉 [ร้านค้า](/shop/settings.php)\n👉 [สินค้า](/shop/products.php)\n👉 [Rich Menu](/rich-menu.php)\n👉 [AI](/ai-settings.php)",
+            'feature_info' => "ฟีเจอร์หลัก: Inbox, Shop, Broadcast, Rich Menu, Auto Reply, AI Chat, Loyalty\n\nบอกได้เลยว่าสนใจฟีเจอร์ไหนครับ",
+            'status' => "ดูสถานะการตั้งค่าได้ที่ Checklist ด้านข้างครับ 👉",
+            'general' => "ผมช่วยคุณได้ครับ! 🚀 บอกได้เลยว่าต้องการทำอะไร\n\n**หน้าหลักๆ:**\n👉 [ตั้งค่า LINE](/line-accounts.php)\n👉 [ตั้งค่าร้านค้า](/shop/settings.php)\n👉 [จัดการสินค้า](/shop/products.php)\n👉 [Rich Menu](/rich-menu.php)\n👉 [Broadcast](/broadcast.php)"
         ];
         
         return $responses[$primaryIntent] ?? $responses['general'];

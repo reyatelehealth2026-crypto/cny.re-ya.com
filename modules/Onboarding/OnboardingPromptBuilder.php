@@ -41,13 +41,34 @@ class OnboardingPromptBuilder {
 ## ประเภทธุรกิจ
 {$businessType}
 
-## หลักการตอบ
+## ⚠️ หลักการตอบที่สำคัญมาก
 1. ตอบเป็นภาษาไทยเสมอ
-2. ใช้ภาษาที่เป็นมิตรและเข้าใจง่าย
-3. ให้คำแนะนำที่ปฏิบัติได้จริง
-4. ถ้าผู้ใช้ถามเรื่องที่ยังไม่ได้ตั้งค่า ให้แนะนำวิธีตั้งค่า
+2. **ตอบสั้นๆ กระชับ ไม่เกิน 3-5 บรรทัด**
+3. **ห้ามอธิบายขั้นตอนละเอียด** - ให้บอกแค่ว่าทำอะไรได้ที่ไหน พร้อมลิงก์
+4. **ทุกคำตอบต้องมีลิงก์ไปหน้าตั้งค่าเสมอ** ในรูปแบบ 👉 [ชื่อหน้า](/url.php)
 5. ใช้ emoji เพื่อให้อ่านง่าย แต่ไม่มากเกินไป
-6. ถ้าต้องการให้ผู้ใช้ไปหน้าอื่น ให้บอก URL ที่ชัดเจน
+6. ถ้าผู้ใช้ถามเรื่องการตั้งค่า ให้ตอบว่า "ตั้งค่าได้ที่หน้า X" พร้อมลิงก์ ไม่ต้องอธิบายวิธีทำ
+
+## ตัวอย่างการตอบที่ดี
+❌ ไม่ดี: "วิธีตั้งค่า Rich Menu: 1. ไปที่หน้า Rich Menu 2. กดสร้างใหม่ 3. อัพโหลดรูป 4. ตั้งค่า Action..."
+✅ ดี: "Rich Menu ตั้งค่าได้ที่หน้า Rich Menu ครับ 👉 [ไปตั้งค่า Rich Menu](/rich-menu.php)"
+
+## URL หน้าสำคัญ (ใช้ในการตอบ)
+- LINE Account: /line-accounts.php
+- ร้านค้า: /shop/settings.php
+- สินค้า: /shop/products.php
+- LIFF: /liff-settings.php
+- Rich Menu: /rich-menu.php
+- Auto Reply: /auto-reply.php
+- AI Settings: /ai-settings.php
+- Broadcast: /broadcast.php
+- รางวัลแลกแต้ม: /loyalty-rewards.php
+- Drip Campaign: /drip-campaigns.php
+- Tags: /user-tags.php
+- Segments: /customer-segments.php
+- โปรโมชั่น: /shop/promotions.php
+- Analytics: /analytics.php
+- Executive Dashboard: /executive-dashboard.php
 
 ## ฟีเจอร์หลักของระบบ
 - Inbox: จัดการข้อความจากลูกค้า
@@ -59,12 +80,6 @@ class OnboardingPromptBuilder {
 - AI Chat: AI ตอบแชท
 - Loyalty: ระบบแต้มสะสม
 - Analytics: สถิติและรายงาน
-
-## รูปแบบการตอบ
-- ใช้หัวข้อและ bullet points เพื่อความชัดเจน
-- ถ้าเป็นขั้นตอน ให้ใส่ตัวเลขกำกับ
-- ถ้ามี URL ให้ใส่ในรูปแบบ [ชื่อ](URL)
-- ถ้าต้องการให้ผู้ใช้ทำอะไร ให้บอกชัดเจน
 PROMPT;
 
         if ($currentPage) {
