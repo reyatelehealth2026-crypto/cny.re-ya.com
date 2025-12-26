@@ -86,14 +86,32 @@ $categoryIcons = [
 // Get Flash Sale products (products with sale_price)
 $flashSaleProducts = [];
 try {
+    // Check if sold_count column exists
+    $hasSoldCount = false;
+    try {
+        $cols = $db->query("SHOW COLUMNS FROM business_items LIKE 'sold_count'")->fetchAll();
+        $hasSoldCount = count($cols) > 0;
+    } catch (Exception $e) {}
+    
+    $soldCountCol = $hasSoldCount ? "COALESCE(sold_count, 0)" : "FLOOR(RAND() * 500 + 100)";
+    
     $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, 
-                   COALESCE(sold_count, FLOOR(RAND() * 500 + 100)) as sold_count
+                   $soldCountCol as sold_count
             FROM business_items 
             WHERE is_active = 1 AND sale_price IS NOT NULL AND sale_price > 0 AND sale_price < price
             ORDER BY (price - sale_price) / price DESC
             LIMIT 10";
     $flashSaleProducts = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    // Fallback: get any products with discount
+    try {
+        $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, 100 as sold_count
+                FROM business_items 
+                WHERE is_active = 1 AND sale_price IS NOT NULL AND sale_price > 0
+                LIMIT 10";
+        $flashSaleProducts = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e2) {}
+}
 
 // Get "Just For You" products
 $recommendedProducts = [];
@@ -111,17 +129,38 @@ try {
         $params[] = "%{$filterSearch}%";
     }
     
+    // Check available columns
+    $hasSoldCount = $hasRating = $hasReviewCount = false;
+    try {
+        $cols = $db->query("SHOW COLUMNS FROM business_items")->fetchAll(PDO::FETCH_COLUMN);
+        $hasSoldCount = in_array('sold_count', $cols);
+        $hasRating = in_array('rating', $cols);
+        $hasReviewCount = in_array('review_count', $cols);
+    } catch (Exception $e) {}
+    
+    $soldCountCol = $hasSoldCount ? "COALESCE(sold_count, 0)" : "FLOOR(RAND() * 1000 + 50)";
+    $ratingCol = $hasRating ? "COALESCE(rating, 4.5)" : "ROUND(3.5 + RAND() * 1.5, 1)";
+    $reviewCountCol = $hasReviewCount ? "COALESCE(review_count, 0)" : "FLOOR(RAND() * 500 + 10)";
+    
     $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id,
-                   COALESCE(sold_count, FLOOR(RAND() * 1000 + 50)) as sold_count,
-                   COALESCE(rating, ROUND(3.5 + RAND() * 1.5, 1)) as rating,
-                   COALESCE(review_count, FLOOR(RAND() * 500 + 10)) as review_count
+                   $soldCountCol as sold_count,
+                   $ratingCol as rating,
+                   $reviewCountCol as review_count
             FROM business_items WHERE $where
-            ORDER BY RAND()
+            ORDER BY id DESC
             LIMIT 20";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $recommendedProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    // Fallback: simple query
+    try {
+        $sql = "SELECT id, name, sku, price, sale_price, stock, image_url, category_id
+                FROM business_items WHERE is_active = 1
+                ORDER BY id DESC LIMIT 20";
+        $recommendedProducts = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e2) {}
+}
 
 $baseUrl = rtrim(BASE_URL, '/');
 $primaryColor = $promoSettings['primary_color'];
@@ -234,8 +273,9 @@ $saleColor = $promoSettings['sale_badge_color'];
     </div>
     <?php endif; ?>
 
-    <?php if ($promoSettings['show_flash_sale'] == '1' && !empty($flashSaleProducts) && !$filterSearch && !$filterCategory): ?>
+    <?php if ($promoSettings['show_flash_sale'] == '1' && !$filterSearch && !$filterCategory): ?>
     <!-- Flash Sale Section -->
+    <?php if (!empty($flashSaleProducts)): ?>
     <div class="flash-sale">
         <div class="flash-header">
             <div class="flash-title">
@@ -278,6 +318,7 @@ $saleColor = $promoSettings['sale_badge_color'];
             <?php endforeach; ?>
         </div>
     </div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <!-- Products Section -->
