@@ -37,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $password = $_POST['password'] ?? '';
                 $displayName = trim($_POST['display_name'] ?? '');
                 $email = trim($_POST['email'] ?? '');
+                $phone = trim($_POST['phone'] ?? '');
+                $lineUserId = trim($_POST['line_user_id'] ?? '');
                 $role = $_POST['role'] ?? 'admin';
                 
                 if (empty($username) || empty($password)) {
@@ -48,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'password' => $password,
                     'display_name' => $displayName ?: $username,
                     'email' => $email,
+                    'phone' => $phone,
+                    'line_user_id' => $lineUserId,
                     'role' => $role
                 ]);
                 
@@ -71,6 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $adminId = (int)$_POST['admin_id'];
                 $displayName = trim($_POST['display_name'] ?? '');
                 $email = trim($_POST['email'] ?? '');
+                $phone = trim($_POST['phone'] ?? '');
+                $lineUserId = trim($_POST['line_user_id'] ?? '');
                 $role = $_POST['role'] ?? 'admin';
                 $password = $_POST['password'] ?? '';
                 $isActive = isset($_POST['is_active']) ? 1 : 0;
@@ -78,6 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateData = [
                     'display_name' => $displayName,
                     'email' => $email,
+                    'phone' => $phone,
+                    'line_user_id' => $lineUserId,
                     'role' => $role,
                     'is_active' => $isActive
                 ];
@@ -166,6 +174,8 @@ require_once 'includes/header.php';
                                     <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs">Super Admin</span>
                                     <?php elseif ($admin['role'] === 'admin'): ?>
                                     <span class="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-xs">Admin</span>
+                                    <?php elseif ($admin['role'] === 'pharmacist'): ?>
+                                    <span class="px-2 py-0.5 bg-green-100 text-green-600 rounded text-xs">เภสัชกร</span>
                                     <?php else: ?>
                                     <span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">Staff</span>
                                     <?php endif; ?>
@@ -174,6 +184,9 @@ require_once 'includes/header.php';
                                     <?php endif; ?>
                                 </div>
                                 <div class="text-sm text-gray-500">@<?= htmlspecialchars($admin['username']) ?></div>
+                                <?php if (!empty($admin['line_user_id'])): ?>
+                                <div class="text-xs text-green-600 mt-1"><i class="fab fa-line mr-1"></i>LINE เชื่อมต่อแล้ว</div>
+                                <?php endif; ?>
                                 <?php if ($admin['role'] !== 'super_admin' && !empty($admin['bot_access'])): ?>
                                 <div class="flex flex-wrap gap-1 mt-1">
                                     <?php foreach ($admin['bot_access'] as $access): ?>
@@ -227,6 +240,10 @@ require_once 'includes/header.php';
                 <div class="p-3 bg-gray-50 rounded-lg">
                     <div class="font-medium text-gray-700">⚪ Staff</div>
                     <div class="text-gray-600 text-xs mt-1">สิทธิ์จำกัด ดูข้อมูลได้อย่างเดียว</div>
+                </div>
+                <div class="p-3 bg-green-50 rounded-lg">
+                    <div class="font-medium text-green-700">💊 เภสัชกร</div>
+                    <div class="text-green-600 text-xs mt-1">รับแจ้งเตือนและอนุมัติยา</div>
                 </div>
             </div>
         </div>
@@ -282,9 +299,25 @@ require_once 'includes/header.php';
             
             <div class="grid grid-cols-2 gap-4">
                 <div>
+                    <label class="block text-sm font-medium mb-1">เบอร์โทร</label>
+                    <input type="tel" name="phone" id="phone" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">
+                        LINE User ID
+                        <a href="javascript:void(0)" onclick="showLineIdHelp()" class="text-blue-500 ml-1"><i class="fas fa-question-circle"></i></a>
+                    </label>
+                    <input type="text" name="line_user_id" id="lineUserId" placeholder="Uxxxxxxxxxx..." class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    <p class="text-xs text-gray-500 mt-1">สำหรับรับแจ้งเตือนผ่าน LINE</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
                     <label class="block text-sm font-medium mb-1">ระดับสิทธิ์</label>
                     <select name="role" id="role" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" onchange="toggleBotAccess()">
                         <option value="admin">Admin</option>
+                        <option value="pharmacist">เภสัชกร</option>
                         <option value="staff">Staff</option>
                     </select>
                 </div>
@@ -342,6 +375,8 @@ function showCreateModal() {
     document.getElementById('pwdHint').textContent = '';
     document.getElementById('displayName').value = '';
     document.getElementById('email').value = '';
+    document.getElementById('phone').value = '';
+    document.getElementById('lineUserId').value = '';
     document.getElementById('role').value = 'admin';
     document.getElementById('isActive').checked = true;
     
@@ -367,6 +402,8 @@ function editAdmin(admin) {
     document.getElementById('pwdHint').textContent = 'เว้นว่างถ้าไม่ต้องการเปลี่ยน';
     document.getElementById('displayName').value = admin.display_name || '';
     document.getElementById('email').value = admin.email || '';
+    document.getElementById('phone').value = admin.phone || '';
+    document.getElementById('lineUserId').value = admin.line_user_id || '';
     document.getElementById('role').value = admin.role;
     document.getElementById('isActive').checked = admin.is_active == 1;
     
@@ -410,6 +447,10 @@ function toggleBotPerms(botId) {
 
 function toggleBotAccess() {
     // Staff role has limited permissions
+}
+
+function showLineIdHelp() {
+    alert('วิธีหา LINE User ID:\n\n1. ไปที่หน้า Inbox หรือ Users\n2. คลิกที่ผู้ใช้ที่ต้องการ\n3. LINE User ID จะขึ้นต้นด้วย U ตามด้วยตัวอักษร 32 ตัว\n   เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\nหมายเหตุ: ผู้ใช้ต้องทักมาที่ LINE OA ก่อนจึงจะมี User ID');
 }
 
 // Close modal on outside click

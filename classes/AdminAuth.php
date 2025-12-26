@@ -36,6 +36,8 @@ class AdminAuth
             // Table exists - check for missing columns
             $this->ensureColumn('admin_users', 'login_count', 'INT DEFAULT 0 AFTER last_login');
             $this->ensureColumn('admin_users', 'last_login', 'TIMESTAMP NULL AFTER is_active');
+            $this->ensureColumn('admin_users', 'phone', 'VARCHAR(20) NULL AFTER email');
+            $this->ensureColumn('admin_users', 'line_user_id', 'VARCHAR(50) NULL AFTER phone');
         } catch (Exception $e) {
             // Create admin_users table
             try {
@@ -324,13 +326,15 @@ class AdminAuth
     public function createAdmin($data)
     {
         $stmt = $this->db->prepare("
-            INSERT INTO admin_users (username, password, email, display_name, role, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO admin_users (username, password, email, phone, line_user_id, display_name, role, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $data['username'],
             password_hash($data['password'], PASSWORD_DEFAULT),
             $data['email'] ?? null,
+            $data['phone'] ?? null,
+            $data['line_user_id'] ?? null,
             $data['display_name'] ?? $data['username'],
             $data['role'] ?? self::ROLE_ADMIN,
             $data['is_active'] ?? 1
@@ -346,7 +350,7 @@ class AdminAuth
         $fields = [];
         $values = [];
         
-        foreach (['email', 'display_name', 'role', 'is_active'] as $field) {
+        foreach (['email', 'phone', 'line_user_id', 'display_name', 'role', 'is_active'] as $field) {
             if (isset($data[$field])) {
                 $fields[] = "{$field} = ?";
                 $values[] = $data[$field];
@@ -389,10 +393,14 @@ class AdminAuth
     public function getAllAdmins()
     {
         try {
-            $stmt = $this->db->query("SELECT id, username, email, display_name, role, is_active, last_login, login_count, created_at FROM admin_users ORDER BY role, username");
+            $stmt = $this->db->query("SELECT id, username, email, phone, line_user_id, display_name, role, is_active, last_login, login_count, created_at FROM admin_users ORDER BY role, username");
         } catch (Exception $e) {
-            // Fallback without login_count/last_login
-            $stmt = $this->db->query("SELECT id, username, email, display_name, role, is_active, created_at FROM admin_users ORDER BY role, username");
+            // Fallback without new columns
+            try {
+                $stmt = $this->db->query("SELECT id, username, email, display_name, role, is_active, last_login, login_count, created_at FROM admin_users ORDER BY role, username");
+            } catch (Exception $e2) {
+                $stmt = $this->db->query("SELECT id, username, email, display_name, role, is_active, created_at FROM admin_users ORDER BY role, username");
+            }
         }
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -403,7 +411,7 @@ class AdminAuth
     public function getAdminById($id)
     {
         try {
-            $stmt = $this->db->prepare("SELECT id, username, email, display_name, role, is_active, last_login, login_count, created_at FROM admin_users WHERE id = ?");
+            $stmt = $this->db->prepare("SELECT id, username, email, phone, line_user_id, display_name, role, is_active, last_login, login_count, created_at FROM admin_users WHERE id = ?");
         } catch (Exception $e) {
             $stmt = $this->db->prepare("SELECT id, username, email, display_name, role, is_active, created_at FROM admin_users WHERE id = ?");
         }
