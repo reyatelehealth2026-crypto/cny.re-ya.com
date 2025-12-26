@@ -42,11 +42,10 @@ try {
 // Get current settings
 $settings = [];
 try {
-    if ($currentBotId) {
-        $stmt = $db->prepare("SELECT * FROM notification_settings WHERE line_account_id = ?");
-        $stmt->execute([$currentBotId]);
-        $settings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    }
+    $accountId = $currentBotId ?: 0;
+    $stmt = $db->prepare("SELECT * FROM notification_settings WHERE line_account_id = ?");
+    $stmt->execute([$accountId]);
+    $settings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) {}
 
 // Get Telegram settings
@@ -75,8 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emailAddresses = trim($_POST['email_addresses'] ?? '');
             $notifyAdminUsers = isset($_POST['notify_admin_users']) ? implode(',', $_POST['notify_admin_users']) : '';
             
+            // Use 0 if no bot selected (for global settings)
+            $accountId = $currentBotId ?: 0;
+            
             $data = [
-                'line_account_id' => $currentBotId,
+                'line_account_id' => $accountId,
                 'line_notify_enabled' => isset($_POST['line_notify_enabled']) ? 1 : 0,
                 'line_notify_new_order' => isset($_POST['line_notify_new_order']) ? 1 : 0,
                 'line_notify_payment' => isset($_POST['line_notify_payment']) ? 1 : 0,
@@ -118,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Reload settings
             $stmt = $db->prepare("SELECT * FROM notification_settings WHERE line_account_id = ?");
-            $stmt->execute([$currentBotId]);
+            $stmt->execute([$accountId]);
             $settings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
             
         } catch (Exception $e) {
