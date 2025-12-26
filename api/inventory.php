@@ -10,6 +10,13 @@ require_once __DIR__ . '/../classes/InventoryService.php';
 require_once __DIR__ . '/../classes/SupplierService.php';
 require_once __DIR__ . '/../classes/PurchaseOrderService.php';
 
+// Load ProductUnitService if exists
+$productUnitService = null;
+if (file_exists(__DIR__ . '/../classes/ProductUnitService.php')) {
+    require_once __DIR__ . '/../classes/ProductUnitService.php';
+    $productUnitService = new ProductUnitService($db, $lineAccountId);
+}
+
 session_start();
 
 $db = Database::getInstance()->getConnection();
@@ -291,7 +298,10 @@ try {
                         $poService->addPOItem($poResult['id'], [
                             'product_id' => $item['id'],
                             'quantity' => $item['quantity'],
-                            'unit_cost' => $item['cost'] ?? 0
+                            'unit_cost' => $item['cost'] ?? 0,
+                            'unit_id' => $item['unit_id'] ?? null,
+                            'unit_name' => $item['unit_name'] ?? null,
+                            'unit_factor' => $item['unit_factor'] ?? 1
                         ]);
                     }
                     
@@ -314,7 +324,10 @@ try {
                     $poService->addPOItem($poResult['id'], [
                         'product_id' => $item['id'],
                         'quantity' => $item['quantity'],
-                        'unit_cost' => $item['cost'] ?? 0
+                        'unit_cost' => $item['cost'] ?? 0,
+                        'unit_id' => $item['unit_id'] ?? null,
+                        'unit_name' => $item['unit_name'] ?? null,
+                        'unit_factor' => $item['unit_factor'] ?? 1
                     ]);
                 }
                 
@@ -328,6 +341,45 @@ try {
                     'po_ids' => $poIds
                 ]
             ]);
+            break;
+            
+        // ==================== Product Units ====================
+        case 'get_product_units':
+            $productId = (int)$_GET['product_id'];
+            if (!$productUnitService) {
+                echo json_encode(['success' => true, 'units' => []]);
+                break;
+            }
+            $units = $productUnitService->getProductUnits($productId);
+            echo json_encode(['success' => true, 'units' => $units]);
+            break;
+            
+        case 'create_product_unit':
+            if (!$productUnitService) {
+                throw new Exception('Product Unit Service not available');
+            }
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $unitId = $productUnitService->createUnit($data);
+            echo json_encode(['success' => true, 'unit_id' => $unitId]);
+            break;
+            
+        case 'update_product_unit':
+            if (!$productUnitService) {
+                throw new Exception('Product Unit Service not available');
+            }
+            $unitId = (int)($_POST['unit_id'] ?? $_GET['unit_id']);
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $productUnitService->updateUnit($unitId, $data);
+            echo json_encode(['success' => true]);
+            break;
+            
+        case 'delete_product_unit':
+            if (!$productUnitService) {
+                throw new Exception('Product Unit Service not available');
+            }
+            $unitId = (int)($_POST['unit_id'] ?? $_GET['unit_id']);
+            $productUnitService->deleteUnit($unitId);
+            echo json_encode(['success' => true]);
             break;
             
         case 'auto_reorder':

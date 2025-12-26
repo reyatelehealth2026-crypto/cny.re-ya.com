@@ -8,6 +8,12 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../classes/PurchaseOrderService.php';
 
+// Load ProductUnitService if exists
+$hasProductUnitService = file_exists(__DIR__ . '/../classes/ProductUnitService.php');
+if ($hasProductUnitService) {
+    require_once __DIR__ . '/../classes/ProductUnitService.php';
+}
+
 $db = Database::getInstance()->getConnection();
 $lineAccountId = $_SESSION['current_bot_id'] ?? null;
 $adminId = $_SESSION['admin_user']['id'] ?? null;
@@ -38,15 +44,42 @@ $pageTitle = 'PO: ' . $po['po_number'];
 
 // Get products for adding items
 $products = [];
+$productUnits = []; // unit_id => unit data
 try {
-    // Check if cost_price column exists
+    // Check if cost_price and unit columns exist
     $cols = $db->query("SHOW COLUMNS FROM business_items")->fetchAll(PDO::FETCH_COLUMN);
     $hasCostPrice = in_array('cost_price', $cols);
+    $hasUnit = in_array('unit', $cols);
     $costPriceCol = $hasCostPrice ? "cost_price" : "0 as cost_price";
+    $unitCol = $hasUnit ? "unit" : "'ชิ้น' as unit";
     
-    $stmt = $db->prepare("SELECT id, name, sku, {$costPriceCol}, stock FROM business_items WHERE is_active = 1 ORDER BY name");
+    $stmt = $db->prepare("SELECT id, name, sku, {$costPriceCol}, {$unitCol}, stock FROM business_items WHERE is_active = 1 ORDER BY name");
     $stmt->execute();
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get product units if table exists
+    try {
+        $db->query("SELECT 1 FROM product_units LIMIT 1");
+        $stmt = $db->prepare("
+            SELECT pu.*, bi.name as product_name 
+            FROM product_units pu 
+            JOIN business_items bi ON pu.product_id = bi.id
+            WHERE pu.is_active = 1 AND pu.is_purchase_unit = 1
+            ORDER BY pu.product_id, pu.factor
+        ");
+        $stmt->execute();
+        $allUnits = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Group by product_id
+        foreach ($allUnits as $u) {
+            if (!isset($productUnits[$u['product_id']])) {
+                $productUnits[$u['product_id']] = [];
+            }
+            $productUnits[$u['product_id']][] = $u;
+        }
+    } catch (Exception $e) {
+        // product_units table doesn't exist
+    }
 } catch (Exception $e) {}
 
 require_once __DIR__ . '/../includes/header.php';
@@ -125,6 +158,7 @@ $statusColors = [
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">หน่วย</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">จำนวนสั่ง</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">รับแล้ว</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ราคา/หน่วย</th>
@@ -136,13 +170,18 @@ $statusColors = [
             </thead>
             <tbody class="divide-y">
                 <?php if (empty($items)): ?>
-                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">ยังไม่มีรายการสินค้า</td></tr>
+                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">ยังไม่มีรายการสินค้า</td></tr>
                 <?php else: ?>
                 <?php foreach ($items as $item): ?>
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3">
                         <p class="font-medium"><?= htmlspecialchars($item['product_name']) ?></p>
                         <p class="text-xs text-gray-500"><?= htmlspecialchars($item['sku'] ?? '') ?></p>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                            <?= htmlspecialchars($item['display_unit'] ?? $item['unit_name'] ?? 'ชิ้น') ?>
+                        </span>
                     </td>
                     <td class="px-4 py-3 text-center"><?= number_format($item['quantity']) ?></td>
                     <td class="px-4 py-3 text-center">
@@ -177,15 +216,35 @@ $statusColors = [
         <form id="addItemForm" class="p-4 space-y-4">
             <div>
                 <label class="block text-sm font-medium mb-1">สินค้า *</label>
-                <select name="product_id" required class="w-full px-3 py-2 border rounded-lg" onchange="updateCost(this)">
+                <select name="product_id" required class="w-full px-3 py-2 border rounded-lg" onchange="onProductChange(this)">
                     <option value="">-- เลือกสินค้า --</option>
                     <?php foreach ($products as $p): ?>
-                    <option value="<?= $p['id'] ?>" data-cost="<?= $p['cost_price'] ?? 0 ?>">
+                    <option value="<?= $p['id'] ?>" 
+                            data-cost="<?= $p['cost_price'] ?? 0 ?>" 
+                            data-unit="<?= htmlspecialchars($p['unit'] ?? 'ชิ้น') ?>"
+                            data-has-units="<?= isset($productUnits[$p['id']]) ? '1' : '0' ?>">
                         <?= htmlspecialchars($p['name']) ?> (<?= $p['sku'] ?>) - Stock: <?= $p['stock'] ?>
                     </option>
                     <?php endforeach; ?>
                 </select>
             </div>
+            
+            <!-- Unit Selection (shown if product has multiple units) -->
+            <div id="unitSelectDiv" class="hidden">
+                <label class="block text-sm font-medium mb-1">หน่วย *</label>
+                <select name="unit_id" id="unitSelect" class="w-full px-3 py-2 border rounded-lg" onchange="onUnitChange(this)">
+                    <option value="">-- เลือกหน่วย --</option>
+                </select>
+                <input type="hidden" name="unit_name" id="unitName">
+                <input type="hidden" name="unit_factor" id="unitFactor" value="1">
+            </div>
+            
+            <!-- Default Unit Display (shown if product has no multiple units) -->
+            <div id="defaultUnitDiv">
+                <label class="block text-sm font-medium mb-1">หน่วย</label>
+                <input type="text" id="defaultUnit" readonly class="w-full px-3 py-2 border rounded-lg bg-gray-50" value="ชิ้น">
+            </div>
+            
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">จำนวน *</label>
@@ -206,9 +265,12 @@ $statusColors = [
 
 <script>
 const poId = <?= $poId ?>;
+const productUnits = <?= json_encode($productUnits) ?>;
 
 function openAddItemModal() {
     document.getElementById('addItemForm').reset();
+    document.getElementById('unitSelectDiv').classList.add('hidden');
+    document.getElementById('defaultUnitDiv').classList.remove('hidden');
     document.getElementById('addItemModal').classList.remove('hidden');
     document.getElementById('addItemModal').classList.add('flex');
 }
@@ -217,9 +279,55 @@ function closeAddItemModal() {
     document.getElementById('addItemModal').classList.remove('flex');
 }
 
-function updateCost(select) {
-    const cost = select.options[select.selectedIndex].dataset.cost || 0;
+function onProductChange(select) {
+    const option = select.options[select.selectedIndex];
+    const cost = option.dataset.cost || 0;
+    const unit = option.dataset.unit || 'ชิ้น';
+    const hasUnits = option.dataset.hasUnits === '1';
+    const productId = select.value;
+    
     document.querySelector('[name="unit_cost"]').value = cost;
+    
+    if (hasUnits && productUnits[productId] && productUnits[productId].length > 0) {
+        // Show unit select
+        document.getElementById('unitSelectDiv').classList.remove('hidden');
+        document.getElementById('defaultUnitDiv').classList.add('hidden');
+        
+        // Populate units
+        const unitSelect = document.getElementById('unitSelect');
+        unitSelect.innerHTML = '<option value="">-- เลือกหน่วย --</option>';
+        
+        productUnits[productId].forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.dataset.cost = u.cost_price || cost;
+            opt.dataset.name = u.unit_name;
+            opt.dataset.factor = u.factor;
+            opt.textContent = u.unit_name + (u.factor > 1 ? ` (${u.factor} ชิ้น)` : '') + (u.is_base_unit ? ' [หลัก]' : '');
+            unitSelect.appendChild(opt);
+        });
+    } else {
+        // Show default unit
+        document.getElementById('unitSelectDiv').classList.add('hidden');
+        document.getElementById('defaultUnitDiv').classList.remove('hidden');
+        document.getElementById('defaultUnit').value = unit;
+        document.getElementById('unitName').value = unit;
+        document.getElementById('unitFactor').value = 1;
+    }
+}
+
+function onUnitChange(select) {
+    const option = select.options[select.selectedIndex];
+    if (option.value) {
+        document.querySelector('[name="unit_cost"]').value = option.dataset.cost || 0;
+        document.getElementById('unitName').value = option.dataset.name;
+        document.getElementById('unitFactor').value = option.dataset.factor || 1;
+    }
+}
+
+// Legacy function for backward compatibility
+function updateCost(select) {
+    onProductChange(select);
 }
 
 document.getElementById('addItemForm').addEventListener('submit', async function(e) {
@@ -227,6 +335,11 @@ document.getElementById('addItemForm').addEventListener('submit', async function
     const formData = new FormData(this);
     const data = Object.fromEntries(formData);
     data.po_id = poId;
+    
+    // If no unit_id selected but has default unit name
+    if (!data.unit_id && document.getElementById('defaultUnit').value) {
+        data.unit_name = document.getElementById('defaultUnit').value;
+    }
     
     const res = await fetch('../api/inventory.php?action=add_po_item', {
         method: 'POST',

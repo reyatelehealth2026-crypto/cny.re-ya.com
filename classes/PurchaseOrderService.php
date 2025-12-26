@@ -68,19 +68,42 @@ class PurchaseOrderService {
         
         $subtotal = $item['quantity'] * $item['unit_cost'];
         
-        $stmt = $this->db->prepare("
-            INSERT INTO purchase_order_items 
-            (po_id, product_id, quantity, unit_cost, subtotal, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $poId,
-            $item['product_id'],
-            $item['quantity'],
-            $item['unit_cost'],
-            $subtotal,
-            $item['notes'] ?? null
-        ]);
+        // Check if unit columns exist
+        $cols = $this->db->query("SHOW COLUMNS FROM purchase_order_items")->fetchAll(PDO::FETCH_COLUMN);
+        $hasUnitCols = in_array('unit_id', $cols);
+        
+        if ($hasUnitCols && !empty($item['unit_id'])) {
+            $stmt = $this->db->prepare("
+                INSERT INTO purchase_order_items 
+                (po_id, product_id, unit_id, unit_name, unit_factor, quantity, unit_cost, subtotal, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $poId,
+                $item['product_id'],
+                $item['unit_id'],
+                $item['unit_name'] ?? null,
+                $item['unit_factor'] ?? 1,
+                $item['quantity'],
+                $item['unit_cost'],
+                $subtotal,
+                $item['notes'] ?? null
+            ]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO purchase_order_items 
+                (po_id, product_id, quantity, unit_cost, subtotal, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $poId,
+                $item['product_id'],
+                $item['quantity'],
+                $item['unit_cost'],
+                $subtotal,
+                $item['notes'] ?? null
+            ]);
+        }
         
         $itemId = $this->db->lastInsertId();
         
@@ -202,7 +225,8 @@ class PurchaseOrderService {
      */
     public function getPOItems(int $poId): array {
         $stmt = $this->db->prepare("
-            SELECT poi.*, bi.name as product_name, bi.sku, bi.image_url
+            SELECT poi.*, bi.name as product_name, bi.sku, bi.image_url, bi.unit as default_unit,
+                   COALESCE(poi.unit_name, bi.unit, 'ชิ้น') as display_unit
             FROM purchase_order_items poi
             LEFT JOIN business_items bi ON poi.product_id = bi.id
             WHERE poi.po_id = ?
