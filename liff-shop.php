@@ -46,7 +46,8 @@ try {
 } catch (Exception $e) {}
 
 $shopName = $shopSettings['shop_name'] ?? 'ร้านยา';
-$shopLogo = $shopSettings['logo_url'] ?? '';
+$shopLogo = $shopSettings['shop_logo'] ?? '';
+$welcomeMessage = $shopSettings['welcome_message'] ?? '';
 $shippingFee = $shopSettings['shipping_fee'] ?? 50;
 $freeShippingMin = $shopSettings['free_shipping_min'] ?? 500;
 
@@ -599,11 +600,19 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
     <div class="px-4 mb-4">
         <div class="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-5 text-white">
             <div class="flex items-center justify-between">
-                <div>
+                <div class="flex-1">
+                    <?php if (!empty($welcomeMessage)): ?>
+                    <p class="text-sm text-teal-100 leading-relaxed"><?= nl2br(htmlspecialchars($welcomeMessage)) ?></p>
+                    <?php else: ?>
                     <h2 class="font-bold text-lg mb-1">🎉 ยินดีต้อนรับ!</h2>
                     <p class="text-sm text-teal-100">ส่งฟรีเมื่อซื้อครบ ฿<?= number_format($freeShippingMin) ?></p>
+                    <?php endif; ?>
                 </div>
-                <div class="text-4xl">💊</div>
+                <?php if ($shopLogo): ?>
+                <img src="<?= htmlspecialchars($shopLogo) ?>" class="w-16 h-16 rounded-xl object-cover border-2 border-white/30 ml-4">
+                <?php else: ?>
+                <div class="text-4xl ml-4">💊</div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

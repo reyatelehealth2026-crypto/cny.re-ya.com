@@ -87,9 +87,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tableExists) {
     }, $_POST['bank_name'] ?? [], $_POST['bank_account'] ?? [], $_POST['bank_holder'] ?? [])]);
     
     try {
+        // Handle logo upload
+        $logoUrl = $_POST['shop_logo'] ?? '';
+        if (!empty($_FILES['logo_file']['tmp_name']) && $_FILES['logo_file']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = __DIR__ . '/../uploads/shop/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            $fileExt = strtolower(pathinfo($_FILES['logo_file']['name'], PATHINFO_EXTENSION));
+            $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            
+            if (in_array($fileExt, $allowedExts)) {
+                $fileName = 'logo_' . $currentBotId . '_' . time() . '.' . $fileExt;
+                $uploadPath = $uploadDir . $fileName;
+                
+                if (move_uploaded_file($_FILES['logo_file']['tmp_name'], $uploadPath)) {
+                    $logoUrl = rtrim(BASE_URL, '/') . '/uploads/shop/' . $fileName;
+                }
+            }
+        }
+        
         $updateFields = [
             'shop_name' => $_POST['shop_name'] ?? '',
-            'shop_logo' => $_POST['shop_logo'] ?? '',
+            'shop_logo' => $logoUrl,
             'welcome_message' => $_POST['welcome_message'] ?? '',
             'shop_address' => $_POST['shop_address'] ?? '',
             'shop_email' => $_POST['shop_email'] ?? '',
@@ -237,20 +258,36 @@ $bankAccounts = json_decode($settings['bank_accounts'] ?? '{"banks":[]}', true)[
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">โลโก้ร้าน</label>
-                    <div class="flex items-center gap-4">
-                        <?php if (!empty($settings['shop_logo'])): ?>
-                        <img src="<?= htmlspecialchars($settings['shop_logo']) ?>" class="w-16 h-16 rounded-lg object-cover border" id="logoPreview">
-                        <?php else: ?>
-                        <div class="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center border" id="logoPreview">
-                            <i class="fas fa-image text-gray-400 text-xl"></i>
+                    <div class="flex items-start gap-4">
+                        <div class="flex-shrink-0">
+                            <?php if (!empty($settings['shop_logo'])): ?>
+                            <img src="<?= htmlspecialchars($settings['shop_logo']) ?>" class="w-20 h-20 rounded-lg object-cover border" id="logoPreview">
+                            <?php else: ?>
+                            <div class="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center border" id="logoPreviewDiv">
+                                <i class="fas fa-image text-gray-400 text-2xl"></i>
+                            </div>
+                            <img src="" class="w-20 h-20 rounded-lg object-cover border hidden" id="logoPreview">
+                            <?php endif; ?>
                         </div>
-                        <?php endif; ?>
-                        <input type="url" name="shop_logo" value="<?= htmlspecialchars($settings['shop_logo'] ?? '') ?>" placeholder="URL รูปโลโก้" class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <div class="flex-1 space-y-2">
+                            <!-- Upload Button -->
+                            <div class="flex items-center gap-2">
+                                <label class="px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition text-sm">
+                                    <i class="fas fa-upload mr-1"></i>อัพโหลดรูป
+                                    <input type="file" name="logo_file" accept="image/*" class="hidden" id="logoFileInput" onchange="previewLogo(this)">
+                                </label>
+                                <span class="text-xs text-gray-500">หรือ</span>
+                            </div>
+                            <!-- URL Input -->
+                            <input type="url" name="shop_logo" id="logoUrlInput" value="<?= htmlspecialchars($settings['shop_logo'] ?? '') ?>" placeholder="วาง URL รูปโลโก้" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" onchange="previewLogoUrl(this)">
+                            <p class="text-xs text-gray-400">ขนาดแนะนำ: 200x200 px (รูปสี่เหลี่ยมจัตุรัส)</p>
+                        </div>
                     </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">ข้อความต้อนรับ</label>
-                    <textarea name="welcome_message" rows="3" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"><?= htmlspecialchars($settings['welcome_message'] ?? '') ?></textarea>
+                    <textarea name="welcome_message" rows="3" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="เช่น: ยินดีต้อนรับสู่ร้านยาของเรา! ส่งฟรีเมื่อซื้อครบ 500 บาท"><?= htmlspecialchars($settings['welcome_message'] ?? '') ?></textarea>
+                    <p class="text-xs text-gray-400 mt-1">ข้อความนี้จะแสดงในแบนเนอร์ต้อนรับบนหน้าร้าน</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">ที่อยู่ร้าน</label>
@@ -357,6 +394,10 @@ $bankAccounts = json_decode($settings['bank_accounts'] ?? '{"banks":[]}', true)[
                             <i class="fas fa-mobile-alt"></i>
                             <span class="text-sm">ตั้งค่า LIFF Shop</span>
                         </a>
+                        <a href="promotions.php" class="flex items-center gap-2 p-3 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 transition">
+                            <i class="fas fa-star"></i>
+                            <span class="text-sm">สินค้าเด่น/ขายดี</span>
+                        </a>
                         <a href="categories.php" class="flex items-center gap-2 p-3 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition">
                             <i class="fas fa-tags"></i>
                             <span class="text-sm">จัดการหมวดหมู่</span>
@@ -368,6 +409,10 @@ $bankAccounts = json_decode($settings['bank_accounts'] ?? '{"banks":[]}', true)[
                         <a href="orders.php" class="flex items-center gap-2 p-3 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition">
                             <i class="fas fa-shopping-cart"></i>
                             <span class="text-sm">จัดการออเดอร์</span>
+                        </a>
+                        <a href="../liff-shop.php?account=<?= $currentBotId ?>" target="_blank" class="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition">
+                            <i class="fas fa-external-link-alt"></i>
+                            <span class="text-sm">ดูหน้าร้าน</span>
                         </a>
                     </div>
                 </div>
@@ -421,6 +466,36 @@ function addBankRow() {
         </div>
     `;
     document.getElementById('bankAccounts').insertAdjacentHTML('beforeend', html);
+}
+
+// Logo preview functions
+function previewLogo(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('logoPreview');
+            const previewDiv = document.getElementById('logoPreviewDiv');
+            preview.src = e.target.result;
+            preview.classList.remove('hidden');
+            if (previewDiv) previewDiv.classList.add('hidden');
+            // Clear URL input when file is selected
+            document.getElementById('logoUrlInput').value = '';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewLogoUrl(input) {
+    const url = input.value.trim();
+    if (url) {
+        const preview = document.getElementById('logoPreview');
+        const previewDiv = document.getElementById('logoPreviewDiv');
+        preview.src = url;
+        preview.classList.remove('hidden');
+        if (previewDiv) previewDiv.classList.add('hidden');
+        // Clear file input when URL is entered
+        document.getElementById('logoFileInput').value = '';
+    }
 }
 </script>
 
