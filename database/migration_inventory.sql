@@ -154,49 +154,18 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 8. Update business_items Table
+-- 8. Update business_items Table (Run these manually if needed)
 -- =====================================================
--- Add min_stock column if not exists
-SET @dbname = DATABASE();
-SET @tablename = 'business_items';
-SET @columnname = 'min_stock';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    'ALTER TABLE business_items ADD COLUMN min_stock INT DEFAULT 5'
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
+-- NOTE: Run these ALTER statements one by one. If column already exists, it will show error - just skip it.
 
--- Add reorder_point column if not exists
-SET @columnname = 'reorder_point';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    'ALTER TABLE business_items ADD COLUMN reorder_point INT DEFAULT 5'
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
+-- Add min_stock column (skip if error "Duplicate column name")
+ALTER TABLE business_items ADD COLUMN min_stock INT DEFAULT 5;
 
--- Add supplier_id column if not exists
-SET @columnname = 'supplier_id';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    'ALTER TABLE business_items ADD COLUMN supplier_id INT DEFAULT NULL AFTER line_account_id'
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
+-- Add reorder_point column (skip if error "Duplicate column name")  
+ALTER TABLE business_items ADD COLUMN reorder_point INT DEFAULT 5;
 
--- Add indexes (ignore if exists)
--- ALTER TABLE business_items ADD INDEX idx_product_supplier (supplier_id);
--- ALTER TABLE business_items ADD INDEX idx_product_reorder (reorder_point);
+-- Add supplier_id column (skip if error "Duplicate column name")
+ALTER TABLE business_items ADD COLUMN supplier_id INT DEFAULT NULL;
 
 -- =====================================================
 -- 9. Insert Default Supplier (Optional)
