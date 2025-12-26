@@ -22,8 +22,19 @@ try {
 $products = [];
 $productUnits = [];
 if ($tableExists) {
+    // Check which columns exist in business_items
+    $cols = $db->query("SHOW COLUMNS FROM business_items")->fetchAll(PDO::FETCH_COLUMN);
+    $hasCostPrice = in_array('cost_price', $cols);
+    $hasUnit = in_array('unit', $cols);
+    
+    // Build dynamic query
+    $selectCols = "id, name, sku";
+    $selectCols .= $hasUnit ? ", unit" : ", 'ชิ้น' as unit";
+    $selectCols .= $hasCostPrice ? ", cost_price" : ", 0 as cost_price";
+    $selectCols .= ", price";
+    
     // Get all products
-    $stmt = $db->prepare("SELECT id, name, sku, unit, cost_price, price FROM business_items WHERE is_active = 1 ORDER BY name");
+    $stmt = $db->prepare("SELECT {$selectCols} FROM business_items WHERE is_active = 1 ORDER BY name");
     $stmt->execute();
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
