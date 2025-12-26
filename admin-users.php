@@ -209,6 +209,7 @@ require_once 'includes/header.php';
                             <button onclick="editAdmin(<?= htmlspecialchars(json_encode($admin)) ?>)" class="p-2 text-blue-500 hover:bg-blue-50 rounded">
                                 <i class="fas fa-edit"></i>
                             </button>
+                            <?php if ($admin['role'] !== 'super_admin'): ?>
                             <form method="POST" class="inline" onsubmit="return confirm('เธฅเธเธเธนเนเธ”เธนเนเธฅเธเธตเน?')">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="admin_id" value="<?= $admin['id'] ?>">

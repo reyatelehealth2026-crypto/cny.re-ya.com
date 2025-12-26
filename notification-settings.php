@@ -234,7 +234,8 @@ $emailNotifyUrgent = $settings['email_notify_urgent'] ?? 1;
 $emailNotifyDailyReport = $settings['email_notify_daily_report'] ?? 0;
 $emailNotifyLowStock = $settings['email_notify_low_stock'] ?? 0;
 $telegramEnabled = $settings['telegram_enabled'] ?? 0;
-$notifyAdminUsers = explode(',', $settings['notify_admin_users'] ?? '');
+$notifyAdminUsersRaw = $settings['notify_admin_users'] ?? '';
+$notifyAdminUsers = array_filter(array_map('intval', explode(',', $notifyAdminUsersRaw)));
 
 require_once 'includes/header.php';
 ?>

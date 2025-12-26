@@ -4,24 +4,24 @@
  */
 header('Content-Type: application/json; charset=utf-8');
 
+session_start();
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../classes/InventoryService.php';
 require_once __DIR__ . '/../classes/SupplierService.php';
 require_once __DIR__ . '/../classes/PurchaseOrderService.php';
 
-// Load ProductUnitService if exists
+$db = Database::getInstance()->getConnection();
+$lineAccountId = $_SESSION['current_bot_id'] ?? null;
+$adminId = $_SESSION['admin_user']['id'] ?? null;
+
+// Load ProductUnitService if exists (after $db is initialized)
 $productUnitService = null;
 if (file_exists(__DIR__ . '/../classes/ProductUnitService.php')) {
     require_once __DIR__ . '/../classes/ProductUnitService.php';
     $productUnitService = new ProductUnitService($db, $lineAccountId);
 }
-
-session_start();
-
-$db = Database::getInstance()->getConnection();
-$lineAccountId = $_SESSION['current_bot_id'] ?? null;
-$adminId = $_SESSION['admin_user']['id'] ?? null;
 
 $inventoryService = new InventoryService($db, $lineAccountId);
 $supplierService = new SupplierService($db, $lineAccountId);

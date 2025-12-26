@@ -204,8 +204,6 @@ $menuSections = [
             ['icon' => 'fa-tachometer-alt', 'label' => 'ภาพรวม', 'url' => '/shop', 'page' => 'index', 'folder' => 'shop'],
             ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow'],
             $pendingSlips > 0 ? ['icon' => 'fa-file-invoice', 'label' => 'รอตรวจสลิป', 'url' => '/shop/orders?pending_slip=1', 'page' => '', 'badge' => $pendingSlips, 'badgeColor' => 'orange'] : null,
-            ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products'],
-            ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories'],
             ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions'],
             ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard'],
             ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/settings', 'page' => 'settings'],
@@ -217,6 +215,8 @@ $menuSections = [
         'icon' => 'fa-warehouse',
         'collapsible' => true,
         'items' => [
+            ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products'],
+            ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories'],
             ['icon' => 'fa-truck', 'label' => 'Suppliers', 'url' => '/inventory/suppliers', 'page' => 'suppliers'],
             ['icon' => 'fa-file-invoice', 'label' => 'ใบสั่งซื้อ (PO)', 'url' => '/inventory/purchase-orders', 'page' => 'purchase-orders'],
             ['icon' => 'fa-truck-loading', 'label' => 'รับสินค้า (GR)', 'url' => '/inventory/goods-receive', 'page' => 'goods-receive'],
