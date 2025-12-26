@@ -14,8 +14,15 @@ $adminId = $_SESSION['admin_user']['id'] ?? null;
 
 $poService = new PurchaseOrderService($db, $lineAccountId);
 
+// Check if table exists
+$tableExists = false;
+try {
+    $db->query("SELECT 1 FROM purchase_orders LIMIT 1");
+    $tableExists = true;
+} catch (Exception $e) {}
+
 $poId = (int)($_GET['id'] ?? 0);
-if (!$poId) {
+if (!$poId || !$tableExists) {
     header('Location: purchase-orders.php');
     exit;
 }
