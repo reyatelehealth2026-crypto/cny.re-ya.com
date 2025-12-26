@@ -43,7 +43,13 @@ class PharmacistNotifier
             
             // ส่งแจ้งเตือนทุกคน
             foreach ($pharmacists as $pharmacist) {
+                // ส่ง LINE
                 $this->sendLINEPush($pharmacist['line_user_id'], $flexMessage);
+                
+                // ส่ง Email ถ้าเป็น urgent และมี email
+                if ($urgent && !empty($pharmacist['email'])) {
+                    $this->sendUrgentEmail($pharmacist['email'], $data);
+                }
             }
             
             return true;
@@ -124,12 +130,11 @@ class PharmacistNotifier
     private function getPharmacists(): array
     {
         try {
-            $sql = "SELECT au.id, au.username, au.line_user_id, au.role
+            $sql = "SELECT au.id, au.username, au.line_user_id, au.email, au.role
                     FROM admin_users au
                     WHERE au.role IN ('pharmacist', 'admin')
                     AND au.is_active = 1
-                    AND au.line_user_id IS NOT NULL
-                    AND au.line_user_id != ''";
+                    AND (au.line_user_id IS NOT NULL AND au.line_user_id != '')";
             
             if ($this->lineAccountId) {
                 $sql .= " AND (au.line_account_id = ? OR au.line_account_id IS NULL)";
@@ -139,6 +144,97 @@ class PharmacistNotifier
             return $this->db->fetchAll($sql);
         } catch (\Exception $e) {
             return [];
+        }
+    }
+    
+    /**
+     * ส่ง Email แจ้งเตือนฉุกเฉิน
+     */
+    private function sendUrgentEmail(string $email, array $data): bool
+    {
+        try {
+            $symptoms = implode(', ', $data['symptoms'] ?? ['ไม่ระบุ']);
+            $severity = $data['severity'] ?? '-';
+            $userName = $data['user_name'] ?? 'ลูกค้า';
+            $redFlags = $data['red_flags'] ?? [];
+            
+            $subject = "🚨 [ด่วน] แจ้งเตือนผู้ป่วยฉุกเฉิน - {$userName}";
+            
+            $body = "
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <style>
+        body { font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #DC2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #fff; padding: 20px; border: 1px solid #ddd; }
+        .alert-box { background: #FEF2F2; border-left: 4px solid #DC2626; padding: 15px; margin: 15px 0; }
+        .info-row { display: flex; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .label { font-weight: bold; width: 120px; color: #666; }
+        .value { flex: 1; }
+        .footer { background: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #666; }
+        .btn { display: inline-block; background: #DC2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>🚨 แจ้งเตือนฉุกเฉิน</h1>
+        </div>
+        <div class='content'>
+            <h2>ข้อมูลผู้ป่วย</h2>
+            <div class='info-row'><span class='label'>ชื่อ:</span><span class='value'>{$userName}</span></div>
+            <div class='info-row'><span class='label'>อาการ:</span><span class='value'>{$symptoms}</span></div>
+            <div class='info-row'><span class='label'>ความรุนแรง:</span><span class='value'>{$severity}/10</span></div>
+            ";
+            
+            if (!empty($redFlags)) {
+                $body .= "<div class='alert-box'><strong>⚠️ Red Flags ที่พบ:</strong><ul>";
+                foreach ($redFlags as $flag) {
+                    $flagMsg = is_array($flag) ? ($flag['message'] ?? '') : $flag;
+                    $body .= "<li>{$flagMsg}</li>";
+                }
+                $body .= "</ul></div>";
+            }
+            
+            $dashboardUrl = $this->getDashboardUrl();
+            $body .= "
+            <p style='text-align: center;'>
+                <a href='{$dashboardUrl}' class='btn'>📋 ดูรายละเอียดใน Dashboard</a>
+            </p>
+        </div>
+        <div class='footer'>
+            <p>ข้อความนี้ส่งอัตโนมัติจากระบบ Pharmacy AI</p>
+            <p>กรุณาตรวจสอบและดำเนินการโดยเร็ว</p>
+        </div>
+    </div>
+</body>
+</html>";
+            
+            // ส่ง Email
+            $headers = [
+                'MIME-Version: 1.0',
+                'Content-type: text/html; charset=UTF-8',
+                'From: Pharmacy Alert <noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '>',
+                'X-Priority: 1 (Highest)',
+                'X-MSMail-Priority: High',
+                'Importance: High'
+            ];
+            
+            $result = mail($email, $subject, $body, implode("\r\n", $headers));
+            
+            if ($result) {
+                error_log("Urgent email sent to: {$email}");
+            } else {
+                error_log("Failed to send urgent email to: {$email}");
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            error_log("sendUrgentEmail error: " . $e->getMessage());
+            return false;
         }
     }
     
