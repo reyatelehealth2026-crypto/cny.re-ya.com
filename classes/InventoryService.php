@@ -54,10 +54,24 @@ class InventoryService {
      * Get low stock products
      */
     public function getLowStockProducts(): array {
-        $sql = "SELECT id, name, sku, stock, min_stock, reorder_point, cost_price
+        // Check if min_stock column exists
+        $hasMinStock = false;
+        $hasReorderPoint = false;
+        try {
+            $cols = $this->db->query("SHOW COLUMNS FROM business_items")->fetchAll(PDO::FETCH_COLUMN);
+            $hasMinStock = in_array('min_stock', $cols);
+            $hasReorderPoint = in_array('reorder_point', $cols);
+        } catch (Exception $e) {}
+        
+        $threshold = $hasReorderPoint ? 'COALESCE(reorder_point, 5)' : ($hasMinStock ? 'COALESCE(min_stock, 5)' : '5');
+        
+        $sql = "SELECT id, name, sku, stock, " . 
+               ($hasMinStock ? "min_stock, " : "5 as min_stock, ") .
+               ($hasReorderPoint ? "reorder_point, " : "5 as reorder_point, ") .
+               "cost_price
                 FROM business_items 
                 WHERE is_active = 1 
-                AND stock <= COALESCE(reorder_point, min_stock, 5)";
+                AND stock <= {$threshold}";
         $params = [];
         
         if ($this->lineAccountId) {

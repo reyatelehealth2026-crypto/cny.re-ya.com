@@ -156,15 +156,27 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 -- =====================================================
 -- 8. Update business_items Table
 -- =====================================================
--- Add reorder_point column if not exists
+-- Add min_stock column if not exists
 SET @dbname = DATABASE();
 SET @tablename = 'business_items';
+SET @columnname = 'min_stock';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT 1',
+    'ALTER TABLE business_items ADD COLUMN min_stock INT DEFAULT 5'
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add reorder_point column if not exists
 SET @columnname = 'reorder_point';
 SET @preparedStatement = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
      WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
     'SELECT 1',
-    'ALTER TABLE business_items ADD COLUMN reorder_point INT DEFAULT 5 AFTER min_stock'
+    'ALTER TABLE business_items ADD COLUMN reorder_point INT DEFAULT 5'
 ));
 PREPARE alterIfNotExists FROM @preparedStatement;
 EXECUTE alterIfNotExists;
