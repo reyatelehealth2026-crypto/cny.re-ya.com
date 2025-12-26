@@ -29,6 +29,13 @@ $baseUrl = rtrim(BASE_URL, '/');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>นัดหมายพบเภสัชกร - <?= htmlspecialchars($companyName) ?></title>
+    <meta name="description" content="จองนัดหมายพบเภสัชกรออนไลน์ที่ <?= htmlspecialchars($companyName) ?> ปรึกษาเรื่องยา สุขภาพ Video Call กับเภสัชกร">
+    <meta name="keywords" content="นัดหมายเภสัชกร, จองคิวเภสัชกร, ปรึกษาเภสัชกร, <?= htmlspecialchars($companyName) ?>">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="นัดหมายพบเภสัชกร - <?= htmlspecialchars($companyName) ?>">
+    <meta property="og:description" content="จองนัดหมายพบเภสัชกรออนไลน์ ปรึกษาเรื่องยาและสุขภาพ">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="th_TH">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

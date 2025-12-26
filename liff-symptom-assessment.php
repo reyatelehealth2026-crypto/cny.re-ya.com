@@ -25,7 +25,14 @@ if ($lineAccountId) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🩺 ประเมินอาการเบื้องต้น</title>
+    <title>ประเมินอาการเบื้องต้น - ตรวจสอบอาการก่อนพบแพทย์</title>
+    <meta name="description" content="ประเมินอาการเบื้องต้นออนไลน์ ตรวจสอบอาการเจ็บป่วย รับคำแนะนำจากระบบ AI และเภสัชกร ก่อนตัดสินใจพบแพทย์">
+    <meta name="keywords" content="ประเมินอาการ, ตรวจอาการ, เช็คอาการ, อาการเจ็บป่วย, ปรึกษาเภสัชกร">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="ประเมินอาการเบื้องต้น">
+    <meta property="og:description" content="ตรวจสอบอาการเจ็บป่วย รับคำแนะนำจากระบบ AI และเภสัชกร">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="th_TH">
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">

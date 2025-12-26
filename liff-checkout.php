@@ -97,7 +97,9 @@ if ($debugMode) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Checkout - <?= htmlspecialchars($shopName) ?></title>
+    <title>ชำระเงิน - <?= htmlspecialchars($shopName) ?></title>
+    <meta name="description" content="ชำระเงินสั่งซื้อสินค้าจาก <?= htmlspecialchars($shopName) ?> ส่งถึงบ้าน รับที่ร้าน">
+    <meta name="robots" content="noindex, nofollow">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

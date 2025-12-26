@@ -61,7 +61,16 @@ $baseUrl = rtrim(BASE_URL, '/');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title><?= htmlspecialchars($companyName) ?></title>
+    <title><?= htmlspecialchars($companyName) ?> - ร้านขายยาออนไลน์</title>
+    <meta name="description" content="<?= htmlspecialchars($companyName) ?> ร้านขายยาออนไลน์ บริการปรึกษาเภสัชกร สั่งยาออนไลน์ ส่งถึงบ้าน นัดหมาย Video Call">
+    <meta name="keywords" content="<?= htmlspecialchars($companyName) ?>, ร้านขายยา, ยาออนไลน์, เภสัชกร, ปรึกษายา, ส่งยาถึงบ้าน">
+    <meta name="author" content="<?= htmlspecialchars($companyName) ?>">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="<?= htmlspecialchars($companyName) ?> - ร้านขายยาออนไลน์">
+    <meta property="og:description" content="บริการปรึกษาเภสัชกร สั่งยาออนไลน์ ส่งถึงบ้าน">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="th_TH">
+    <meta name="theme-color" content="#11B0A6">
     
     <!-- Tailwind Config -->
     <script src="https://cdn.tailwindcss.com"></script>

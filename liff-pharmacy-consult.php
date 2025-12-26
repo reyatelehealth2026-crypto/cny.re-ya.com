@@ -21,7 +21,14 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ปรึกษาเภสัชกร</title>
+    <title>ปรึกษาเภสัชกร - บริการให้คำปรึกษาด้านยาและสุขภาพ</title>
+    <meta name="description" content="ปรึกษาเภสัชกรออนไลน์ฟรี บริการให้คำปรึกษาด้านยา อาการเจ็บป่วย การใช้ยาอย่างถูกต้อง โดยเภสัชกรผู้เชี่ยวชาญ">
+    <meta name="keywords" content="ปรึกษาเภสัชกร, ถามยา, ปรึกษายาออนไลน์, เภสัชกรออนไลน์, คำแนะนำการใช้ยา">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="ปรึกษาเภสัชกรออนไลน์">
+    <meta property="og:description" content="บริการให้คำปรึกษาด้านยาและสุขภาพ โดยเภสัชกรผู้เชี่ยวชาญ">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="th_TH">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

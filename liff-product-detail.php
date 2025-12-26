@@ -65,6 +65,18 @@ $shopName = $shopSettings['shop_name'] ?? 'ร้านยา';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?= htmlspecialchars($product['name']) ?> - <?= htmlspecialchars($shopName) ?></title>
+    <meta name="description" content="<?= htmlspecialchars($product['name']) ?> - <?= htmlspecialchars(mb_substr(strip_tags($product['description'] ?? ''), 0, 150)) ?> สั่งซื้อออนไลน์ที่ <?= htmlspecialchars($shopName) ?>">
+    <meta name="keywords" content="<?= htmlspecialchars($product['name']) ?>, ยา, เวชภัณฑ์, <?= htmlspecialchars($shopName) ?>">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="<?= htmlspecialchars($product['name']) ?> - <?= htmlspecialchars($shopName) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars(mb_substr(strip_tags($product['description'] ?? ''), 0, 150)) ?>">
+    <meta property="og:type" content="product">
+    <meta property="og:locale" content="th_TH">
+    <?php if (!empty($product['image'])): ?>
+    <meta property="og:image" content="<?= htmlspecialchars($product['image']) ?>">
+    <?php endif; ?>
+    <meta property="product:price:amount" content="<?= $product['price'] ?>">
+    <meta property="product:price:currency" content="THB">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

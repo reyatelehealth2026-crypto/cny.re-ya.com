@@ -350,7 +350,15 @@ function buildPageUrl($page, $userId, $lineAccountId, $filterCategory, $filterSe
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?= htmlspecialchars($shopName) ?></title>
+    <title><?= htmlspecialchars($shopName) ?> - ร้านขายยาออนไลน์</title>
+    <meta name="description" content="<?= htmlspecialchars($shopName) ?> ร้านขายยาออนไลน์ บริการปรึกษาเภสัชกร ส่งยาถึงบ้าน ยาสามัญประจำบ้าน อาหารเสริม เวชภัณฑ์">
+    <meta name="keywords" content="ร้านขายยา, ยาออนไลน์, เภสัชกร, ปรึกษายา, ส่งยาถึงบ้าน, <?= htmlspecialchars($shopName) ?>">
+    <meta name="author" content="<?= htmlspecialchars($shopName) ?>">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="<?= htmlspecialchars($shopName) ?> - ร้านขายยาออนไลน์">
+    <meta property="og:description" content="บริการปรึกษาเภสัชกร สั่งยาออนไลน์ ส่งถึงบ้าน">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="th_TH">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
