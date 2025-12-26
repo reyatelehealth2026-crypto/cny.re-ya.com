@@ -170,6 +170,9 @@ require_once 'includes/header.php';
                             <div>
                                 <div class="flex items-center gap-2">
                                     <span class="font-medium"><?= htmlspecialchars($admin['display_name'] ?: $admin['username']) ?></span>
+                                    <?php if ($admin['display_name'] && $admin['display_name'] !== $admin['username']): ?>
+                                    <span class="text-xs text-gray-400">(@<?= htmlspecialchars($admin['username']) ?>)</span>
+                                    <?php endif; ?>
                                     <?php if ($admin['role'] === 'super_admin'): ?>
                                     <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs">Super Admin</span>
                                     <?php elseif ($admin['role'] === 'admin'): ?>
@@ -183,7 +186,6 @@ require_once 'includes/header.php';
                                     <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs">ปิดใช้งาน</span>
                                     <?php endif; ?>
                                 </div>
-                                <div class="text-sm text-gray-500">@<?= htmlspecialchars($admin['username']) ?></div>
                                 <?php if (!empty($admin['line_user_id'])): ?>
                                 <div class="text-xs text-green-600 mt-1"><i class="fab fa-line mr-1"></i>LINE เชื่อมต่อแล้ว</div>
                                 <?php endif; ?>
