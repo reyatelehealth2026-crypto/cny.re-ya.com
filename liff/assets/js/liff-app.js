@@ -295,6 +295,16 @@ class LiffApp {
         if (window.store) {
             window.store.setCurrentPage(route.page);
         }
+        
+        // Hide/show bottom nav based on page
+        const bottomNav = document.getElementById('bottom-nav');
+        if (bottomNav) {
+            if (route.page === 'checkout') {
+                bottomNav.style.display = 'none';
+            } else {
+                bottomNav.style.display = '';
+            }
+        }
 
         // Load page-specific data
         if (route.page === 'home') {
@@ -2360,6 +2370,9 @@ class LiffApp {
      * Refresh cart display
      */
     refreshCartDisplay() {
+        // Prevent infinite loop
+        if (this._refreshingCart) return;
+        
         const cart = window.store?.get('cart') || { items: [], subtotal: 0, discount: 0, shipping: 0, total: 0 };
         
         console.log('🛒 refreshCartDisplay:', { itemCount: cart.items?.length, subtotal: cart.subtotal });
@@ -2367,21 +2380,27 @@ class LiffApp {
         // Check if we're on cart page and have the container
         const itemsContainer = document.getElementById('cart-items-container');
         const cartPage = document.querySelector('.cart-page');
+        const currentPage = window.store?.get('currentPage');
         
         console.log('🛒 Elements found:', { 
             hasItemsContainer: !!itemsContainer, 
-            cartPageExists: !!cartPage
+            cartPageExists: !!cartPage,
+            currentPage: currentPage
         });
         
-        // If cart has items but no container, re-render (only once)
-        if (cart.items?.length > 0 && !itemsContainer && cartPage === null) {
+        // Only re-render if we're on cart page but missing container
+        if (currentPage === 'cart' && cart.items?.length > 0 && !itemsContainer && !cartPage) {
             console.log('🛒 Cart has items but no container, re-rendering page');
+            this._refreshingCart = true;
             const contentEl = document.getElementById('app-content');
             if (contentEl) {
                 contentEl.innerHTML = this.renderCartPage();
                 setTimeout(() => {
                     this.setupCartEventListeners();
+                    this._refreshingCart = false;
                 }, 100);
+            } else {
+                this._refreshingCart = false;
             }
             return;
         }

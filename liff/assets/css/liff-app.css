@@ -3641,7 +3641,7 @@ img[loading="lazy"] {
 .checkout-page {
     background: var(--bg-light);
     min-height: 100%;
-    padding-bottom: calc(140px + var(--safe-area-bottom)); /* Space for submit bar + bottom nav */
+    padding-bottom: calc(100px + var(--safe-area-bottom)); /* Space for submit bar */
 }
 
 .checkout-header {
@@ -4025,10 +4025,11 @@ img[loading="lazy"] {
 /* Submit Bar */
 .checkout-submit-bar {
     position: fixed;
-    bottom: calc(56px + var(--safe-area-bottom)); /* Above bottom nav */
+    bottom: 0;
     left: 0;
     right: 0;
     padding: 16px;
+    padding-bottom: calc(16px + var(--safe-area-bottom));
     background: #ffffff;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     z-index: 9999;

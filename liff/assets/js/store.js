@@ -294,7 +294,48 @@ class Store {
         this.recalculateCart(cart);
         this.set('cart', cart);
         
+        // Sync to server
+        this.syncCartToServer(product.id, quantity, 'add');
+        
         return cart;
+    }
+
+    /**
+     * Sync cart item to server
+     * @param {number} productId - Product ID
+     * @param {number} quantity - Quantity
+     * @param {string} action - 'add', 'update', or 'remove'
+     */
+    async syncCartToServer(productId, quantity, action = 'add') {
+        const profile = this.get('profile');
+        const config = this.get('config');
+        
+        if (!profile?.userId || !config?.baseUrl) {
+            console.log('🛒 Cart sync skipped: no user or config');
+            return;
+        }
+        
+        try {
+            let apiAction = 'add_to_cart';
+            if (action === 'update') apiAction = 'update_cart';
+            if (action === 'remove') apiAction = 'remove_from_cart';
+            
+            const response = await fetch(`${config.baseUrl}/api/checkout.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: apiAction,
+                    line_user_id: profile.userId,
+                    product_id: productId,
+                    quantity: quantity
+                })
+            });
+            
+            const result = await response.json();
+            console.log('🛒 Cart synced to server:', result);
+        } catch (error) {
+            console.warn('🛒 Cart sync failed:', error);
+        }
     }
 
     /**
@@ -309,8 +350,12 @@ class Store {
         if (index >= 0) {
             if (quantity <= 0) {
                 cart.items.splice(index, 1);
+                // Sync removal to server
+                this.syncCartToServer(productId, 0, 'remove');
             } else {
                 cart.items[index].quantity = quantity;
+                // Sync update to server
+                this.syncCartToServer(productId, quantity, 'update');
             }
             
             cart.hasPrescription = cart.items.some(item => item.is_prescription);
@@ -341,6 +386,33 @@ class Store {
             hasPrescription: false,
             prescriptionApprovalId: null
         });
+        
+        // Sync clear to server
+        this.syncClearCartToServer();
+    }
+
+    /**
+     * Sync clear cart to server
+     */
+    async syncClearCartToServer() {
+        const profile = this.get('profile');
+        const config = this.get('config');
+        
+        if (!profile?.userId || !config?.baseUrl) return;
+        
+        try {
+            await fetch(`${config.baseUrl}/api/checkout.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'clear_cart',
+                    line_user_id: profile.userId
+                })
+            });
+            console.log('🛒 Cart cleared on server');
+        } catch (error) {
+            console.warn('🛒 Cart clear sync failed:', error);
+        }
     }
 
     /**
