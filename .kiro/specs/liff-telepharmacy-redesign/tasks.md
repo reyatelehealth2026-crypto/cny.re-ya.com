@@ -345,7 +345,7 @@
 
 
 
-  - [-] 12.5 Implement expandable order details
+  - [x] 12.5 Implement expandable order details
 
 
     - Show items, tracking, address on tap
