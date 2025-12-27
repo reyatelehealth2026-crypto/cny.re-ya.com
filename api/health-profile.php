@@ -705,7 +705,7 @@ function searchDrugs($pdo) {
             SELECT id, name, generic_name, sku 
             FROM products 
             WHERE (name LIKE ? OR generic_name LIKE ? OR sku LIKE ?)
-            AND (category_id IN (SELECT id FROM categories WHERE name LIKE '%ยา%') OR is_prescription = 1)
+            AND category_id IN (SELECT id FROM categories WHERE name LIKE '%ยา%')
             LIMIT 10
         ");
         

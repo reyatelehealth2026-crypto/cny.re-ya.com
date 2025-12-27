@@ -297,7 +297,7 @@ function getProductRecommendations($db, $keywords, $lineAccountId) {
         $whereClause = '(' . implode(' OR ', $placeholders) . ')';
         
         // Try products table first
-        $sql = "SELECT id, name, price, sale_price, image_url, is_prescription 
+        $sql = "SELECT id, name, price, sale_price, image_url, 0 as is_prescription 
                 FROM products 
                 WHERE $whereClause AND is_active = 1 
                 ORDER BY sale_price ASC 
@@ -309,7 +309,7 @@ function getProductRecommendations($db, $keywords, $lineAccountId) {
         
         // If no products found, try business_items
         if (empty($products)) {
-            $sql = "SELECT id, name, price, sale_price, image_url, is_prescription 
+            $sql = "SELECT id, name, price, sale_price, image_url, 0 as is_prescription 
                     FROM business_items 
                     WHERE $whereClause AND is_active = 1 
                     ORDER BY sale_price ASC 

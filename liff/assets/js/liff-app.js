@@ -260,11 +260,18 @@ class LiffApp {
         // Health Profile page - Requirements: 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.10
         window.router.register('health-profile', () => this.renderHealthProfilePage());
         
+        // Product Detail page
+        window.router.register('product-detail', (params) => this.renderProductDetailPage(params));
+        
+        // Appointments page
+        window.router.register('appointments', () => this.renderAppointmentsPage());
+        
+        // Redeem points page
+        window.router.register('redeem', () => this.renderRedeemPage());
+        
         // Other pages - placeholder for now
         const placeholderPages = [
-            'points', 'redeem', 'appointments',
-            'coupons',
-            'product-detail', 'symptom', 'register'
+            'points', 'coupons', 'symptom', 'register'
         ];
         
         placeholderPages.forEach(page => {
@@ -767,7 +774,7 @@ class LiffApp {
             { icon: 'fa-shopping-cart', label: 'ตะกร้า', page: 'cart', bgColor: '#FFF7ED', iconColor: '#F97316' },
             { icon: 'fa-box-open', label: 'ออเดอร์', page: 'orders', bgColor: '#EFF6FF', iconColor: '#3B82F6' },
             { icon: 'fa-robot', label: 'ผู้ช่วย AI', page: 'ai-assistant', bgColor: '#F3E8FF', iconColor: '#9333EA' },
-            { icon: 'fa-stethoscope', label: 'ประเมินอาการ', page: 'symptom', bgColor: '#FFE4E6', iconColor: '#F43F5E' },
+            { icon: 'fa-calendar-check', label: 'นัดหมาย', page: 'appointments', bgColor: '#FFE4E6', iconColor: '#F43F5E' },
             { icon: 'fa-gift', label: 'แลกแต้ม', page: 'redeem', bgColor: '#FEF3C7', iconColor: '#F59E0B' }
         ];
 
@@ -4329,34 +4336,34 @@ class LiffApp {
         }
 
         return `
-            <div class="profile-page p-4">
-                <div class="text-center mb-6">
+            <div class="profile-page">
+                <div class="profile-header">
                     <img src="${profile.pictureUrl || ''}" 
-                         class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-primary-light"
+                         class="profile-avatar"
                          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%23ccc%22/></svg>'">
-                    <h2 class="text-xl font-bold">${profile.displayName}</h2>
+                    <h2 class="profile-name">${profile.displayName}</h2>
                 </div>
                 
-                <div class="space-y-3">
-                    <div class="card flex items-center gap-3 cursor-pointer" onclick="window.router.navigate('/member')">
-                        <i class="fas fa-id-card text-primary text-xl w-8"></i>
-                        <span class="flex-1">บัตรสมาชิก</span>
-                        <i class="fas fa-chevron-right text-muted"></i>
+                <div class="profile-menu">
+                    <div class="profile-menu-item" onclick="window.router.navigate('/member')">
+                        <i class="fas fa-id-card text-primary"></i>
+                        <span>บัตรสมาชิก</span>
+                        <i class="fas fa-chevron-right"></i>
                     </div>
-                    <div class="card flex items-center gap-3 cursor-pointer" onclick="window.router.navigate('/health-profile')">
-                        <i class="fas fa-heartbeat text-danger text-xl w-8"></i>
-                        <span class="flex-1">ข้อมูลสุขภาพ</span>
-                        <i class="fas fa-chevron-right text-muted"></i>
+                    <div class="profile-menu-item" onclick="window.router.navigate('/health-profile')">
+                        <i class="fas fa-heartbeat text-danger"></i>
+                        <span>ข้อมูลสุขภาพ</span>
+                        <i class="fas fa-chevron-right"></i>
                     </div>
-                    <div class="card flex items-center gap-3 cursor-pointer" onclick="window.router.navigate('/notifications')">
-                        <i class="fas fa-bell text-warning text-xl w-8"></i>
-                        <span class="flex-1">การแจ้งเตือน</span>
-                        <i class="fas fa-chevron-right text-muted"></i>
+                    <div class="profile-menu-item" onclick="window.router.navigate('/notifications')">
+                        <i class="fas fa-bell text-warning"></i>
+                        <span>การแจ้งเตือน</span>
+                        <i class="fas fa-chevron-right"></i>
                     </div>
-                    <div class="card flex items-center gap-3 cursor-pointer" onclick="window.liffApp.logout()">
-                        <i class="fas fa-sign-out-alt text-muted text-xl w-8"></i>
-                        <span class="flex-1">ออกจากระบบ</span>
-                        <i class="fas fa-chevron-right text-muted"></i>
+                    <div class="profile-menu-item" onclick="window.liffApp.logout()">
+                        <i class="fas fa-sign-out-alt text-muted"></i>
+                        <span>ออกจากระบบ</span>
+                        <i class="fas fa-chevron-right"></i>
                     </div>
                 </div>
             </div>
@@ -5795,6 +5802,268 @@ class LiffApp {
         if (window.healthProfile) {
             window.healthProfile.init();
         }
+    }
+
+    /**
+     * Render Product Detail page
+     */
+    renderProductDetailPage(params) {
+        const productId = params?.id;
+        
+        if (!productId) {
+            return `
+                <div class="product-detail-page">
+                    <div class="product-detail-header">
+                        <button class="back-btn" onclick="window.router.back()">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h1 class="page-title">รายละเอียดสินค้า</h1>
+                    </div>
+                    <div class="empty-state">
+                        <p>ไม่พบสินค้า</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load product data
+        setTimeout(() => this.loadProductDetail(productId), 100);
+
+        return `
+            <div class="product-detail-page">
+                <div class="product-detail-header">
+                    <button class="back-btn" onclick="window.router.back()">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="page-title">รายละเอียดสินค้า</h1>
+                    <button class="wishlist-btn" onclick="window.liffApp.toggleWishlist(${productId})">
+                        <i class="far fa-heart"></i>
+                    </button>
+                </div>
+                <div id="product-detail-content">
+                    <div class="skeleton" style="width: 100%; aspect-ratio: 1;"></div>
+                    <div style="padding: 16px;">
+                        <div class="skeleton skeleton-text" style="height: 24px; margin-bottom: 8px;"></div>
+                        <div class="skeleton skeleton-text" style="height: 32px; width: 40%; margin-bottom: 16px;"></div>
+                        <div class="skeleton skeleton-text" style="height: 16px; margin-bottom: 8px;"></div>
+                        <div class="skeleton skeleton-text" style="height: 16px; width: 80%;"></div>
+                    </div>
+                </div>
+                <div class="product-detail-actions">
+                    <button class="btn btn-outline flex-1" onclick="window.liffApp.addToCart(${productId})">
+                        <i class="fas fa-cart-plus"></i> เพิ่มลงตะกร้า
+                    </button>
+                    <button class="btn btn-primary flex-1" onclick="window.liffApp.buyNow(${productId})">
+                        ซื้อเลย
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Load product detail from API
+     */
+    async loadProductDetail(productId) {
+        try {
+            const response = await fetch(\`\${this.config.BASE_URL}/api/products.php?action=detail&id=\${productId}\`);
+            const data = await response.json();
+            
+            const container = document.getElementById('product-detail-content');
+            if (!container) return;
+
+            if (data.success && data.product) {
+                const product = data.product;
+                container.innerHTML = \`
+                    <img src="\${product.image_url || 'assets/images/placeholder.png'}" 
+                         class="product-detail-image"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2255%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2212%22>No Image</text></svg>'">
+                    <div class="product-detail-info">
+                        <h1 class="product-detail-name">\${product.name}</h1>
+                        <div class="product-detail-price">
+                            ฿\${this.formatNumber(product.sale_price || product.price)}
+                            \${product.sale_price && product.sale_price < product.price ? 
+                                \`<span style="text-decoration: line-through; color: var(--text-muted); font-size: 1rem; margin-left: 8px;">฿\${this.formatNumber(product.price)}</span>\` : ''}
+                        </div>
+                        <p class="product-detail-description">\${product.description || 'ไม่มีรายละเอียดสินค้า'}</p>
+                    </div>
+                \`;
+            } else {
+                container.innerHTML = '<div class="empty-state"><p>ไม่พบข้อมูลสินค้า</p></div>';
+            }
+        } catch (error) {
+            console.error('Error loading product:', error);
+        }
+    }
+
+    /**
+     * Buy now - add to cart and go to checkout
+     */
+    buyNow(productId) {
+        this.addToCart(productId);
+        setTimeout(() => window.router.navigate('/checkout'), 500);
+    }
+
+    /**
+     * Render Appointments page
+     */
+    renderAppointmentsPage() {
+        const profile = window.store?.get('profile');
+        
+        // Load appointments
+        setTimeout(() => this.loadAppointments(), 100);
+
+        return \`
+            <div class="appointments-page">
+                <div class="appointments-header">
+                    <button class="back-btn" onclick="window.router.back()">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="page-title" style="flex: 1; margin-left: 12px;">นัดหมาย</h1>
+                    <button class="btn btn-primary btn-sm" onclick="window.router.navigate('/video-call')">
+                        <i class="fas fa-plus"></i> นัดใหม่
+                    </button>
+                </div>
+                <div id="appointments-list">
+                    <div class="appointment-card">
+                        <div class="skeleton skeleton-text" style="height: 14px; width: 40%; margin-bottom: 8px;"></div>
+                        <div class="skeleton skeleton-text" style="height: 18px; margin-bottom: 8px;"></div>
+                        <div class="skeleton skeleton-text" style="height: 24px; width: 30%;"></div>
+                    </div>
+                </div>
+            </div>
+        \`;
+    }
+
+    /**
+     * Load appointments from API
+     */
+    async loadAppointments() {
+        const profile = window.store?.get('profile');
+        const container = document.getElementById('appointments-list');
+        if (!container || !profile?.userId) return;
+
+        try {
+            const response = await fetch(\`\${this.config.BASE_URL}/api/appointments.php?action=list&line_user_id=\${profile.userId}\`);
+            const data = await response.json();
+
+            if (data.success && data.appointments?.length > 0) {
+                container.innerHTML = data.appointments.map(apt => \`
+                    <div class="appointment-card">
+                        <div class="appointment-date">
+                            <i class="far fa-calendar"></i> \${apt.date} เวลา \${apt.time}
+                        </div>
+                        <div class="appointment-title">\${apt.service || 'ปรึกษาเภสัชกร'}</div>
+                        <span class="appointment-status \${apt.status}">\${this.getAppointmentStatusText(apt.status)}</span>
+                    </div>
+                \`).join('');
+            } else {
+                container.innerHTML = \`
+                    <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+                        <i class="far fa-calendar-alt" style="font-size: 48px; color: var(--text-muted); margin-bottom: 16px;"></i>
+                        <h3 style="margin-bottom: 8px;">ยังไม่มีนัดหมาย</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 16px;">นัดปรึกษาเภสัชกรผ่าน Video Call</p>
+                        <button class="btn btn-primary" onclick="window.router.navigate('/video-call')">
+                            <i class="fas fa-video"></i> นัดหมายเลย
+                        </button>
+                    </div>
+                \`;
+            }
+        } catch (error) {
+            console.error('Error loading appointments:', error);
+            container.innerHTML = '<div class="empty-state"><p>ไม่สามารถโหลดข้อมูลได้</p></div>';
+        }
+    }
+
+    getAppointmentStatusText(status) {
+        const statusMap = {
+            'pending': 'รอยืนยัน',
+            'confirmed': 'ยืนยันแล้ว',
+            'completed': 'เสร็จสิ้น',
+            'cancelled': 'ยกเลิก'
+        };
+        return statusMap[status] || status;
+    }
+
+    /**
+     * Render Redeem Points page
+     */
+    renderRedeemPage() {
+        const member = window.store?.get('member');
+        const points = member?.points || 0;
+
+        // Load rewards
+        setTimeout(() => this.loadRewards(), 100);
+
+        return \`
+            <div class="redeem-page">
+                <div class="redeem-header">
+                    <button class="back-btn" onclick="window.router.back()">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="page-title" style="flex: 1; margin-left: 12px;">แลกแต้ม</h1>
+                </div>
+                
+                <div class="points-balance-card">
+                    <div class="points-balance-label">แต้มสะสมของคุณ</div>
+                    <div class="points-balance-value">\${this.formatNumber(points)}</div>
+                </div>
+
+                <h3 style="margin-bottom: 12px; font-weight: 600;">รางวัลที่แลกได้</h3>
+                <div id="rewards-list">
+                    <div class="reward-card">
+                        <div class="skeleton" style="width: 80px; height: 80px; border-radius: 8px;"></div>
+                        <div class="reward-info">
+                            <div class="skeleton skeleton-text" style="height: 18px; margin-bottom: 8px;"></div>
+                            <div class="skeleton skeleton-text" style="height: 14px; width: 50%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        \`;
+    }
+
+    /**
+     * Load rewards from API
+     */
+    async loadRewards() {
+        const container = document.getElementById('rewards-list');
+        if (!container) return;
+
+        try {
+            const response = await fetch(\`\${this.config.BASE_URL}/api/rewards.php?action=list\`);
+            const data = await response.json();
+
+            if (data.success && data.rewards?.length > 0) {
+                container.innerHTML = data.rewards.map(reward => \`
+                    <div class="reward-card" onclick="window.liffApp.showRewardDetail(\${reward.id})">
+                        <img src="\${reward.image_url || 'assets/images/placeholder.png'}" 
+                             class="reward-image"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/></svg>'">
+                        <div class="reward-info">
+                            <div class="reward-name">\${reward.name}</div>
+                            <div class="reward-points">\${this.formatNumber(reward.points_required)} แต้ม</div>
+                        </div>
+                    </div>
+                \`).join('');
+            } else {
+                container.innerHTML = \`
+                    <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+                        <i class="fas fa-gift" style="font-size: 48px; color: var(--text-muted); margin-bottom: 16px;"></i>
+                        <h3 style="margin-bottom: 8px;">ยังไม่มีรางวัล</h3>
+                        <p style="color: var(--text-secondary);">รางวัลจะเพิ่มเข้ามาเร็วๆ นี้</p>
+                    </div>
+                \`;
+            }
+        } catch (error) {
+            console.error('Error loading rewards:', error);
+            container.innerHTML = '<div class="empty-state"><p>ไม่สามารถโหลดข้อมูลได้</p></div>';
+        }
+    }
+
+    showRewardDetail(rewardId) {
+        // TODO: Show reward detail modal
+        this.showToast('เร็วๆ นี้', 'info');
     }
 
     /**

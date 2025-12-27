@@ -265,13 +265,28 @@ function handleGetUserMedications($db) {
  * @return array|null Product details or null if not found
  */
 function getProductDetails($db, $productId) {
-    $stmt = $db->prepare("
-        SELECT id, name, sku, generic_name, is_prescription, category_id
-        FROM products 
-        WHERE id = ?
-    ");
-    $stmt->execute([$productId]);
-    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    // Check if is_prescription column exists
+    try {
+        $stmt = $db->prepare("
+            SELECT id, name, sku, generic_name, 
+                   CASE WHEN EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'is_prescription') 
+                        THEN is_prescription ELSE 0 END as is_prescription,
+                   category_id
+            FROM products 
+            WHERE id = ?
+        ");
+        $stmt->execute([$productId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Exception $e) {
+        // Fallback without is_prescription
+        $stmt = $db->prepare("
+            SELECT id, name, sku, generic_name, 0 as is_prescription, category_id
+            FROM products 
+            WHERE id = ?
+        ");
+        $stmt->execute([$productId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 }
 
 /**

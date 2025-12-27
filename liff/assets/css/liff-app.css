@@ -10692,3 +10692,256 @@ body:has(.ai-chat-page) .bottom-nav {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
 }
+
+
+/* ==================== Profile Page ==================== */
+.profile-page {
+    padding: var(--space-4);
+    padding-bottom: calc(80px + var(--safe-area-bottom));
+    min-height: 100vh;
+    background: var(--bg-light);
+}
+
+.profile-header {
+    text-align: center;
+    padding: var(--space-6) 0;
+}
+
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--primary);
+    margin-bottom: var(--space-3);
+}
+
+.profile-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.profile-menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.profile-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.profile-menu-item:active {
+    transform: scale(0.98);
+    background: var(--bg-gray);
+}
+
+.profile-menu-item i:first-child {
+    width: 24px;
+    font-size: 1.25rem;
+}
+
+.profile-menu-item span {
+    flex: 1;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.profile-menu-item i:last-child {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* ==================== Product Detail Page ==================== */
+.product-detail-page {
+    padding-bottom: calc(80px + var(--safe-area-bottom));
+    min-height: 100vh;
+    background: var(--bg-white);
+}
+
+.product-detail-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--bg-white);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.product-detail-image {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    background: var(--bg-gray);
+}
+
+.product-detail-info {
+    padding: var(--space-4);
+}
+
+.product-detail-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.product-detail-price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: var(--space-4);
+}
+
+.product-detail-description {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.product-detail-actions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-4) + var(--safe-area-bottom));
+    background: var(--bg-white);
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* ==================== Appointments Page ==================== */
+.appointments-page {
+    padding: var(--space-4);
+    padding-bottom: calc(80px + var(--safe-area-bottom));
+    min-height: 100vh;
+    background: var(--bg-light);
+}
+
+.appointments-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.appointment-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    box-shadow: var(--shadow-sm);
+}
+
+.appointment-date {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.appointment-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.appointment-status {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.appointment-status.pending {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.appointment-status.confirmed {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+/* ==================== Redeem Points Page ==================== */
+.redeem-page {
+    padding: var(--space-4);
+    padding-bottom: calc(80px + var(--safe-area-bottom));
+    min-height: 100vh;
+    background: var(--bg-light);
+}
+
+.redeem-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.points-balance-card {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    color: white;
+    text-align: center;
+    margin-bottom: var(--space-6);
+}
+
+.points-balance-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin-bottom: var(--space-2);
+}
+
+.points-balance-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.reward-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    gap: var(--space-3);
+}
+
+.reward-image {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-md);
+    object-fit: cover;
+    background: var(--bg-gray);
+}
+
+.reward-info {
+    flex: 1;
+}
+
+.reward-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-1);
+}
+
+.reward-points {
+    font-size: 0.875rem;
+    color: var(--primary);
+    font-weight: 600;
+}
