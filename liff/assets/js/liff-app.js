@@ -2372,10 +2372,8 @@ class LiffApp {
         if (totalEl) totalEl.textContent = `฿${this.formatNumber(cart.total)}`;
         if (checkoutTotalEl) checkoutTotalEl.textContent = `฿${this.formatNumber(cart.total)}`;
 
-        // If cart is empty, redirect to empty state
-        if (cart.items.length === 0) {
-            window.router.navigate('/cart', {}, true);
-        }
+        // Update cart badge
+        this.updateCartBadge();
     }
 
     /**

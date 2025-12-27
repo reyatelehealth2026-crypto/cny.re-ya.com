@@ -11444,6 +11444,8 @@ body:has(.ai-chat-page) .bottom-nav {
 .pharmacist-avatar {
     position: relative;
     flex-shrink: 0;
+    width: 80px;
+    height: 80px;
 }
 
 .pharmacist-avatar img {
@@ -11467,6 +11469,8 @@ body:has(.ai-chat-page) .bottom-nav {
     display: flex;
     align-items: center;
     gap: 2px;
+    z-index: 1;
+    white-space: nowrap;
 }
 
 .pharmacist-rating i {
