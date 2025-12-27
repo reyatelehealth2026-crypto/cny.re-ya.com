@@ -4173,7 +4173,7 @@ class LiffApp {
      * View order detail page
      */
     viewOrderDetail(orderId) {
-        window.router.navigate('/order-detail', { orderId });
+        window.router.navigate(`/order/${orderId}`);
     }
 
     /**
