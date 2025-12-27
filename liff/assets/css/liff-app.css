@@ -3578,13 +3578,14 @@ img[loading="lazy"] {
     bottom: calc(56px + var(--safe-area-bottom)); /* Above bottom nav */
     left: 0;
     right: 0;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
-    background: var(--bg-white);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-    z-index: calc(var(--z-fixed) + 1);
+    padding: 16px;
+    background: #ffffff;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    border-top: 2px solid #11B0A6;
 }
 
 .cart-checkout-total {
