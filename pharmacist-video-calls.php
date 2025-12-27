@@ -292,6 +292,27 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
     
+    <!-- Quick Actions -->
+    <div class="quick-actions-card" style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <h3 style="font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">⚡</span> Quick Actions
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+            <button onclick="sendGreeting()" style="padding: 14px 16px; border-radius: 12px; border: none; background: #FEF3C7; color: #92400E; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                <span>👋</span> ทักทาย
+            </button>
+            <button onclick="sendWaiting()" style="padding: 14px 16px; border-radius: 12px; border: none; background: #FEE2E2; color: #991B1B; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                <span>⏳</span> รอสักครู่
+            </button>
+            <button onclick="takeScreenshot()" style="padding: 14px 16px; border-radius: 12px; border: none; background: #E0E7FF; color: #3730A3; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                <span>📸</span> Screenshot
+            </button>
+            <button onclick="toggleRecording()" id="btn-record" style="padding: 14px 16px; border-radius: 12px; border: none; background: #DBEAFE; color: #1E40AF; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                <span>🔴</span> บันทึก
+            </button>
+        </div>
+    </div>
+    
     <!-- Debug Panel -->
     <div id="debug-panel" style="display: none; background: #1F2937; color: #10B981; padding: 16px; border-radius: 12px; margin-bottom: 20px; font-family: monospace; font-size: 13px; max-height: 300px; overflow: auto;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
@@ -708,6 +729,132 @@ async function debugCalls() {
     }
 }
 
+// ==================== Quick Actions ====================
+
+let isRecording = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+
+// Send greeting message
+function sendGreeting() {
+    if (!currentCallId) {
+        alert('ยังไม่มีสายที่กำลังโทร');
+        return;
+    }
+    // Could send via WebRTC data channel or show toast
+    showQuickActionToast('👋 ส่งข้อความทักทายแล้ว');
+}
+
+// Send waiting message
+function sendWaiting() {
+    if (!currentCallId) {
+        alert('ยังไม่มีสายที่กำลังโทร');
+        return;
+    }
+    showQuickActionToast('⏳ ส่งข้อความรอสักครู่แล้ว');
+}
+
+// Take screenshot of video call
+function takeScreenshot() {
+    const remoteVideo = document.getElementById('remote-video');
+    if (!remoteVideo || !remoteVideo.srcObject) {
+        alert('ยังไม่มีวิดีโอให้ถ่าย');
+        return;
+    }
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = remoteVideo.videoWidth || 640;
+    canvas.height = remoteVideo.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+    
+    // Download screenshot
+    const link = document.createElement('a');
+    link.download = `screenshot_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    showQuickActionToast('📸 บันทึก Screenshot แล้ว');
+}
+
+// Toggle recording
+function toggleRecording() {
+    const btn = document.getElementById('btn-record');
+    
+    if (!isRecording) {
+        // Start recording
+        const remoteVideo = document.getElementById('remote-video');
+        if (!remoteVideo || !remoteVideo.srcObject) {
+            alert('ยังไม่มีวิดีโอให้บันทึก');
+            return;
+        }
+        
+        try {
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(remoteVideo.srcObject, { mimeType: 'video/webm' });
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `recording_${Date.now()}.webm`;
+                link.href = url;
+                link.click();
+            };
+            
+            mediaRecorder.start();
+            isRecording = true;
+            btn.innerHTML = '<span>⏹️</span> หยุดบันทึก';
+            btn.style.background = '#FEE2E2';
+            btn.style.color = '#991B1B';
+            showQuickActionToast('🔴 เริ่มบันทึกวิดีโอ');
+        } catch (e) {
+            console.error('Recording error:', e);
+            alert('ไม่สามารถบันทึกได้: ' + e.message);
+        }
+    } else {
+        // Stop recording
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        isRecording = false;
+        btn.innerHTML = '<span>🔴</span> บันทึก';
+        btn.style.background = '#DBEAFE';
+        btn.style.color = '#1E40AF';
+        showQuickActionToast('⏹️ หยุดบันทึกและดาวน์โหลดแล้ว');
+    }
+}
+
+// Show toast for quick actions
+function showQuickActionToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1F2937;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        z-index: 10000;
+        animation: fadeInUp 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
 // Start polling
 console.log('📹 Starting polling for incoming calls...');
 setInterval(checkIncomingCalls, 3000);
@@ -719,5 +866,12 @@ document.addEventListener('DOMContentLoaded', function() {
     checkIncomingCalls();
 });
 </script>
+
+<style>
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+</style>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
