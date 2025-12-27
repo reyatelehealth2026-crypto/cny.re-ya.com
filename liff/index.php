@@ -234,20 +234,25 @@ $currentPage = $pages[$page] ?? $pages['home'];
     </script>
 
     <!-- App Scripts -->
-    <?php $v = '20241228ae'; // Cache bust version ?>
-    <script src="<?= $baseUrl ?>/liff/assets/js/store.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/router.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/skeleton.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/lazy-image.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/drug-interaction.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/prescription-handler.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/permission-checker.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/video-call.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/liff-message-bridge.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/bottom-nav.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/page-transition.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/ai-chat.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/components/health-profile.js?v=<?= $v ?>"></script>
-    <script src="<?= $baseUrl ?>/liff/assets/js/liff-app.js?v=<?= $v ?>"></script>
+    <?php $v = '20241228af'; // Cache bust version ?>
+    <script>window.debugLog('Loading scripts...', 'info');</script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/store.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: store.js', 'error')"></script>
+    <script>window.debugLog('store.js loaded', 'success');</script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/router.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: router.js', 'error')"></script>
+    <script>window.debugLog('router.js loaded', 'success');</script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/skeleton.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: skeleton.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/lazy-image.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: lazy-image.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/drug-interaction.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: drug-interaction.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/prescription-handler.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: prescription-handler.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/permission-checker.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: permission-checker.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/video-call.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: video-call.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/liff-message-bridge.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: liff-message-bridge.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/bottom-nav.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: bottom-nav.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/page-transition.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: page-transition.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/ai-chat.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: ai-chat.js', 'error')"></script>
+    <script>window.debugLog('ai-chat.js loaded, AIChat=' + (typeof AIChat), 'info');</script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/components/health-profile.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: health-profile.js', 'error')"></script>
+    <script src="<?= $baseUrl ?>/liff/assets/js/liff-app.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: liff-app.js', 'error')"></script>
+    <script>window.debugLog('All scripts loaded!', 'success');</script>
 </body>
 </html>
