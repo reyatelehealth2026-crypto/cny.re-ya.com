@@ -634,7 +634,7 @@ function startSignalPolling() {
 }
 
 async function handleSignal(signal) {
-    if (!peerConnection) return;
+    if (!peerConnection && signal.signal_type !== 'hangup' && signal.signal_type !== 'message') return;
     
     console.log('📹 Handling signal:', signal.signal_type);
     
@@ -662,10 +662,50 @@ async function handleSignal(signal) {
             } else {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(signal.signal_data));
             }
+        } else if (signal.signal_type === 'hangup') {
+            // Other party hung up
+            console.log('📹 Received hangup signal');
+            endCurrentCall('ลูกค้าวางสายแล้ว');
+        } else if (signal.signal_type === 'message') {
+            // Received message from other party
+            console.log('📹 Received message:', signal.signal_data);
+            showIncomingMessage(signal.signal_data);
         }
     } catch (e) {
         console.error('Signal handling error:', e);
     }
+}
+
+// Show incoming message overlay
+function showIncomingMessage(data) {
+    const text = data.text || data.message || 'ข้อความจากลูกค้า';
+    
+    // Create message overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 24px 48px;
+        border-radius: 16px;
+        font-size: 24px;
+        z-index: 10001;
+        animation: fadeInScale 0.3s ease;
+        text-align: center;
+        max-width: 80%;
+    `;
+    overlay.innerHTML = `<div style="font-size: 48px; margin-bottom: 12px;">${data.type === 'greeting' ? '👋' : '⏳'}</div>${text}`;
+    document.body.appendChild(overlay);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.3s';
+        setTimeout(() => overlay.remove(), 300);
+    }, 3000);
 }
 
 async function sendSignal(type, data) {
@@ -700,6 +740,28 @@ async function rejectCall(callId) {
 
 // End current call
 async function endCurrentCall(message = 'สิ้นสุดการโทร') {
+    const wasCallId = currentCallId;
+    const duration = callSeconds;
+    
+    // Send hangup signal to other party first
+    if (wasCallId && message !== 'ลูกค้าวางสายแล้ว') {
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'signal',
+                    call_id: wasCallId,
+                    signal_type: 'hangup',
+                    signal_data: { reason: message },
+                    from: 'admin'
+                })
+            });
+        } catch (e) {
+            console.error('Failed to send hangup signal:', e);
+        }
+    }
+    
     if (signalPoll) {
         clearInterval(signalPoll);
         signalPoll = null;
@@ -715,16 +777,14 @@ async function endCurrentCall(message = 'สิ้นสุดการโทร
         peerConnection = null;
     }
     
-    const duration = callSeconds;
-    
-    if (currentCallId) {
+    if (wasCallId) {
         try {
             await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'end',
-                    call_id: currentCallId,
+                    call_id: wasCallId,
                     duration: duration
                 })
             });
@@ -805,23 +865,34 @@ let isRecording = false;
 let mediaRecorder = null;
 let recordedChunks = [];
 
-// Send greeting message
-function sendGreeting() {
+// Send greeting message via signal
+async function sendGreeting() {
     if (!currentCallId) {
         showQuickActionToast('⚠️ ยังไม่มีสายที่กำลังโทร', 'warning');
         return;
     }
-    // Show toast - in real implementation could send via WebRTC data channel
-    showQuickActionToast('👋 ส่งข้อความทักทายแล้ว');
+    
+    try {
+        await sendSignal('message', { type: 'greeting', text: '👋 สวัสดีครับ/ค่ะ ยินดีให้บริการ' });
+        showQuickActionToast('👋 ส่งข้อความทักทายแล้ว');
+    } catch (e) {
+        showQuickActionToast('❌ ส่งข้อความไม่สำเร็จ', 'error');
+    }
 }
 
-// Send waiting message
-function sendWaiting() {
+// Send waiting message via signal
+async function sendWaiting() {
     if (!currentCallId) {
         showQuickActionToast('⚠️ ยังไม่มีสายที่กำลังโทร', 'warning');
         return;
     }
-    showQuickActionToast('⏳ ส่งข้อความรอสักครู่แล้ว');
+    
+    try {
+        await sendSignal('message', { type: 'waiting', text: '⏳ กรุณารอสักครู่นะครับ/ค่ะ' });
+        showQuickActionToast('⏳ ส่งข้อความรอสักครู่แล้ว');
+    } catch (e) {
+        showQuickActionToast('❌ ส่งข้อความไม่สำเร็จ', 'error');
+    }
 }
 
 // Take screenshot of video call

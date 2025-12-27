@@ -334,8 +334,9 @@
                     // Customer wants signals FROM admin
                     if ($sigFrom === 'admin') {
                         // answer: always include (ignore processed)
-                        // ice-candidate: only if not processed
-                        if ($sigType === 'answer' || ($sigType === 'ice-candidate' && !$processed)) {
+                        // ice-candidate, hangup, message: only if not processed
+                        if ($sigType === 'answer' || 
+                            (in_array($sigType, ['ice-candidate', 'hangup', 'message']) && !$processed)) {
                             $signals[] = $sig;
                             $debugFilter[count($debugFilter)-1]['match'] = true;
                         }
@@ -344,8 +345,9 @@
                     // Admin wants signals FROM customer
                     if ($sigFrom === 'customer') {
                         // offer: always include (ignore processed)
-                        // ice-candidate: only if not processed
-                        if ($sigType === 'offer' || ($sigType === 'ice-candidate' && !$processed)) {
+                        // ice-candidate, hangup, message: only if not processed
+                        if ($sigType === 'offer' || 
+                            (in_array($sigType, ['ice-candidate', 'hangup', 'message']) && !$processed)) {
                             $signals[] = $sig;
                             $debugFilter[count($debugFilter)-1]['match'] = true;
                         }
@@ -356,14 +358,14 @@
             
             // Mark as processed (except offer and answer - they need to be received by both sides)
             if (!empty($signals)) {
-                // Only mark ice-candidate as processed
-                $iceIds = array_column(array_filter($signals, function($s) {
-                    return $s['signal_type'] === 'ice-candidate';
+                // Mark ice-candidate, hangup, message as processed
+                $processIds = array_column(array_filter($signals, function($s) {
+                    return in_array($s['signal_type'], ['ice-candidate', 'hangup', 'message']);
                 }), 'id');
                 
-                if (!empty($iceIds)) {
-                    $placeholders = implode(',', array_fill(0, count($iceIds), '?'));
-                    $db->prepare("UPDATE video_call_signals SET processed = 1 WHERE id IN ($placeholders)")->execute($iceIds);
+                if (!empty($processIds)) {
+                    $placeholders = implode(',', array_fill(0, count($processIds), '?'));
+                    $db->prepare("UPDATE video_call_signals SET processed = 1 WHERE id IN ($placeholders)")->execute($processIds);
                 }
             }
             

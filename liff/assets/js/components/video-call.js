@@ -441,7 +441,8 @@ class VideoCallManager {
      * @param {Object} signal - Signal data
      */
     async handleSignal(signal) {
-        if (!this.peerConnection) return;
+        // Allow hangup and message signals even without peer connection
+        if (!this.peerConnection && signal.signal_type !== 'hangup' && signal.signal_type !== 'message') return;
         
         console.log('📹 Handling signal:', signal.signal_type);
         
@@ -483,10 +484,64 @@ class VideoCallManager {
                         }
                     }
                     break;
+                    
+                case 'hangup':
+                    // Other party hung up
+                    console.log('📹 Received hangup signal from admin');
+                    this.endCall('เภสัชกรวางสายแล้ว');
+                    break;
+                    
+                case 'message':
+                    // Received message from admin
+                    console.log('📹 Received message:', signal.signal_data);
+                    this.showIncomingMessage(signal.signal_data);
+                    break;
             }
         } catch (error) {
             console.error('📹 Signal handling error:', error);
         }
+    }
+    
+    /**
+     * Show incoming message overlay
+     * @param {Object} data - Message data
+     */
+    showIncomingMessage(data) {
+        const text = data.text || data.message || 'ข้อความจากเภสัชกร';
+        const icon = data.type === 'greeting' ? '👋' : '⏳';
+        
+        // Create message overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 24px 48px;
+            border-radius: 16px;
+            font-size: 20px;
+            z-index: 10001;
+            animation: fadeInScale 0.3s ease;
+            text-align: center;
+            max-width: 80%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        `;
+        overlay.innerHTML = `<div style="font-size: 48px; margin-bottom: 12px;">${icon}</div>${text}`;
+        document.body.appendChild(overlay);
+        
+        // Callback if set
+        if (this.onMessage) {
+            this.onMessage(data);
+        }
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 0.3s';
+            setTimeout(() => overlay.remove(), 300);
+        }, 3000);
     }
 
     /**
@@ -545,6 +600,27 @@ class VideoCallManager {
     async endCall(reason = 'สิ้นสุดการโทร', notes = null) {
         console.log('📹 Ending call:', reason);
         
+        const wasCallId = this.currentCallId;
+        
+        // Send hangup signal to other party first (unless they hung up)
+        if (wasCallId && reason !== 'เภสัชกรวางสายแล้ว') {
+            try {
+                await fetch(this.getApiUrl(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'signal',
+                        call_id: wasCallId,
+                        signal_type: 'hangup',
+                        signal_data: { reason: reason },
+                        from: 'customer'
+                    })
+                });
+            } catch (error) {
+                console.error('📹 Failed to send hangup signal:', error);
+            }
+        }
+        
         // Stop polling
         if (this.signalPollInterval) {
             clearInterval(this.signalPollInterval);
@@ -561,11 +637,11 @@ class VideoCallManager {
         }
         
         // Notify server with duration and optional notes
-        if (this.currentCallId) {
+        if (wasCallId) {
             try {
                 const payload = {
                     action: 'end',
-                    call_id: this.currentCallId,
+                    call_id: wasCallId,
                     duration: this.callDuration
                 };
                 
@@ -584,7 +660,7 @@ class VideoCallManager {
         }
         
         const duration = this.callDuration;
-        const callId = this.currentCallId;
+        const callId = wasCallId;
         
         // Reset state
         this.currentCallId = null;
