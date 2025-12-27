@@ -3616,6 +3616,18 @@ img[loading="lazy"] {
     font-size: 14px;
 }
 
+/* Inline checkout button (inside summary card) */
+.cart-checkout-btn-inline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
 .cart-empty-message {
     text-align: center;
     padding: var(--space-8);

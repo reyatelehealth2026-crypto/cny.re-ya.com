@@ -2168,6 +2168,15 @@ class LiffApp {
             `;
         }
 
+        // After render, move checkout bar to body for proper fixed positioning
+        setTimeout(() => {
+            const checkoutBar = document.querySelector('.cart-checkout-bar');
+            if (checkoutBar && checkoutBar.parentElement?.classList.contains('cart-page')) {
+                document.body.appendChild(checkoutBar);
+                console.log('🛒 Moved checkout bar to body');
+            }
+        }, 50);
+
         return `
             <div class="cart-page">
                 <!-- Header -->
@@ -2220,19 +2229,13 @@ class LiffApp {
                                 <span>มียาที่ต้องปรึกษาเภสัชกรก่อนสั่งซื้อ</span>
                             </div>
                         ` : ''}
+                        
+                        <!-- Checkout Button inside summary card -->
+                        <button class="btn btn-primary btn-block cart-checkout-btn-inline" onclick="window.router.navigate('/checkout')" style="margin-top: 16px;">
+                            <span>ดำเนินการสั่งซื้อ</span>
+                            <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
+                        </button>
                     </div>
-                </div>
-
-                <!-- Checkout Button -->
-                <div class="cart-checkout-bar">
-                    <div class="cart-checkout-total">
-                        <span class="cart-checkout-label">ยอดรวม</span>
-                        <span id="cart-checkout-total" class="cart-checkout-amount">฿${this.formatNumber(cart.total)}</span>
-                    </div>
-                    <button class="btn btn-primary cart-checkout-btn" onclick="window.router.navigate('/checkout')">
-                        <span>ดำเนินการสั่งซื้อ</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
                 </div>
             </div>
         `;
