@@ -2365,8 +2365,14 @@ class LiffApp {
         const itemsContainer = document.getElementById('cart-items-container');
         const checkoutBar = document.querySelector('.cart-checkout-bar');
         
-        if (cart.items?.length > 0 && !itemsContainer) {
-            console.log('🛒 Cart has items but no container, re-rendering page');
+        console.log('🛒 Elements found:', { 
+            hasItemsContainer: !!itemsContainer, 
+            hasCheckoutBar: !!checkoutBar,
+            cartPageExists: !!document.querySelector('.cart-page')
+        });
+        
+        if (cart.items?.length > 0 && (!itemsContainer || !checkoutBar)) {
+            console.log('🛒 Cart has items but missing elements, re-rendering page');
             // Re-render the cart page
             const contentEl = document.getElementById('app-content');
             if (contentEl) {
