@@ -461,10 +461,14 @@ function handleCreateOrder($data) {
     
     $userId = $data['user_id'] ?? null;
     $lineUserId = $data['line_user_id'] ?? null;
-    $requestLineAccountId = $data['line_account_id'] ?? null; // จาก request
+    $requestLineAccountId = $data['line_account_id'] ?? null;
     $address = $data['address'] ?? [];
     $paymentMethod = $data['payment_method'] ?? 'transfer';
     $displayName = $data['display_name'] ?? ($address['name'] ?? 'LIFF User');
+    $cartItems = $data['cart_items'] ?? null; // Cart items from request
+    $requestSubtotal = $data['subtotal'] ?? null;
+    $requestShipping = $data['shipping'] ?? null;
+    $requestTotal = $data['total'] ?? null;
     
     // Get user ID and line_account_id from LINE user ID
     $lineAccountId = null;
@@ -476,7 +480,7 @@ function handleCreateOrder($data) {
             $userId = $user['id'];
             $lineAccountId = $user['line_account_id'];
         } else {
-            // Auto-create user - ใช้ line_account_id จาก request หรือ default
+            // Auto-create user
             $lineAccountId = $requestLineAccountId;
             if (!$lineAccountId) {
                 $stmt = $db->query("SELECT id FROM line_accounts WHERE is_active = 1 ORDER BY is_default DESC LIMIT 1");
@@ -490,7 +494,7 @@ function handleCreateOrder($data) {
         }
     }
     
-    // Fallback: ใช้ line_account_id จาก request หรือ default
+    // Fallback line_account_id
     if (!$lineAccountId) {
         $lineAccountId = $requestLineAccountId;
         if (!$lineAccountId) {
@@ -504,45 +508,72 @@ function handleCreateOrder($data) {
         jsonResponse(false, 'User not found (line_user_id: ' . ($lineUserId ?? 'null') . ')');
     }
     
-    // Get cart items
-    $stmt = $db->prepare("
-        SELECT c.*, p.name, p.price, p.sale_price
-        FROM cart_items c
-        JOIN business_items p ON c.product_id = p.id
-        WHERE c.user_id = ?
-    ");
-    $stmt->execute([$userId]);
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Use cart items from request if provided, otherwise get from database
+    $items = [];
+    if (!empty($cartItems) && is_array($cartItems)) {
+        // Use cart items from request directly
+        foreach ($cartItems as $item) {
+            $items[] = [
+                'product_id' => $item['product_id'],
+                'name' => $item['name'],
+                'price' => floatval($item['price']),
+                'sale_price' => floatval($item['price']),
+                'quantity' => intval($item['quantity'])
+            ];
+        }
+        error_log("handleCreateOrder: Using " . count($items) . " items from request");
+    } else {
+        // Fallback: Get cart items from database
+        $stmt = $db->prepare("
+            SELECT c.*, p.name, p.price, p.sale_price
+            FROM cart_items c
+            JOIN business_items p ON c.product_id = p.id
+            WHERE c.user_id = ?
+        ");
+        $stmt->execute([$userId]);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("handleCreateOrder: Using " . count($items) . " items from database");
+    }
     
     if (empty($items)) {
         jsonResponse(false, 'Cart is empty');
     }
     
-    // Calculate totals
+    // Calculate totals (or use from request)
     $subtotal = 0;
     foreach ($items as $item) {
         $price = $item['sale_price'] ?? $item['price'];
         $subtotal += $price * $item['quantity'];
     }
     
-    // Get shipping fee from shop_settings based on user's line_account_id
-    if ($lineAccountId) {
-        $stmt = $db->prepare("SELECT shipping_fee, free_shipping_min FROM shop_settings WHERE line_account_id = ? LIMIT 1");
-        $stmt->execute([$lineAccountId]);
-        $settings = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-    if (empty($settings)) {
-        $stmt = $db->query("SELECT shipping_fee, free_shipping_min FROM shop_settings LIMIT 1");
-        $settings = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-    $shippingFee = floatval($settings['shipping_fee'] ?? 50);
-    $freeShippingMin = floatval($settings['free_shipping_min'] ?? 500);
-    
-    if ($subtotal >= $freeShippingMin) {
-        $shippingFee = 0;
+    // Use request values if provided
+    if ($requestSubtotal !== null) {
+        $subtotal = floatval($requestSubtotal);
     }
     
-    $total = $subtotal + $shippingFee;
+    // Get shipping fee
+    $shippingFee = 0;
+    if ($requestShipping !== null) {
+        $shippingFee = floatval($requestShipping);
+    } else {
+        if ($lineAccountId) {
+            $stmt = $db->prepare("SELECT shipping_fee, free_shipping_min FROM shop_settings WHERE line_account_id = ? LIMIT 1");
+            $stmt->execute([$lineAccountId]);
+            $settings = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        if (empty($settings)) {
+            $stmt = $db->query("SELECT shipping_fee, free_shipping_min FROM shop_settings LIMIT 1");
+            $settings = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        $shippingFee = floatval($settings['shipping_fee'] ?? 50);
+        $freeShippingMin = floatval($settings['free_shipping_min'] ?? 500);
+        
+        if ($subtotal >= $freeShippingMin) {
+            $shippingFee = 0;
+        }
+    }
+    
+    $total = ($requestTotal !== null) ? floatval($requestTotal) : ($subtotal + $shippingFee);
     
     // Build delivery info
     $deliveryInfo = [

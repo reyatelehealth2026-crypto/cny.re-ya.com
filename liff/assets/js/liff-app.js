@@ -3157,8 +3157,16 @@ class LiffApp {
             return;
         }
 
-        // Check prescription approval (Requirement 11.3)
+        // Get cart and validate
         const cart = window.store?.get('cart');
+        console.log('🛒 placeOrder cart:', cart);
+        
+        if (!cart?.items || cart.items.length === 0) {
+            this.showToast('ตะกร้าว่างเปล่า กรุณาเพิ่มสินค้า', 'error');
+            return;
+        }
+
+        // Check prescription approval (Requirement 11.3)
         if (cart?.hasPrescription) {
             if (window.PrescriptionHandler) {
                 const checkResult = await window.PrescriptionHandler.canProceedToCheckout(cart);
@@ -3192,7 +3200,15 @@ class LiffApp {
             const formData = this.getCheckoutFormData();
             const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'transfer';
 
-            // Prepare order data
+            // Prepare cart items for API
+            const cartItems = cart.items.map(item => ({
+                product_id: item.product_id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity
+            }));
+
+            // Prepare order data - include cart items directly
             const orderData = {
                 action: 'create_order',
                 line_user_id: profile?.userId,
@@ -3201,8 +3217,14 @@ class LiffApp {
                 address: formData,
                 payment_method: paymentMethod,
                 coupon_code: this.checkoutState.promoCode || null,
-                prescription_approval_id: cart?.prescriptionApprovalId || null
+                prescription_approval_id: cart?.prescriptionApprovalId || null,
+                cart_items: cartItems,
+                subtotal: cart.subtotal,
+                shipping: cart.shipping,
+                total: cart.total
             };
+
+            console.log('🛒 Sending order:', orderData);
 
             // Create order via API
             const response = await this.fetchWithRetry(`${this.config.BASE_URL}/api/checkout.php`, {
