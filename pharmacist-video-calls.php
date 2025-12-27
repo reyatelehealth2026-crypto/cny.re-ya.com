@@ -323,8 +323,12 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <script>
+console.log('📹 Pharmacist Video Calls - Script loaded');
+
 const API_URL = '<?= BASE_URL ?>/liff-video-call-pro.php';
 const LINE_ACCOUNT_ID = <?= (int)$lineAccountId ?>;
+
+console.log('📹 Config:', { API_URL, LINE_ACCOUNT_ID });
 
 const rtcConfig = {
     iceServers: [
@@ -348,17 +352,23 @@ let offerReceived = false;
 
 // Poll for incoming calls
 async function checkIncomingCalls() {
+    console.log('📹 Checking incoming calls...');
     try {
-        const res = await fetch(`${API_URL}?action=check_calls&account_id=${LINE_ACCOUNT_ID}`);
+        const url = `${API_URL}?action=check_calls&account_id=${LINE_ACCOUNT_ID}`;
+        console.log('📹 Fetching:', url);
+        const res = await fetch(url);
         const data = await res.json();
+        console.log('📹 Response:', data);
         
         if (data.success && data.calls?.length > 0) {
+            console.log('📹 Found', data.calls.length, 'calls');
             renderCalls(data.calls);
         } else {
+            console.log('📹 No calls found');
             renderEmptyState();
         }
     } catch (e) {
-        console.error('Check calls error:', e);
+        console.error('📹 Check calls error:', e);
     }
 }
 
@@ -663,8 +673,15 @@ function formatDuration(seconds) {
 }
 
 // Start polling
+console.log('📹 Starting polling for incoming calls...');
 setInterval(checkIncomingCalls, 3000);
 checkIncomingCalls();
+
+// Initial call immediately
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📹 DOM loaded, checking calls...');
+    checkIncomingCalls();
+});
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
