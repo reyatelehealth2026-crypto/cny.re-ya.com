@@ -1679,12 +1679,12 @@ img[loading="lazy"] {
 .member-card {
     position: relative;
     border-radius: var(--radius-xl);
-    padding: var(--space-5);
+    padding: var(--space-6) var(--space-5);
     color: white;
     overflow: hidden;
     cursor: pointer;
     transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-    min-height: 180px;
+    min-height: 200px;
 }
 
 .member-card:active {
@@ -1753,6 +1753,7 @@ img[loading="lazy"] {
     display: flex;
     flex-direction: column;
     height: 100%;
+    padding: var(--space-2) var(--space-3);
 }
 
 /* Guest card content */
