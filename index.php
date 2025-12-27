@@ -838,9 +838,20 @@ $baseUrl = rtrim(BASE_URL, '/');
                 
                 <?php if ($liffUrl): ?>
                 <div class="header-cta">
+                    <a href="admin/" class="btn" style="background:#6B7280;color:white;margin-right:8px;min-width:auto;padding:10px 16px;">
+                        <i class="fas fa-cog"></i>
+                        Admin
+                    </a>
                     <a href="<?= htmlspecialchars($liffUrl) ?>" class="btn btn-line">
                         <i class="fab fa-line"></i>
                         เปิดแอป
+                    </a>
+                </div>
+                <?php else: ?>
+                <div class="header-cta">
+                    <a href="admin/" class="btn" style="background:#6B7280;color:white;min-width:auto;padding:10px 16px;">
+                        <i class="fas fa-cog"></i>
+                        Admin
                     </a>
                 </div>
                 <?php endif; ?>
@@ -1081,9 +1092,19 @@ $baseUrl = rtrim(BASE_URL, '/');
     <!-- Mobile Fixed CTA (Requirements: 2.4) -->
     <?php if ($liffUrl): ?>
     <div class="mobile-cta">
+        <a href="admin/" class="btn" style="background:#6B7280;color:white;flex:0.5;">
+            <i class="fas fa-cog"></i>
+        </a>
         <a href="<?= htmlspecialchars($liffUrl) ?>" class="btn btn-line">
             <i class="fab fa-line"></i>
             เปิดแอป LINE
+        </a>
+    </div>
+    <?php else: ?>
+    <div class="mobile-cta">
+        <a href="admin/" class="btn" style="background:#6B7280;color:white;">
+            <i class="fas fa-cog"></i>
+            Admin
         </a>
     </div>
     <?php endif; ?>
