@@ -281,10 +281,24 @@ include __DIR__ . '/includes/header.php';
 <div class="video-calls-container">
     <div class="calls-header">
         <h1><i class="fas fa-video"></i> วิดีโอคอล - รับสาย</h1>
-        <div class="status-badge online">
-            <span class="pulse-dot"></span>
-            <span>พร้อมรับสาย</span>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button onclick="debugCalls()" class="btn btn-sm btn-secondary" style="padding: 8px 16px; border-radius: 8px; background: #6B7280; color: white; border: none; cursor: pointer;">
+                <i class="fas fa-bug"></i> Debug
+            </button>
+            <div class="status-badge online">
+                <span class="pulse-dot"></span>
+                <span>พร้อมรับสาย</span>
+            </div>
         </div>
+    </div>
+    
+    <!-- Debug Panel -->
+    <div id="debug-panel" style="display: none; background: #1F2937; color: #10B981; padding: 16px; border-radius: 12px; margin-bottom: 20px; font-family: monospace; font-size: 13px; max-height: 300px; overflow: auto;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <strong>🔍 Debug Info</strong>
+            <button onclick="document.getElementById('debug-panel').style.display='none'" style="background: none; border: none; color: #EF4444; cursor: pointer;">✕</button>
+        </div>
+        <pre id="debug-content" style="margin: 0; white-space: pre-wrap;"></pre>
     </div>
     
     <div id="calls-list" class="calls-grid">
@@ -670,6 +684,23 @@ function formatDuration(seconds) {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
+}
+
+// Debug function - show all calls in database
+async function debugCalls() {
+    const panel = document.getElementById('debug-panel');
+    const content = document.getElementById('debug-content');
+    panel.style.display = 'block';
+    content.textContent = 'Loading...';
+    
+    try {
+        const res = await fetch(`${API_URL}?action=debug`);
+        const data = await res.json();
+        content.textContent = JSON.stringify(data, null, 2);
+        console.log('📹 Debug data:', data);
+    } catch (e) {
+        content.textContent = 'Error: ' + e.message;
+    }
 }
 
 // Start polling
