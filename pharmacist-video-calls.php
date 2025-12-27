@@ -325,7 +325,7 @@ include __DIR__ . '/includes/header.php';
 <script>
 console.log('📹 Pharmacist Video Calls - Script loaded');
 
-const API_URL = '<?= BASE_URL ?>/liff-video-call-pro.php';
+const API_URL = '<?= rtrim(BASE_URL, "/") ?>/liff-video-call-pro.php';
 const LINE_ACCOUNT_ID = <?= (int)$lineAccountId ?>;
 
 console.log('📹 Config:', { API_URL, LINE_ACCOUNT_ID });
