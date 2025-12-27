@@ -2535,14 +2535,28 @@ class LiffApp {
         const profile = window.store?.get('profile');
         const member = window.store?.get('member');
         
-        // Redirect to cart if empty
-        if (cart.items.length === 0) {
-            setTimeout(() => window.router.navigate('/cart'), 100);
+        console.log('🛒 renderCheckoutPage cart:', { itemCount: cart.items?.length, total: cart.total });
+        
+        // If cart is empty, show message instead of redirect loop
+        if (!cart.items || cart.items.length === 0) {
             return `
                 <div class="checkout-page">
-                    <div class="loading-state">
-                        <div class="loading-spinner"></div>
-                        <p>กำลังโหลด...</p>
+                    <div class="checkout-header">
+                        <button class="back-btn" onclick="window.router.navigate('/cart')">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h1 class="page-title">ชำระเงิน</h1>
+                        <div class="header-spacer"></div>
+                    </div>
+                    <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+                        <div class="empty-state-icon" style="font-size: 48px; color: #ccc; margin-bottom: 16px;">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <h2 style="margin-bottom: 8px;">ตะกร้าว่างเปล่า</h2>
+                        <p style="color: #666; margin-bottom: 20px;">กรุณาเพิ่มสินค้าก่อนชำระเงิน</p>
+                        <button class="btn btn-primary" onclick="window.router.navigate('/shop')">
+                            <i class="fas fa-store"></i> ไปร้านค้า
+                        </button>
                     </div>
                 </div>
             `;
