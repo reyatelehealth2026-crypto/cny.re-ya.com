@@ -2364,19 +2364,18 @@ class LiffApp {
         
         console.log('🛒 refreshCartDisplay:', { itemCount: cart.items?.length, subtotal: cart.subtotal });
         
-        // If cart has items but page shows empty state, re-render the whole page
+        // Check if we're on cart page and have the container
         const itemsContainer = document.getElementById('cart-items-container');
-        const checkoutBar = document.querySelector('.cart-checkout-bar');
+        const cartPage = document.querySelector('.cart-page');
         
         console.log('🛒 Elements found:', { 
             hasItemsContainer: !!itemsContainer, 
-            hasCheckoutBar: !!checkoutBar,
-            cartPageExists: !!document.querySelector('.cart-page')
+            cartPageExists: !!cartPage
         });
         
-        if (cart.items?.length > 0 && (!itemsContainer || !checkoutBar)) {
-            console.log('🛒 Cart has items but missing elements, re-rendering page');
-            // Re-render the cart page
+        // If cart has items but no container, re-render (only once)
+        if (cart.items?.length > 0 && !itemsContainer && cartPage === null) {
+            console.log('🛒 Cart has items but no container, re-rendering page');
             const contentEl = document.getElementById('app-content');
             if (contentEl) {
                 contentEl.innerHTML = this.renderCartPage();
@@ -2398,14 +2397,12 @@ class LiffApp {
         const discountRow = document.getElementById('cart-discount-row');
         const shippingEl = document.getElementById('cart-shipping');
         const totalEl = document.getElementById('cart-total');
-        const checkoutTotalEl = document.getElementById('cart-checkout-total');
 
         if (subtotalEl) subtotalEl.textContent = `฿${this.formatNumber(cart.subtotal)}`;
         if (discountEl) discountEl.textContent = `-฿${this.formatNumber(cart.discount)}`;
         if (discountRow) discountRow.classList.toggle('hidden', cart.discount <= 0);
         if (shippingEl) shippingEl.textContent = cart.shipping > 0 ? `฿${this.formatNumber(cart.shipping)}` : 'ฟรี';
         if (totalEl) totalEl.textContent = `฿${this.formatNumber(cart.total)}`;
-        if (checkoutTotalEl) checkoutTotalEl.textContent = `฿${this.formatNumber(cart.total)}`;
 
         // Update cart badge
         this.updateCartBadge();
