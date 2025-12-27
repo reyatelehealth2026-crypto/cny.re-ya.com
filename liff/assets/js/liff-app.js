@@ -94,7 +94,9 @@ class LiffApp {
 
         } catch (error) {
             console.error('❌ LIFF init error:', error);
-            throw new Error(`LIFF initialization failed: ${error.message}`);
+            // Don't throw - continue in guest mode instead
+            console.warn('⚠️ Continuing in guest mode due to LIFF error');
+            this.handleGuestMode();
         }
     }
 
@@ -6305,30 +6307,58 @@ class LiffApp {
      * @param {Object} params - Route parameters
      */
     initAIAssistantPage(params) {
+        console.log('🤖 Initializing AI Assistant page...');
+        
         const container = document.getElementById('ai-assistant-container');
-        if (!container) return;
+        if (!container) {
+            console.error('❌ AI Assistant container not found');
+            return;
+        }
 
-        // Get user ID from profile
-        const profile = window.store?.get('profile');
-        const userId = profile?.userId || null;
+        // Check if AIChat class exists
+        if (typeof AIChat === 'undefined') {
+            console.error('❌ AIChat class not loaded');
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <p style="color: red;">ไม่สามารถโหลด AI Chat ได้</p>
+                    <button onclick="location.reload()" style="padding: 10px 20px; margin-top: 10px;">ลองใหม่</button>
+                </div>
+            `;
+            return;
+        }
 
-        // Create AI Chat instance
-        window.aiChat = new AIChat({
-            userId: userId,
-            onSendMessage: (message) => {
-                console.log('Message sent:', message);
-            },
-            onSymptomSelect: (symptom) => {
-                console.log('Symptom selected:', symptom);
+        try {
+            // Get user ID from profile
+            const profile = window.store?.get('profile');
+            const userId = profile?.userId || null;
+
+            // Create AI Chat instance
+            window.aiChat = new AIChat({
+                userId: userId,
+                onSendMessage: (message) => {
+                    console.log('Message sent:', message);
+                },
+                onSymptomSelect: (symptom) => {
+                    console.log('Symptom selected:', symptom);
+                }
+            });
+
+            // Initialize the chat interface
+            window.aiChat.init(container);
+            console.log('✅ AI Chat initialized');
+
+            // If a symptom was passed from home page, start with it
+            if (params && params.symptom) {
+                window.aiChat.initWithSymptom(params.symptom);
             }
-        });
-
-        // Initialize the chat interface
-        window.aiChat.init(container);
-
-        // If a symptom was passed from home page, start with it
-        if (params && params.symptom) {
-            window.aiChat.initWithSymptom(params.symptom);
+        } catch (error) {
+            console.error('❌ Error initializing AI Chat:', error);
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <p style="color: red;">เกิดข้อผิดพลาด: ${error.message}</p>
+                    <button onclick="location.reload()" style="padding: 10px 20px; margin-top: 10px;">ลองใหม่</button>
+                </div>
+            `;
         }
     }
 
