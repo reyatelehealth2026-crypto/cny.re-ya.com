@@ -203,23 +203,25 @@ include __DIR__ . '/includes/header.php';
     .video-container {
         flex: 1;
         position: relative;
+        max-height: calc(100vh - 120px); /* Leave space for controls */
     }
     .remote-video {
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain; /* Changed from cover to contain */
         background: #1f2937;
     }
     .local-video-pip {
         position: absolute;
-        top: 20px;
+        top: 80px;
         right: 20px;
-        width: 180px;
-        aspect-ratio: 9/16;
+        width: 120px;
+        aspect-ratio: 3/4;
         border-radius: 12px;
         overflow: hidden;
         border: 3px solid rgba(255,255,255,0.3);
         background: #374151;
+        z-index: 10;
     }
     .local-video-pip video {
         width: 100%;
@@ -231,11 +233,13 @@ include __DIR__ . '/includes/header.php';
         bottom: 0;
         left: 0;
         right: 0;
-        padding: 24px;
-        background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        padding: 20px;
+        padding-bottom: 30px;
+        background: linear-gradient(transparent, rgba(0,0,0,0.9));
         display: flex;
         justify-content: center;
         gap: 16px;
+        z-index: 20;
     }
     .video-ctrl-btn {
         width: 56px;
@@ -268,6 +272,7 @@ include __DIR__ . '/includes/header.php';
         display: flex;
         align-items: center;
         gap: 8px;
+        z-index: 10;
     }
     .video-status .dot {
         width: 8px;
@@ -275,6 +280,35 @@ include __DIR__ . '/includes/header.php';
         background: #10B981;
         border-radius: 50%;
         animation: pulse 2s infinite;
+    }
+    
+    /* Quick Actions in Video Modal */
+    .video-quick-actions {
+        position: absolute;
+        top: 80px;
+        left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 10;
+    }
+    .video-quick-actions button {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        border: none;
+        background: rgba(255,255,255,0.9);
+        font-size: 20px;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .video-quick-actions button:hover {
+        transform: scale(1.1);
+        background: white;
+    }
+    .video-quick-actions button:active {
+        transform: scale(0.95);
     }
 </style>
 
@@ -343,6 +377,15 @@ include __DIR__ . '/includes/header.php';
             <span id="call-status-text">กำลังเชื่อมต่อ...</span>
             <span id="call-timer" style="margin-left: 12px; display: none;">00:00</span>
         </div>
+        
+        <!-- Quick Actions Panel (in video modal) -->
+        <div class="video-quick-actions" id="video-quick-actions">
+            <button onclick="sendGreeting()" title="ทักทาย">👋</button>
+            <button onclick="sendWaiting()" title="รอสักครู่">⏳</button>
+            <button onclick="takeScreenshot()" title="Screenshot">📸</button>
+            <button onclick="toggleRecording()" id="btn-record-modal" title="บันทึก">🔴</button>
+        </div>
+        
         <div class="video-controls">
             <button class="video-ctrl-btn mute" id="btn-mute" onclick="toggleMute()">
                 <i class="fas fa-microphone"></i>
