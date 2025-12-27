@@ -6302,21 +6302,40 @@ class LiffApp {
     }
 
     /**
-     * Initialize AI Assistant page
+     * Initialize AI Assistant page with retry mechanism for mobile
      * Requirements: 7.1, 7.2
      * @param {Object} params - Route parameters
+     * @param {number} retryCount - Current retry attempt
      */
-    initAIAssistantPage(params) {
-        if (window.debugLog) window.debugLog('initAIAssistantPage called', 'info');
-        console.log('🤖 Initializing AI Assistant page...');
+    initAIAssistantPage(params, retryCount = 0) {
+        const maxRetries = 10;
+        const retryDelay = 100;
+        
+        if (window.debugLog) window.debugLog('initAIAssistantPage called (attempt ' + (retryCount + 1) + ')', 'info');
+        console.log('🤖 Initializing AI Assistant page... (attempt ' + (retryCount + 1) + ')');
         
         const container = document.getElementById('ai-assistant-container');
         if (!container) {
-            if (window.debugLog) window.debugLog('Container not found!', 'error');
-            console.error('❌ AI Assistant container not found');
+            if (retryCount < maxRetries) {
+                if (window.debugLog) window.debugLog('Container not found, retrying in ' + retryDelay + 'ms...', 'warn');
+                setTimeout(() => this.initAIAssistantPage(params, retryCount + 1), retryDelay);
+                return;
+            }
+            if (window.debugLog) window.debugLog('Container not found after ' + maxRetries + ' retries!', 'error');
+            console.error('❌ AI Assistant container not found after retries');
+            // Try to show error in app-content instead
+            const appContent = document.getElementById('app-content');
+            if (appContent) {
+                appContent.innerHTML = `
+                    <div style="padding: 20px; text-align: center;">
+                        <p style="color: red;">ไม่สามารถโหลดหน้า AI Chat ได้</p>
+                        <button onclick="location.reload()" style="padding: 10px 20px; margin-top: 10px;">ลองใหม่</button>
+                    </div>
+                `;
+            }
             return;
         }
-        if (window.debugLog) window.debugLog('Container found', 'success');
+        if (window.debugLog) window.debugLog('Container found!', 'success');
 
         // Check if AIChat class exists
         if (typeof AIChat === 'undefined') {
