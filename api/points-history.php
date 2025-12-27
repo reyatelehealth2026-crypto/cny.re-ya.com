@@ -74,11 +74,25 @@ try {
             $rewards = $loyalty->getRewards(true);
             $userRedemptions = $loyalty->getUserRedemptions($user['id']);
             
+            // Format redemptions
+            $formattedRedemptions = array_map(function($item) {
+                return [
+                    'id' => $item['id'],
+                    'reward_name' => $item['reward_name'],
+                    'image_url' => $item['reward_image'] ?? null,
+                    'points_used' => $item['points_used'],
+                    'redemption_code' => $item['redemption_code'],
+                    'status' => $item['status'],
+                    'created_at' => $item['created_at'],
+                    'formatted_date' => date('d/m/Y H:i', strtotime($item['created_at']))
+                ];
+            }, $userRedemptions);
+            
             echo json_encode([
                 'success' => true,
                 'available_points' => (int)$user['available_points'],
                 'rewards' => $rewards,
-                'my_redemptions' => $userRedemptions
+                'my_redemptions' => $formattedRedemptions
             ]);
             break;
             
@@ -90,7 +104,21 @@ try {
             }
             
             $result = $loyalty->redeemReward($user['id'], $rewardId);
-            echo json_encode($result);
+            
+            // Format response
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'แลกรางวัลสำเร็จ!',
+                    'redemption_code' => $result['redemption_code'],
+                    'reward_name' => $result['reward']['name'] ?? ''
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['message'] ?? 'ไม่สามารถแลกรางวัลได้'
+                ]);
+            }
             break;
             
         default:
