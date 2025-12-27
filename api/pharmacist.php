@@ -15,6 +15,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
     
     switch ($action) {
+        case 'available':
+            // Get available pharmacists for LIFF app
+            // Requirements: 13.8, 13.9 - Display pharmacist cards with photo, name, specialty
+            $lineAccountId = $_GET['line_account_id'] ?? null;
+            $limit = (int)($_GET['limit'] ?? 5);
+            
+            try {
+                // Get current day of week (0=Sunday, 6=Saturday)
+                $currentDayOfWeek = date('w');
+                $currentTime = date('H:i:s');
+                
+                // Query pharmacists who are active and available today
+                $sql = "
+                    SELECT DISTINCT 
+                        p.id,
+                        p.name,
+                        p.title,
+                        p.specialty,
+                        p.sub_specialty,
+                        p.image_url as photo_url,
+                        p.rating,
+                        p.review_count,
+                        p.consultation_fee,
+                        p.consultation_duration,
+                        p.bio,
+                        ps.start_time,
+                        ps.end_time
+                    FROM pharmacists p
+                    LEFT JOIN pharmacist_schedules ps ON p.id = ps.pharmacist_id 
+                        AND ps.day_of_week = ? 
+                        AND ps.is_available = 1
+                    LEFT JOIN pharmacist_holidays ph ON p.id = ph.pharmacist_id 
+                        AND ph.holiday_date = CURDATE()
+                    WHERE p.is_active = 1 
+                        AND p.is_available = 1
+                        AND ph.id IS NULL
+                        AND (p.line_account_id = ? OR p.line_account_id IS NULL)
+                    ORDER BY 
+                        CASE WHEN ps.start_time <= ? AND ps.end_time >= ? THEN 0 ELSE 1 END,
+                        p.rating DESC,
+                        p.review_count DESC
+                    LIMIT ?
+                ";
+                
+                $stmt = $db->prepare($sql);
+                $stmt->execute([$currentDayOfWeek, $lineAccountId, $currentTime, $currentTime, $limit]);
+                $pharmacists = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Format the response
+                $formattedPharmacists = array_map(function($p) use ($currentTime) {
+                    // Check if currently available (within schedule)
+                    $isOnline = false;
+                    if ($p['start_time'] && $p['end_time']) {
+                        $isOnline = ($currentTime >= $p['start_time'] && $currentTime <= $p['end_time']);
+                    }
+                    
+                    return [
+                        'id' => (int)$p['id'],
+                        'name' => $p['title'] . $p['name'],
+                        'specialty' => $p['specialty'] ?: 'เภสัชกรทั่วไป',
+                        'sub_specialty' => $p['sub_specialty'],
+                        'photo_url' => $p['photo_url'] ?: '',
+                        'rating' => $p['rating'] ? number_format((float)$p['rating'], 1) : null,
+                        'review_count' => (int)$p['review_count'],
+                        'consultation_fee' => (float)$p['consultation_fee'],
+                        'consultation_duration' => (int)$p['consultation_duration'],
+                        'bio' => $p['bio'],
+                        'is_online' => $isOnline,
+                        'schedule' => $p['start_time'] && $p['end_time'] 
+                            ? substr($p['start_time'], 0, 5) . ' - ' . substr($p['end_time'], 0, 5)
+                            : null
+                    ];
+                }, $pharmacists);
+                
+                echo json_encode([
+                    'success' => true, 
+                    'pharmacists' => $formattedPharmacists,
+                    'count' => count($formattedPharmacists)
+                ]);
+            } catch (Exception $e) {
+                error_log("Pharmacist API available error: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => $e->getMessage(), 'pharmacists' => []]);
+            }
+            break;
+            
         case 'get_detail':
             $id = (int)($_GET['id'] ?? 0);
             if (!$id) {

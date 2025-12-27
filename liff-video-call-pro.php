@@ -472,11 +472,76 @@
         if ($action === 'end') {
             $callId = $input['call_id'] ?? '';
             $duration = $input['duration'] ?? 0;
+            $notes = $input['notes'] ?? null;
             
-            $stmt = $db->prepare("UPDATE video_calls SET status = 'completed', duration = ?, ended_at = NOW() WHERE id = ? OR room_id = ?");
-            $stmt->execute([$duration, $callId, $callId]);
+            // Build update query dynamically
+            $updateFields = ['status = ?', 'duration = ?', 'ended_at = NOW()'];
+            $updateValues = ['completed', $duration];
+            
+            if ($notes !== null) {
+                $updateFields[] = 'notes = ?';
+                $updateValues[] = $notes;
+            }
+            
+            $updateValues[] = $callId;
+            $updateValues[] = $callId;
+            
+            $sql = "UPDATE video_calls SET " . implode(', ', $updateFields) . " WHERE id = ? OR room_id = ?";
+            $stmt = $db->prepare($sql);
+            $stmt->execute($updateValues);
+            
+            echo json_encode(['success' => true, 'duration' => $duration]);
+            exit;
+        }
+        
+        // Save consultation notes - Requirement 6.7
+        if ($action === 'save_notes') {
+            $callId = $input['call_id'] ?? '';
+            $notes = $input['notes'] ?? '';
+            
+            $stmt = $db->prepare("UPDATE video_calls SET notes = ? WHERE id = ? OR room_id = ?");
+            $stmt->execute([$notes, $callId, $callId]);
             
             echo json_encode(['success' => true]);
+            exit;
+        }
+        
+        // Get call summary - Requirement 6.7
+        if ($action === 'get_summary') {
+            $callId = $input['call_id'] ?? $_GET['call_id'] ?? '';
+            
+            $stmt = $db->prepare("
+                SELECT vc.*, 
+                       u.display_name as user_display_name,
+                       u.picture_url as user_picture_url
+                FROM video_calls vc
+                LEFT JOIN users u ON vc.user_id = u.id
+                WHERE vc.id = ? OR vc.room_id = ?
+            ");
+            $stmt->execute([$callId, $callId]);
+            $call = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($call) {
+                echo json_encode([
+                    'success' => true,
+                    'call' => [
+                        'id' => $call['id'],
+                        'room_id' => $call['room_id'],
+                        'status' => $call['status'],
+                        'duration' => (int)$call['duration'],
+                        'notes' => $call['notes'],
+                        'created_at' => $call['created_at'],
+                        'answered_at' => $call['answered_at'],
+                        'ended_at' => $call['ended_at'],
+                        'user' => [
+                            'display_name' => $call['user_display_name'] ?? $call['display_name'],
+                            'picture_url' => $call['user_picture_url'] ?? $call['picture_url']
+                        ]
+                    ]
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Call not found']);
+            }
             exit;
         }
         

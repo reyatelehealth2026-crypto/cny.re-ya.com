@@ -7,13 +7,6 @@
 
 ## 📌 ภาพรวมโปรเจค
 
-ระบบ LINE OA Manager สำหรับร้านขายยา CNY Pharmacy ประกอบด้วย:
-- ระบบจัดการ LINE Official Account
-- AI เภสัชกรออนไลน์
-- ระบบร้านค้าออนไลน์ (LIFF Shop)
-- ระบบสมาชิกและ Loyalty Points
-- ระบบนัดหมายและ Video Call
-- ระบบ Broadcast และ Auto Reply
 
 ---
 

@@ -61,6 +61,9 @@ try {
         case 'update_payment_method':
             handleUpdatePaymentMethod($jsonInput);
             break;
+        case 'validate_promo':
+            handleValidatePromo($jsonInput);
+            break;
         default:
             jsonResponse(false, 'Invalid action');
     }
@@ -1138,6 +1141,161 @@ function handleUpdatePaymentMethod($data) {
     }
     
     jsonResponse(true, 'Payment method updated', ['order_id' => $orderId]);
+}
+
+
+/**
+ * Validate promo/coupon code
+ * Requirements: 17.4, 17.5, 17.6, 17.7
+ * - Validate code via API
+ * - Return discount amount or error
+ */
+function handleValidatePromo($data) {
+    global $db;
+    
+    $code = strtoupper(trim($data['code'] ?? ''));
+    $lineUserId = $data['line_user_id'] ?? null;
+    $lineAccountId = $data['line_account_id'] ?? null;
+    $subtotal = floatval($data['subtotal'] ?? 0);
+    
+    if (!$code) {
+        jsonResponse(false, 'กรุณากรอกโค้ดส่วนลด', ['valid' => false]);
+    }
+    
+    try {
+        // Check if promotions table exists
+        $tableCheck = $db->query("SHOW TABLES LIKE 'promotions'");
+        if ($tableCheck->rowCount() === 0) {
+            // Fallback: check for hardcoded promo codes
+            $discount = validateHardcodedPromo($code, $subtotal);
+            if ($discount > 0) {
+                jsonResponse(true, 'โค้ดถูกต้อง', [
+                    'valid' => true,
+                    'discount' => $discount,
+                    'discount_type' => 'fixed',
+                    'code' => $code
+                ]);
+            } else {
+                jsonResponse(false, 'โค้ดไม่ถูกต้องหรือหมดอายุ', ['valid' => false]);
+            }
+            return;
+        }
+        
+        // Query promotion from database
+        $sql = "SELECT * FROM promotions WHERE code = ? AND is_active = 1";
+        $params = [$code];
+        
+        if ($lineAccountId) {
+            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+            $params[] = $lineAccountId;
+        }
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $promo = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$promo) {
+            jsonResponse(false, 'โค้ดไม่ถูกต้อง', ['valid' => false]);
+        }
+        
+        // Check validity dates
+        $now = date('Y-m-d H:i:s');
+        if ($promo['start_date'] && $now < $promo['start_date']) {
+            jsonResponse(false, 'โค้ดยังไม่เริ่มใช้งาน', ['valid' => false]);
+        }
+        if ($promo['end_date'] && $now > $promo['end_date']) {
+            jsonResponse(false, 'โค้ดหมดอายุแล้ว', ['valid' => false]);
+        }
+        
+        // Check minimum order amount
+        $minOrder = floatval($promo['min_order_amount'] ?? 0);
+        if ($minOrder > 0 && $subtotal < $minOrder) {
+            jsonResponse(false, "ยอดสั่งซื้อขั้นต่ำ ฿" . number_format($minOrder, 0), ['valid' => false]);
+        }
+        
+        // Check usage limit
+        if ($promo['usage_limit'] && $promo['usage_count'] >= $promo['usage_limit']) {
+            jsonResponse(false, 'โค้ดถูกใช้ครบจำนวนแล้ว', ['valid' => false]);
+        }
+        
+        // Check per-user limit
+        if ($lineUserId && $promo['per_user_limit']) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM promotion_usage WHERE promotion_id = ? AND line_user_id = ?");
+            $stmt->execute([$promo['id'], $lineUserId]);
+            $userUsage = $stmt->fetchColumn();
+            
+            if ($userUsage >= $promo['per_user_limit']) {
+                jsonResponse(false, 'คุณใช้โค้ดนี้ครบจำนวนแล้ว', ['valid' => false]);
+            }
+        }
+        
+        // Calculate discount
+        $discount = 0;
+        $discountType = $promo['discount_type'] ?? 'fixed';
+        
+        if ($discountType === 'percentage') {
+            $discount = $subtotal * (floatval($promo['discount_value']) / 100);
+            // Apply max discount cap if set
+            if ($promo['max_discount'] && $discount > $promo['max_discount']) {
+                $discount = floatval($promo['max_discount']);
+            }
+        } else {
+            $discount = floatval($promo['discount_value']);
+        }
+        
+        // Ensure discount doesn't exceed subtotal
+        $discount = min($discount, $subtotal);
+        
+        jsonResponse(true, 'โค้ดถูกต้อง', [
+            'valid' => true,
+            'discount' => $discount,
+            'discount_type' => $discountType,
+            'discount_value' => floatval($promo['discount_value']),
+            'code' => $code,
+            'promo_id' => $promo['id'],
+            'promo_name' => $promo['name'] ?? $code
+        ]);
+        
+    } catch (Exception $e) {
+        error_log("Promo validation error: " . $e->getMessage());
+        jsonResponse(false, 'ไม่สามารถตรวจสอบโค้ดได้', ['valid' => false]);
+    }
+}
+
+/**
+ * Validate hardcoded promo codes (fallback when no promotions table)
+ */
+function validateHardcodedPromo($code, $subtotal) {
+    // Define some sample promo codes
+    $promoCodes = [
+        'WELCOME10' => ['type' => 'percentage', 'value' => 10, 'min' => 100],
+        'SAVE50' => ['type' => 'fixed', 'value' => 50, 'min' => 300],
+        'FREESHIP' => ['type' => 'fixed', 'value' => 50, 'min' => 0],
+        'NEWUSER' => ['type' => 'percentage', 'value' => 15, 'min' => 200, 'max' => 100],
+    ];
+    
+    if (!isset($promoCodes[$code])) {
+        return 0;
+    }
+    
+    $promo = $promoCodes[$code];
+    
+    // Check minimum
+    if ($subtotal < $promo['min']) {
+        return 0;
+    }
+    
+    // Calculate discount
+    if ($promo['type'] === 'percentage') {
+        $discount = $subtotal * ($promo['value'] / 100);
+        if (isset($promo['max']) && $discount > $promo['max']) {
+            $discount = $promo['max'];
+        }
+    } else {
+        $discount = $promo['value'];
+    }
+    
+    return min($discount, $subtotal);
 }
 
 

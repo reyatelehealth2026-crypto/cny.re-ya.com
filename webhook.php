@@ -47,6 +47,10 @@
     if (file_exists(__DIR__ . '/classes/AutoTagManager.php')) {
         require_once 'classes/AutoTagManager.php';
     }
+    // LIFF Message Handler for processing LIFF-triggered messages
+    if (file_exists(__DIR__ . '/classes/LiffMessageHandler.php')) {
+        require_once 'classes/LiffMessageHandler.php';
+    }
 
     // Get request body and signature
     $body = file_get_contents('php://input');
@@ -997,6 +1001,29 @@
             // ตรวจสอบคำสั่งและการเรียก AI
             $textLower = mb_strtolower(trim($messageText));
             $textTrimmed = trim($messageText);
+            
+            // ===== LIFF Message Handler - Process LIFF-triggered messages =====
+            // Requirements: 20.3, 20.9, 20.12
+            if (class_exists('LiffMessageHandler')) {
+                $liffHandler = new LiffMessageHandler($db, $line, $lineAccountId);
+                $liffAction = $liffHandler->detectLiffAction($messageText);
+                
+                if ($liffAction) {
+                    devLog($db, 'info', 'webhook', 'LIFF action detected', [
+                        'action' => $liffAction,
+                        'user_id' => $userId,
+                        'message' => mb_substr($messageText, 0, 100)
+                    ], $userId);
+                    
+                    $liffReply = $liffHandler->processMessage($messageText, $user['id'], $userId);
+                    
+                    if ($liffReply) {
+                        $line->replyMessage($replyToken, [$liffReply]);
+                        saveOutgoingMessage($db, $user['id'], json_encode($liffReply), 'liff', 'flex');
+                        return; // LIFF message handled
+                    }
+                }
+            }
             
             // ===== V3.2: AI ตอบทุกข้อความอัตโนมัติ (ยกเว้นคำสั่งพิเศษ) =====
             // คำสั่งที่ไม่ให้ AI ตอบ (ให้ระบบอื่นจัดการ)
