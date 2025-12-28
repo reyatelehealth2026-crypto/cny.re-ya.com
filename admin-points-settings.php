@@ -19,6 +19,21 @@ $lineAccountId = $_SESSION['current_bot_id'] ?? null;
 $adminId = $_SESSION['admin_user']['id'] ?? null;
 $pageTitle = 'ตั้งค่าระบบแต้มสะสม';
 
+// Check if required tables exist
+try {
+    $db->query("SELECT 1 FROM points_rules LIMIT 1");
+} catch (PDOException $e) {
+    // Table doesn't exist, show migration message
+    require_once __DIR__ . '/includes/header.php';
+    echo '<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 m-4">';
+    echo '<h2 class="text-xl font-bold text-yellow-800 mb-4"><i class="fas fa-exclamation-triangle mr-2"></i>ต้องรัน Migration ก่อน</h2>';
+    echo '<p class="text-yellow-700 mb-4">ตาราง points_rules ยังไม่มีในฐานข้อมูล กรุณารัน migration ก่อนใช้งาน</p>';
+    echo '<a href="/install/run_points_rules_migration.php" class="inline-block px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">รัน Migration</a>';
+    echo '</div>';
+    require_once __DIR__ . '/includes/footer.php';
+    exit;
+}
+
 $loyalty = new LoyaltyPoints($db, $lineAccountId);
 
 // Handle AJAX requests
