@@ -10633,11 +10633,11 @@ body:has(.ai-chat-page) .bottom-nav {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    z-index: var(--z-modal);
+    z-index: 9999;
     animation: fadeIn 0.2s ease;
 }
 
@@ -10646,10 +10646,10 @@ body:has(.ai-chat-page) .bottom-nav {
     max-width: 500px;
     max-height: 85vh;
     background: #FFFFFF;
-    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    border-radius: 20px 20px 0 0;
     overflow: hidden;
     animation: slideUp 0.3s ease;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
 }
 
 .health-profile-page .modal-header {
@@ -10657,7 +10657,7 @@ body:has(.ai-chat-page) .bottom-nav {
     align-items: center;
     justify-content: space-between;
     padding: var(--space-4);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid #E5E7EB;
     background: #FFFFFF;
 }
 
@@ -10707,8 +10707,8 @@ body:has(.ai-chat-page) .bottom-nav {
     display: flex;
     gap: var(--space-3);
     padding: var(--space-4);
-    border-top: 1px solid var(--border);
-    background: var(--bg-white);
+    border-top: 1px solid #E5E7EB;
+    background: #FFFFFF;
     position: sticky;
     bottom: 0;
 }
@@ -10884,8 +10884,8 @@ body:has(.ai-chat-page) .bottom-nav {
     gap: var(--space-3);
     margin-top: var(--space-4);
     padding: var(--space-4);
-    border-top: 1px solid var(--border-light);
-    background: var(--bg-white);
+    border-top: 1px solid #E5E7EB;
+    background: #FFFFFF;
     position: sticky;
     bottom: 0;
     margin-left: calc(-1 * var(--space-4));
