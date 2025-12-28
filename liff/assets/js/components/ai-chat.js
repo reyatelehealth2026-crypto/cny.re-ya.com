@@ -85,6 +85,48 @@ class AIChat {
                     <!-- Messages will be inserted here -->
                 </div>
 
+                <!-- Quick Action Menu -->
+                <div class="ai-chat-quick-actions" id="ai-quick-actions">
+                    <div class="ai-chat-actions-scroll">
+                        <button class="ai-chat-action-btn" onclick="window.aiChat?.startTriageAssessment()">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #10B981, #059669);">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                            <span>ซักประวัติ</span>
+                        </button>
+                        <button class="ai-chat-action-btn" onclick="window.aiChat?.requestPharmacistConsult()">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8);">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <span>ปรึกษาเภสัชกร</span>
+                        </button>
+                        <button class="ai-chat-action-btn" onclick="window.router?.navigate('/shop')">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #F59E0B, #D97706);">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <span>ร้านค้า</span>
+                        </button>
+                        <button class="ai-chat-action-btn" onclick="window.router?.navigate('/health-profile')">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #EC4899, #DB2777);">
+                                <i class="fas fa-heartbeat"></i>
+                            </div>
+                            <span>ข้อมูลสุขภาพ</span>
+                        </button>
+                        <button class="ai-chat-action-btn" onclick="window.router?.navigate('/orders')">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #8B5CF6, #7C3AED);">
+                                <i class="fas fa-box"></i>
+                            </div>
+                            <span>ออเดอร์</span>
+                        </button>
+                        <button class="ai-chat-action-btn" onclick="window.router?.navigate('/points')">
+                            <div class="ai-chat-action-icon" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
+                                <i class="fas fa-gift"></i>
+                            </div>
+                            <span>แต้มสะสม</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Quick Symptoms Section -->
                 <div class="ai-chat-quick-symptoms" id="ai-quick-symptoms">
                     <p class="ai-chat-quick-label">เลือกอาการที่ต้องการปรึกษา</p>
