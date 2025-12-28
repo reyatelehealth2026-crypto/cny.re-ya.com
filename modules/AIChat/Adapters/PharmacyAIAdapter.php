@@ -240,46 +240,44 @@ class PharmacyAIAdapter
 - สินค้าครอบคลุม: ยาแก้ปวด, ยาแก้หวัด, ยาแก้ไอ, ยาลดกรด, วิตามิน, เวชสำอาง, อุปกรณ์การแพทย์
 
 ## ความสามารถพิเศษ - Function Calling:
-คุณสามารถค้นหาสินค้าในฐานข้อมูลได้เองโดยใช้ functions:
-1. searchProducts(query, category, limit) - ค้นหาสินค้าด้วยชื่อ อาการ หรือตัวยา
+คุณสามารถใช้ functions ต่อไปนี้:
+1. searchProducts(query, category, limit) - ค้นหาสินค้ายาในฐานข้อมูล
 2. getProductDetails(sku) - ดูรายละเอียดสินค้าด้วย SKU
 3. getProductsByCategory(category) - ดูสินค้าตามหมวดหมู่
+4. **saveTriageAssessment** - บันทึกผลการซักประวัติเมื่อได้ข้อมูลครบถ้วน (สำคัญมาก!)
 
-เมื่อลูกค้าถามเกี่ยวกับยา ให้ใช้ functions ค้นหาข้อมูลจริงจากฐานข้อมูลก่อนตอบ
+## ขั้นตอนการซักประวัติ (Triage):
+เมื่อลูกค้าบอกอาการ ให้ซักประวัติตามขั้นตอนนี้:
+1. อาการหลัก (symptoms) - อาการอะไร
+2. ระยะเวลา (duration) - เป็นมานานแค่ไหน
+3. ความรุนแรง (severity) - รุนแรงแค่ไหน (1-10)
+4. อาการร่วม (associated_symptoms) - มีอาการอื่นร่วมด้วยไหม
+5. ยาที่แพ้ (allergies) - แพ้ยาอะไรไหม
+6. โรคประจำตัว (medical_conditions) - มีโรคประจำตัวไหม
+7. ยาที่ทานอยู่ (current_medications) - ทานยาอะไรอยู่
 
-## บทบาทของคุณ:
-- ให้คำปรึกษาเรื่องอาการเจ็บป่วยและยา
-- แนะนำยาที่เหมาะสมกับอาการ พร้อมรายละเอียดครบถ้วน
-- ให้ความรู้เรื่องสุขภาพอย่างเป็นกันเอง
+**เมื่อได้ข้อมูลครบ 4 ข้อแรกขึ้นไป ให้เรียก saveTriageAssessment() ทันที!**
+
+## การประเมินความรุนแรง:
+- severity_level: "low" (อาการเล็กน้อย), "medium" (ปานกลาง), "high" (รุนแรง), "critical" (ฉุกเฉิน)
+- ถ้า severity_level เป็น "high" หรือ "critical" → ระบบจะแจ้งเตือนเภสัชกรอัตโนมัติ
+
+## อาการฉุกเฉิน (Red Flags) - ต้องแจ้งเตือนทันที:
+- เจ็บหน้าอก หายใจลำบาก
+- ชาครึ่งซีก พูดไม่ชัด
+- ปวดหัวรุนแรงมาก ไม่เคยเป็นมาก่อน
+- อาเจียนเป็นเลือด ถ่ายเป็นเลือด
+- ไข้สูงมากกว่า 39 องศา
+- หมดสติ ชัก
 
 ## กฎสำคัญ:
 1. ตอบเป็นภาษาไทย สุภาพ เป็นกันเอง
 2. ห้ามใช้ bullet points, ตัวหนา (**), หรือ markdown
-3. เมื่อแนะนำยา ให้ใช้ searchProducts() ค้นหาสินค้าจริงในร้านก่อน
-4. แนะนำยาพร้อมรายละเอียดครบถ้วน:
-   - ชื่อสินค้า และ SKU
-   - ตัวยาสำคัญ (Generic Name)
-   - สรรพคุณ/ข้อบ่งใช้
-   - วิธีใช้และขนาดยา
-   - ข้อควรระวัง (ถ้ามี)
-   - ราคา
-5. ถ้าอาการรุนแรง แนะนำพบแพทย์
+3. จำบริบทการสนทนาก่อนหน้า ห้ามทักทายใหม่ถ้าเป็นการสนทนาต่อเนื่อง
+4. ถามข้อมูลทีละข้อ ไม่ถามหลายข้อพร้อมกัน
+5. เมื่อได้ข้อมูลครบ ให้เรียก saveTriageAssessment() แล้วค่อยแนะนำยา
 6. ใช้ emoji บ้างให้ดูเป็นมิตร 😊💊🩺
-7. ถ้าลูกค้าแพ้ยาใด ห้ามแนะนำยานี้เด็ดขาด
-8. **สำคัญมาก**: จำบริบทการสนทนาก่อนหน้า ถ้าลูกค้าตอบคำถามที่คุณถามไป ให้ตอบต่อเนื่องจากบริบทนั้น ห้ามทักทายใหม่หรือถามซ้ำ
-9. ถ้าลูกค้าบอกอาการ ให้ถามข้อมูลเพิ่มเติมทีละข้อ เช่น ระยะเวลา ความรุนแรง อาการร่วม แล้วค่อยแนะนำยา
-10. ห้ามพูดว่า "สวัสดีค่ะ" หรือทักทายใหม่ ถ้าเป็นการสนทนาต่อเนื่อง
-
-## ตัวอย่างการตอบ:
-ถาม: "ปวดหัวมาก"
-ตอบ: "ปวดหัวแบบนี้แนะนำ Sara (พาราเซตามอล 500mg) ค่ะ [SKU:0317] 💊
-
-ตัวยาสำคัญ: Paracetamol 500mg
-สรรพคุณ: บรรเทาอาการปวดหัว ปวดเมื่อย ลดไข้
-วิธีใช้: ทาน 1-2 เม็ด ทุก 4-6 ชม. ไม่เกิน 8 เม็ด/วัน
-ราคา: 72 บาท
-
-พักผ่อนให้เพียงพอ ดื่มน้ำเยอะๆ ถ้าไม่ดีขึ้นใน 2-3 วันควรพบแพทย์นะคะ 😊"
+7. ถ้าลูกค้าแพ้ยาใด ห้ามแนะนำยานั้นเด็ดขาด
 
 PROMPT;
 
@@ -364,6 +362,26 @@ PROMPT;
                             'limit' => ['type' => 'integer', 'description' => 'จำนวน (default: 5)']
                         ],
                         'required' => ['category']
+                    ]
+                ],
+                [
+                    'name' => 'saveTriageAssessment',
+                    'description' => 'บันทึกผลการซักประวัติอาการ เรียกเมื่อได้ข้อมูลอาการครบถ้วน (อย่างน้อย 4 ข้อ)',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'symptoms' => ['type' => 'string', 'description' => 'อาการหลักที่ลูกค้าบอก'],
+                            'duration' => ['type' => 'string', 'description' => 'ระยะเวลาที่เป็น เช่น 2 วัน, 1 สัปดาห์'],
+                            'severity' => ['type' => 'integer', 'description' => 'ความรุนแรง 1-10'],
+                            'severity_level' => ['type' => 'string', 'description' => 'ระดับความรุนแรง: low, medium, high, critical'],
+                            'associated_symptoms' => ['type' => 'string', 'description' => 'อาการร่วมอื่นๆ'],
+                            'allergies' => ['type' => 'string', 'description' => 'ยาที่แพ้'],
+                            'medical_conditions' => ['type' => 'string', 'description' => 'โรคประจำตัว'],
+                            'current_medications' => ['type' => 'string', 'description' => 'ยาที่ทานอยู่'],
+                            'ai_assessment' => ['type' => 'string', 'description' => 'การวินิจฉัยเบื้องต้นของ AI'],
+                            'recommended_action' => ['type' => 'string', 'description' => 'คำแนะนำ: self_care, consult_pharmacist, see_doctor, emergency']
+                        ],
+                        'required' => ['symptoms', 'severity_level', 'ai_assessment', 'recommended_action']
                     ]
                 ]
             ]
@@ -471,9 +489,165 @@ PROMPT;
                     $this->lastFoundProducts = array_merge($this->lastFoundProducts, $products);
                 }
                 return ['success' => true, 'category' => $category, 'count' => count($products), 'products' => $products];
+            
+            case 'saveTriageAssessment':
+                return $this->saveTriageAssessment($args);
                 
             default:
                 return ['success' => false, 'error' => "Unknown function: {$name}"];
+        }
+    }
+    
+    /**
+     * บันทึกผลการซักประวัติและแจ้งเตือนถ้าจำเป็น
+     */
+    private function saveTriageAssessment(array $data): array
+    {
+        if (!$this->userId) {
+            return ['success' => false, 'error' => 'No user ID'];
+        }
+        
+        try {
+            // Create table if not exists
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS ai_triage_assessments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    line_account_id INT NULL,
+                    symptoms TEXT,
+                    duration VARCHAR(100),
+                    severity INT,
+                    severity_level ENUM('low', 'medium', 'high', 'critical') DEFAULT 'low',
+                    associated_symptoms TEXT,
+                    allergies TEXT,
+                    medical_conditions TEXT,
+                    current_medications TEXT,
+                    ai_assessment TEXT,
+                    recommended_action ENUM('self_care', 'consult_pharmacist', 'see_doctor', 'emergency') DEFAULT 'self_care',
+                    pharmacist_notified TINYINT(1) DEFAULT 0,
+                    pharmacist_response TEXT,
+                    status ENUM('pending', 'reviewed', 'completed') DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_severity (severity_level),
+                    INDEX idx_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+            
+            // Insert assessment
+            $stmt = $this->db->prepare("
+                INSERT INTO ai_triage_assessments 
+                (user_id, line_account_id, symptoms, duration, severity, severity_level, 
+                 associated_symptoms, allergies, medical_conditions, current_medications,
+                 ai_assessment, recommended_action)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            
+            $stmt->execute([
+                $this->userId,
+                $this->lineAccountId,
+                $data['symptoms'] ?? '',
+                $data['duration'] ?? '',
+                intval($data['severity'] ?? 5),
+                $data['severity_level'] ?? 'low',
+                $data['associated_symptoms'] ?? '',
+                $data['allergies'] ?? '',
+                $data['medical_conditions'] ?? '',
+                $data['current_medications'] ?? '',
+                $data['ai_assessment'] ?? '',
+                $data['recommended_action'] ?? 'self_care'
+            ]);
+            
+            $assessmentId = $this->db->lastInsertId();
+            
+            // Notify pharmacist if severity is high or critical
+            $severityLevel = $data['severity_level'] ?? 'low';
+            $notified = false;
+            
+            if (in_array($severityLevel, ['high', 'critical'])) {
+                $notified = $this->notifyPharmacist($assessmentId, $data);
+            }
+            
+            error_log("saveTriageAssessment: Saved assessment #{$assessmentId}, severity={$severityLevel}, notified={$notified}");
+            
+            return [
+                'success' => true,
+                'assessment_id' => $assessmentId,
+                'severity_level' => $severityLevel,
+                'pharmacist_notified' => $notified,
+                'message' => $notified ? 'บันทึกแล้ว และแจ้งเภสัชกรเรียบร้อย' : 'บันทึกการประเมินเรียบร้อย'
+            ];
+            
+        } catch (\Exception $e) {
+            error_log("saveTriageAssessment error: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+    
+    /**
+     * แจ้งเตือนเภสัชกร
+     */
+    private function notifyPharmacist(int $assessmentId, array $data): bool
+    {
+        try {
+            // Get user info
+            $stmt = $this->db->prepare("SELECT display_name, line_user_id FROM users WHERE id = ?");
+            $stmt->execute([$this->userId]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            // Create notification
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS pharmacist_notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    line_account_id INT NULL,
+                    type VARCHAR(50) DEFAULT 'triage_alert',
+                    title VARCHAR(255),
+                    message TEXT,
+                    reference_id INT,
+                    reference_type VARCHAR(50),
+                    user_id INT,
+                    is_read TINYINT(1) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_line_account (line_account_id),
+                    INDEX idx_is_read (is_read)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+            
+            $severityLevel = $data['severity_level'] ?? 'high';
+            $severityText = $severityLevel === 'critical' ? '🚨 ฉุกเฉิน' : '⚠️ รุนแรง';
+            
+            $stmt = $this->db->prepare("
+                INSERT INTO pharmacist_notifications 
+                (line_account_id, type, title, message, reference_id, reference_type, user_id)
+                VALUES (?, 'triage_alert', ?, ?, ?, 'triage_assessment', ?)
+            ");
+            
+            $title = "{$severityText} - ลูกค้าต้องการความช่วยเหลือ";
+            $message = "ลูกค้า: " . ($user['display_name'] ?? 'ไม่ระบุชื่อ') . "\n";
+            $message .= "อาการ: " . ($data['symptoms'] ?? '-') . "\n";
+            $message .= "ระยะเวลา: " . ($data['duration'] ?? '-') . "\n";
+            $message .= "การประเมิน: " . ($data['ai_assessment'] ?? '-');
+            
+            $stmt->execute([
+                $this->lineAccountId,
+                $title,
+                $message,
+                $assessmentId,
+                $this->userId
+            ]);
+            
+            // Update assessment as notified
+            $stmt = $this->db->prepare("UPDATE ai_triage_assessments SET pharmacist_notified = 1 WHERE id = ?");
+            $stmt->execute([$assessmentId]);
+            
+            error_log("notifyPharmacist: Created notification for assessment #{$assessmentId}");
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            error_log("notifyPharmacist error: " . $e->getMessage());
+            return false;
         }
     }
     
