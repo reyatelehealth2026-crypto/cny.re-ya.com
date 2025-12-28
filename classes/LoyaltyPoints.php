@@ -379,8 +379,15 @@ class LoyaltyPoints
 
     public function getAllRedemptions($status = null, $limit = 50)
     {
-        $sql = "SELECT rr.*, r.name as reward_name, r.image_url as reward_image, u.display_name, u.picture_url FROM reward_redemptions rr JOIN rewards r ON rr.reward_id = r.id JOIN users u ON rr.user_id = u.id WHERE (rr.line_account_id = ? OR rr.line_account_id IS NULL)";
-        $params = [$this->lineAccountId];
+        $hasLineAccountId = $this->columnExists('reward_redemptions', 'line_account_id');
+        
+        if ($hasLineAccountId) {
+            $sql = "SELECT rr.*, r.name as reward_name, r.image_url as reward_image, u.display_name, u.picture_url FROM reward_redemptions rr JOIN rewards r ON rr.reward_id = r.id JOIN users u ON rr.user_id = u.id WHERE (rr.line_account_id = ? OR rr.line_account_id IS NULL)";
+            $params = [$this->lineAccountId];
+        } else {
+            $sql = "SELECT rr.*, r.name as reward_name, r.image_url as reward_image, u.display_name, u.picture_url FROM reward_redemptions rr JOIN rewards r ON rr.reward_id = r.id JOIN users u ON rr.user_id = u.id WHERE 1=1";
+            $params = [];
+        }
         if ($status) { $sql .= " AND rr.status = ?"; $params[] = $status; }
         $sql .= " ORDER BY rr.created_at DESC LIMIT ?";
         $params[] = $limit;
