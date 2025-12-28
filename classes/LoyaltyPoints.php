@@ -57,20 +57,33 @@ class LoyaltyPoints
      */
     public function getUserTier($userId)
     {
+        // Get user points - try multiple columns
         $userPoints = $this->getUserPoints($userId);
         $totalPoints = (int)$userPoints['total_points'];
         
-        // Default tier thresholds
+        // Fallback: get 'points' column if total_points is 0
+        if ($totalPoints == 0) {
+            try {
+                $stmt = $this->db->prepare("SELECT points FROM users WHERE id = ?");
+                $stmt->execute([$userId]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($row && !empty($row['points'])) {
+                    $totalPoints = (int)$row['points'];
+                }
+            } catch (Exception $e) {}
+        }
+        
+        // Default tier thresholds (matching admin settings)
         $tiers = [
-            ['name' => 'Silver', 'min_points' => 0, 'next_tier' => 'Gold', 'next_points' => 2000],
-            ['name' => 'Gold', 'min_points' => 2000, 'next_tier' => 'Platinum', 'next_points' => 5000],
-            ['name' => 'Platinum', 'min_points' => 5000, 'next_tier' => 'VIP', 'next_points' => 10000],
-            ['name' => 'VIP', 'min_points' => 10000, 'next_tier' => null, 'next_points' => null]
+            ['name' => 'Bronze', 'min_points' => 0, 'next_tier' => 'Silver', 'next_points' => 1000],
+            ['name' => 'Silver', 'min_points' => 1000, 'next_tier' => 'Gold', 'next_points' => 5000],
+            ['name' => 'Gold', 'min_points' => 5000, 'next_tier' => 'Platinum', 'next_points' => 15000],
+            ['name' => 'Platinum', 'min_points' => 15000, 'next_tier' => null, 'next_points' => null]
         ];
         
-        // Try to load custom tier settings
+        // Try to load from member_tiers table first (used by member card)
         try {
-            $stmt = $this->db->prepare("SELECT * FROM tier_settings WHERE line_account_id = ? OR line_account_id IS NULL ORDER BY min_points ASC");
+            $stmt = $this->db->prepare("SELECT * FROM member_tiers WHERE (line_account_id = ? OR line_account_id IS NULL) AND is_active = 1 ORDER BY min_points ASC");
             $stmt->execute([$this->lineAccountId]);
             $customTiers = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if (!empty($customTiers)) {
@@ -78,15 +91,34 @@ class LoyaltyPoints
                 foreach ($customTiers as $i => $tier) {
                     $nextTier = isset($customTiers[$i + 1]) ? $customTiers[$i + 1] : null;
                     $tiers[] = [
-                        'name' => $tier['name'],
+                        'name' => $tier['tier_name'] ?? $tier['name'],
                         'min_points' => (int)$tier['min_points'],
-                        'next_tier' => $nextTier ? $nextTier['name'] : null,
+                        'next_tier' => $nextTier ? ($nextTier['tier_name'] ?? $nextTier['name']) : null,
                         'next_points' => $nextTier ? (int)$nextTier['min_points'] : null
                     ];
                 }
             }
         } catch (Exception $e) {
-            // Use default tiers
+            // Try points_tiers table as fallback
+            try {
+                $stmt = $this->db->prepare("SELECT * FROM points_tiers WHERE line_account_id = ? OR line_account_id IS NULL ORDER BY min_points ASC");
+                $stmt->execute([$this->lineAccountId]);
+                $customTiers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($customTiers)) {
+                    $tiers = [];
+                    foreach ($customTiers as $i => $tier) {
+                        $nextTier = isset($customTiers[$i + 1]) ? $customTiers[$i + 1] : null;
+                        $tiers[] = [
+                            'name' => $tier['name'],
+                            'min_points' => (int)$tier['min_points'],
+                            'next_tier' => $nextTier ? $nextTier['name'] : null,
+                            'next_points' => $nextTier ? (int)$nextTier['min_points'] : null
+                        ];
+                    }
+                }
+            } catch (Exception $e2) {
+                // Use default tiers
+            }
         }
         
         // Determine current tier
