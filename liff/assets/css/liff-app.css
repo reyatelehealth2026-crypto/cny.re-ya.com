@@ -12994,3 +12994,368 @@ body:has(.ai-chat-page) .bottom-nav {
         background-position: -200% 0;
     }
 }
+
+
+/* ==================== AI Chat Enhanced Styles ====================
+   Drug Interaction Warnings, MIMS Info, Allergy Reminders
+==================== */
+
+/* Drug Interaction Warning */
+.ai-chat-drug-warning {
+    padding: var(--space-3) 0;
+}
+
+.ai-chat-warning-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.ai-chat-warning-danger {
+    border-left: 4px solid var(--danger);
+}
+
+.ai-chat-warning-caution {
+    border-left: 4px solid var(--warning);
+}
+
+.ai-chat-warning-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: #FEF2F2;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--danger);
+}
+
+.ai-chat-warning-caution .ai-chat-warning-header {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.ai-chat-warning-body {
+    padding: var(--space-3);
+}
+
+.ai-chat-warning-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    margin-bottom: var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+}
+
+.ai-chat-warning-item:last-child {
+    margin-bottom: 0;
+}
+
+.ai-chat-warning-item-danger {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.ai-chat-warning-item-danger i {
+    color: var(--danger);
+}
+
+.ai-chat-warning-item-caution {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.ai-chat-warning-item-caution i {
+    color: var(--warning);
+}
+
+.ai-chat-warning-footer {
+    padding: var(--space-3);
+    border-top: 1px solid var(--border-light);
+}
+
+.ai-chat-warning-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--secondary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ai-chat-warning-btn:active {
+    background: var(--secondary-dark);
+}
+
+/* MIMS Knowledge Base Info */
+.ai-chat-mims-info {
+    padding: var(--space-3) 0;
+}
+
+.ai-chat-mims-card {
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid #C7D2FE;
+}
+
+.ai-chat-mims-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: rgba(99, 102, 241, 0.1);
+    font-weight: 600;
+    font-size: 13px;
+    color: #4338CA;
+}
+
+.ai-chat-mims-body {
+    padding: var(--space-3);
+}
+
+.ai-chat-mims-body h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1E1B4B;
+    margin: 0 0 var(--space-3);
+}
+
+.ai-chat-mims-section {
+    margin-bottom: var(--space-3);
+}
+
+.ai-chat-mims-section:last-child {
+    margin-bottom: 0;
+}
+
+.ai-chat-mims-section strong {
+    display: block;
+    font-size: 12px;
+    color: #4338CA;
+    margin-bottom: var(--space-2);
+}
+
+.ai-chat-mims-section ul {
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: 13px;
+    color: #374151;
+}
+
+.ai-chat-mims-section ul li {
+    margin-bottom: var(--space-1);
+}
+
+.ai-chat-mims-referral {
+    background: rgba(239, 68, 68, 0.1);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--danger);
+}
+
+.ai-chat-mims-referral strong {
+    color: var(--danger);
+}
+
+.ai-chat-mims-redflags {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: #FEF2F2;
+    border-radius: var(--radius-md);
+}
+
+.ai-chat-mims-redflags strong {
+    display: block;
+    font-size: 12px;
+    color: var(--danger);
+    margin-bottom: var(--space-2);
+}
+
+.ai-chat-redflag-tag {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    background: #FEE2E2;
+    color: #991B1B;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    margin: 2px;
+}
+
+/* Allergy Reminder */
+.ai-chat-allergy-reminder {
+    padding: var(--space-2) 0;
+}
+
+.ai-chat-reminder-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: #FEF3C7;
+    border-radius: var(--radius-lg);
+    border: 1px solid #FCD34D;
+}
+
+.ai-chat-reminder-card > i {
+    font-size: 20px;
+    color: #D97706;
+}
+
+.ai-chat-reminder-content {
+    flex: 1;
+}
+
+.ai-chat-reminder-content strong {
+    display: block;
+    font-size: 12px;
+    color: #92400E;
+    margin-bottom: 2px;
+}
+
+.ai-chat-reminder-content p {
+    margin: 0;
+    font-size: 13px;
+    color: #78350F;
+}
+
+.ai-chat-reminder-close {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #92400E;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+}
+
+.ai-chat-reminder-close:active {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* Triage Mode Indicator */
+.ai-chat-triage-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ai-chat-triage-indicator i {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Enhanced Quick Replies for Triage */
+.ai-chat-quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-light);
+}
+
+.ai-chat-quick-reply-btn {
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ai-chat-quick-reply-btn:active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Pharmacist Suggestion Card Enhancement */
+.ai-chat-pharmacist-suggestion {
+    padding: var(--space-3) 0;
+}
+
+.ai-chat-suggestion-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+    border-radius: var(--radius-lg);
+    border: 1px solid #A7F3D0;
+}
+
+.ai-chat-suggestion-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--secondary);
+    color: white;
+    border-radius: var(--radius-full);
+    font-size: 20px;
+}
+
+.ai-chat-suggestion-content {
+    flex: 1;
+}
+
+.ai-chat-suggestion-content h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #065F46;
+    margin: 0 0 var(--space-1);
+}
+
+.ai-chat-suggestion-content p {
+    font-size: 12px;
+    color: #047857;
+    margin: 0;
+}
+
+.ai-chat-suggestion-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--secondary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.ai-chat-suggestion-btn:active {
+    background: var(--secondary-dark);
+}

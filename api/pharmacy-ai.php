@@ -1,7 +1,16 @@
 <?php
 /**
- * Pharmacy AI API - Enhanced Version
+ * Pharmacy AI API - Enhanced Version with AIChat Module Integration
  * API สำหรับ LIFF Pharmacy Consultation พร้อมข้อมูลธุรกิจครบถ้วน
+ * 
+ * Integrated Features from AIChat Module:
+ * - MIMS Knowledge Base (disease/treatment information)
+ * - PharmacyRAG (intelligent product search with symptom-drug mapping)
+ * - TriageEngine (step-by-step symptom assessment state machine)
+ * - DrugInteractionChecker (drug interactions, allergies, contraindications)
+ * - Enhanced RedFlagDetector (comprehensive emergency detection)
+ * - Gemini API with Function Calling
+ * 
  * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -16,6 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
+// Load AIChat modules if available
+$aiChatModulesLoaded = false;
+$modulesPath = __DIR__ . '/../modules/AIChat';
+if (file_exists($modulesPath . '/Autoloader.php')) {
+    require_once $modulesPath . '/Autoloader.php';
+    if (function_exists('loadAIChatModule')) {
+        loadAIChatModule();
+        $aiChatModulesLoaded = true;
+    }
+}
+
 $db = Database::getInstance()->getConnection();
 
 // Get input
@@ -25,6 +45,8 @@ $message = $input['message'] ?? '';
 $userId = $input['user_id'] ?? null;
 $state = $input['state'] ?? 'greeting';
 $triageData = $input['triage_data'] ?? [];
+$useTriage = $input['use_triage'] ?? false; // Enable triage mode
+$useGemini = $input['use_gemini'] ?? false; // Enable Gemini AI
 
 // Handle different actions
 if ($action === 'log_emergency') {
@@ -35,6 +57,37 @@ if ($action === 'log_emergency') {
 if ($action === 'get_context') {
     // Return full business context for AI
     echo json_encode(getFullBusinessContext($db, $userId));
+    exit;
+}
+
+if ($action === 'triage') {
+    // Use TriageEngine for step-by-step assessment
+    echo json_encode(processTriageMessage($db, $message, $userId, $triageData));
+    exit;
+}
+
+if ($action === 'check_interactions') {
+    // Check drug interactions
+    $drugs = $input['drugs'] ?? [];
+    $currentMeds = $input['current_medications'] ?? [];
+    $allergies = $input['allergies'] ?? [];
+    $conditions = $input['medical_conditions'] ?? [];
+    echo json_encode(checkDrugInteractions($db, $drugs, $currentMeds, $allergies, $conditions));
+    exit;
+}
+
+if ($action === 'search_products') {
+    // Search products using RAG
+    $query = $input['query'] ?? $message;
+    $limit = $input['limit'] ?? 10;
+    echo json_encode(searchProductsRAG($db, $query, $limit, $userId));
+    exit;
+}
+
+if ($action === 'get_mims_info') {
+    // Get MIMS knowledge base information
+    $symptom = $input['symptom'] ?? $message;
+    echo json_encode(getMIMSInfo($symptom));
     exit;
 }
 
@@ -52,16 +105,34 @@ try {
     // Get business context
     $businessContext = getBusinessContext($db, $lineAccountId);
     
-    // Check for emergency symptoms first
-    $emergencyCheck = checkEmergencySymptoms($message);
+    // Check for emergency symptoms first (enhanced detection)
+    $emergencyCheck = checkEmergencySymptoms($message, $userContext);
     
-    // Process message with enhanced AI logic (includes user & business context)
-    $result = processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+    // Check if triage mode should be activated
+    $shouldUseTriage = $useTriage || shouldActivateTriage($message, $state);
+    
+    // Process message based on mode
+    if ($shouldUseTriage && $aiChatModulesLoaded) {
+        // Use TriageEngine for step-by-step assessment
+        $result = processTriageMessage($db, $message, $internalUserId, $triageData);
+    } elseif ($useGemini && $aiChatModulesLoaded) {
+        // Use Gemini AI with function calling
+        $result = processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+    } else {
+        // Use enhanced rule-based processing
+        $result = processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+    }
     
     // Get product recommendations if applicable
     $products = [];
     if (!empty($result['recommend_products'])) {
         $products = getProductRecommendations($db, $result['recommend_products'], $lineAccountId);
+    }
+    
+    // Check drug interactions if products recommended and user has medications
+    $drugInteractions = [];
+    if (!empty($products) && !empty($userContext['health_medications'])) {
+        $drugInteractions = checkDrugInteractionsSimple($products, $userContext);
     }
     
     echo json_encode([
@@ -73,12 +144,17 @@ try {
         'is_critical' => $emergencyCheck['is_critical'] ?? false,
         'emergency_info' => $emergencyCheck['is_critical'] ? $emergencyCheck : null,
         'products' => $products,
+        'drug_interactions' => $drugInteractions,
         'suggest_pharmacist' => $result['suggest_pharmacist'] ?? false,
+        'triage_mode' => $shouldUseTriage,
+        'mims_info' => $result['mims_info'] ?? null,
         'user_context' => [
             'name' => $userContext['display_name'] ?? null,
             'points' => $userContext['points'] ?? 0,
             'tier' => $userContext['tier'] ?? 'bronze',
-            'has_allergies' => !empty($userContext['drug_allergies'])
+            'has_allergies' => !empty($userContext['drug_allergies']),
+            'allergies' => $userContext['drug_allergies'] ?? null,
+            'conditions' => $userContext['chronic_diseases'] ?? null
         ]
     ]);
     
@@ -635,36 +711,77 @@ function processPharmacyMessage($db, $message, $state, $triageData, $lineAccount
 }
 
 /**
- * Check for emergency symptoms
+ * Check for emergency symptoms - Enhanced version with age-specific flags
  */
-function checkEmergencySymptoms($message) {
+function checkEmergencySymptoms($message, $userContext = []) {
     $emergencyKeywords = [
-        ['keywords' => ['หายใจไม่ออก', 'หายใจลำบาก', 'หอบ', 'แน่นหน้าอก'], 'symptom' => 'หายใจลำบาก/แน่นหน้าอก'],
-        ['keywords' => ['เจ็บหน้าอก', 'แน่นหน้าอก', 'เจ็บอก'], 'symptom' => 'เจ็บหน้าอก'],
-        ['keywords' => ['ชัก', 'หมดสติ', 'เป็นลม', 'ไม่รู้สึกตัว'], 'symptom' => 'หมดสติ/ชัก'],
-        ['keywords' => ['เลือดออกมาก', 'เลือดไหลไม่หยุด', 'ตกเลือด'], 'symptom' => 'เลือดออกมาก'],
-        ['keywords' => ['อัมพาต', 'แขนขาอ่อนแรง', 'พูดไม่ชัด', 'หน้าเบี้ยว'], 'symptom' => 'อาการคล้ายโรคหลอดเลือดสมอง'],
-        ['keywords' => ['แพ้ยารุนแรง', 'บวมทั้งตัว', 'ผื่นขึ้นทั้งตัว'], 'symptom' => 'แพ้ยารุนแรง'],
-        ['keywords' => ['กินยาเกินขนาด', 'กินยาผิด', 'overdose'], 'symptom' => 'กินยาเกินขนาด']
+        ['keywords' => ['หายใจไม่ออก', 'หายใจลำบาก', 'หอบ', 'แน่นหน้าอก'], 'symptom' => 'หายใจลำบาก/แน่นหน้าอก', 'severity' => 'critical'],
+        ['keywords' => ['เจ็บหน้าอก', 'แน่นหน้าอก', 'เจ็บอก'], 'symptom' => 'เจ็บหน้าอก', 'severity' => 'critical'],
+        ['keywords' => ['ชัก', 'หมดสติ', 'เป็นลม', 'ไม่รู้สึกตัว'], 'symptom' => 'หมดสติ/ชัก', 'severity' => 'critical'],
+        ['keywords' => ['เลือดออกมาก', 'เลือดไหลไม่หยุด', 'ตกเลือด'], 'symptom' => 'เลือดออกมาก', 'severity' => 'critical'],
+        ['keywords' => ['อัมพาต', 'แขนขาอ่อนแรง', 'พูดไม่ชัด', 'หน้าเบี้ยว'], 'symptom' => 'อาการคล้ายโรคหลอดเลือดสมอง', 'severity' => 'critical'],
+        ['keywords' => ['แพ้ยารุนแรง', 'บวมทั้งตัว', 'ผื่นขึ้นทั้งตัว', 'หายใจไม่ออกหลังกินยา'], 'symptom' => 'แพ้ยารุนแรง (Anaphylaxis)', 'severity' => 'critical'],
+        ['keywords' => ['กินยาเกินขนาด', 'กินยาผิด', 'overdose'], 'symptom' => 'กินยาเกินขนาด', 'severity' => 'critical'],
+        ['keywords' => ['ฆ่าตัวตาย', 'ทำร้ายตัวเอง', 'ไม่อยากมีชีวิต'], 'symptom' => 'ความคิดทำร้ายตัวเอง', 'severity' => 'critical'],
+        // Additional red flags
+        ['keywords' => ['ไข้สูงมาก', 'ไข้ 40', 'ไข้ 41'], 'symptom' => 'ไข้สูงมาก', 'severity' => 'high'],
+        ['keywords' => ['ปวดหัวรุนแรง', 'ปวดหัวมากที่สุด', 'คอแข็ง'], 'symptom' => 'ปวดศีรษะรุนแรง (อาจเป็นเยื่อหุ้มสมองอักเสบ)', 'severity' => 'high'],
+        ['keywords' => ['อาเจียนเป็นเลือด', 'ถ่ายเป็นเลือด', 'อุจจาระดำ'], 'symptom' => 'เลือดออกในทางเดินอาหาร', 'severity' => 'high'],
+        ['keywords' => ['ปัสสาวะไม่ออก', 'ปัสสาวะเป็นเลือด'], 'symptom' => 'ปัญหาระบบทางเดินปัสสาวะรุนแรง', 'severity' => 'high'],
+        ['keywords' => ['ตาพร่ามัว', 'มองไม่เห็น', 'เห็นภาพซ้อน'], 'symptom' => 'ปัญหาการมองเห็นเฉียบพลัน', 'severity' => 'high'],
     ];
     
     $lowerMessage = mb_strtolower($message, 'UTF-8');
     $detectedSymptoms = [];
+    $maxSeverity = 'low';
     
     foreach ($emergencyKeywords as $emergency) {
         foreach ($emergency['keywords'] as $keyword) {
             if (mb_strpos($lowerMessage, $keyword) !== false) {
                 $detectedSymptoms[] = $emergency['symptom'];
+                if ($emergency['severity'] === 'critical') {
+                    $maxSeverity = 'critical';
+                } elseif ($emergency['severity'] === 'high' && $maxSeverity !== 'critical') {
+                    $maxSeverity = 'high';
+                }
                 break;
             }
         }
     }
     
+    // Age-specific red flags
+    $userAge = $userContext['age'] ?? null;
+    if ($userAge !== null) {
+        // Elderly (65+) - lower threshold for concern
+        if ($userAge >= 65) {
+            if (mb_strpos($lowerMessage, 'เวียนหัว') !== false || mb_strpos($lowerMessage, 'หกล้ม') !== false) {
+                $detectedSymptoms[] = 'เวียนศีรษะ/หกล้มในผู้สูงอายุ';
+                if ($maxSeverity === 'low') $maxSeverity = 'high';
+            }
+        }
+        // Children (<5) - fever is more concerning
+        if ($userAge < 5) {
+            if (mb_strpos($lowerMessage, 'ไข้') !== false) {
+                $detectedSymptoms[] = 'ไข้ในเด็กเล็ก';
+                if ($maxSeverity === 'low') $maxSeverity = 'high';
+            }
+        }
+    }
+    
     if (!empty($detectedSymptoms)) {
+        $isCritical = $maxSeverity === 'critical';
         return [
-            'is_critical' => true,
+            'is_critical' => $isCritical,
+            'severity' => $maxSeverity,
             'symptoms' => array_unique($detectedSymptoms),
-            'recommendation' => 'พบอาการที่อาจเป็นอันตราย กรุณาติดต่อแพทย์หรือโทร 1669 ทันที'
+            'recommendation' => $isCritical 
+                ? '🚨 พบอาการฉุกเฉิน! กรุณาโทร 1669 หรือไปโรงพยาบาลทันที'
+                : '⚠️ พบอาการที่ควรระวัง กรุณาปรึกษาเภสัชกรหรือแพทย์',
+            'emergency_contacts' => [
+                ['name' => 'สายด่วนฉุกเฉิน', 'number' => '1669'],
+                ['name' => 'สายด่วนสุขภาพจิต', 'number' => '1323'],
+                ['name' => 'ศูนย์พิษวิทยา', 'number' => '1367']
+            ]
         ];
     }
     
@@ -743,4 +860,402 @@ function logEmergencyAlert($db, $input) {
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
+}
+
+
+// ============================================================================
+// INTEGRATED FUNCTIONS FROM AICHAT MODULE
+// ============================================================================
+
+/**
+ * Check if triage mode should be activated based on message content
+ */
+function shouldActivateTriage($message, $currentState) {
+    $triageKeywords = [
+        'ซักประวัติ', 'เริ่มซักประวัติ', 'ประเมินอาการ', 'เริ่มประเมิน',
+        'triage', 'assessment', 'ปรึกษาอาการ', 'ไม่สบาย'
+    ];
+    
+    $lowerMessage = mb_strtolower($message, 'UTF-8');
+    
+    foreach ($triageKeywords as $keyword) {
+        if (mb_strpos($lowerMessage, $keyword) !== false) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Process message using TriageEngine (step-by-step assessment)
+ */
+function processTriageMessage($db, $message, $userId, $triageData) {
+    global $aiChatModulesLoaded;
+    
+    if (!$aiChatModulesLoaded) {
+        return [
+            'success' => false,
+            'response' => 'ระบบซักประวัติยังไม่พร้อมใช้งาน กรุณาใช้โหมดปกติ',
+            'state' => 'greeting',
+            'data' => $triageData
+        ];
+    }
+    
+    try {
+        $triage = new \Modules\AIChat\Services\TriageEngine(null, $userId, $db);
+        $result = $triage->process($message);
+        
+        return [
+            'success' => true,
+            'response' => $result['text'] ?? $result['message'] ?? 'ขออภัยค่ะ เกิดข้อผิดพลาด',
+            'state' => $result['state'] ?? 'triage',
+            'data' => $result['data'] ?? $triageData,
+            'quick_replies' => formatQuickReplies($result['quickReplies'] ?? []),
+            'recommend_products' => $result['recommend_products'] ?? [],
+            'suggest_pharmacist' => $result['suggest_pharmacist'] ?? false,
+            'mims_info' => $result['mims_info'] ?? null
+        ];
+    } catch (Exception $e) {
+        error_log("processTriageMessage error: " . $e->getMessage());
+        return [
+            'success' => false,
+            'response' => 'ขออภัยค่ะ ระบบซักประวัติขัดข้อง กรุณาลองใหม่',
+            'state' => 'greeting',
+            'data' => $triageData
+        ];
+    }
+}
+
+/**
+ * Process message using Gemini AI with function calling
+ */
+function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext) {
+    global $aiChatModulesLoaded;
+    
+    if (!$aiChatModulesLoaded) {
+        // Fallback to rule-based processing
+        return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+    }
+    
+    try {
+        $adapter = new \Modules\AIChat\Adapters\PharmacyAIAdapter($db, $lineAccountId);
+        
+        if ($userContext['id'] ?? null) {
+            $adapter->setUserId($userContext['id']);
+        }
+        
+        if (!$adapter->isEnabled()) {
+            // Fallback if Gemini not configured
+            return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+        }
+        
+        $result = $adapter->processMessage($message);
+        
+        return [
+            'response' => $result['response'] ?? 'ขออภัยค่ะ ไม่สามารถประมวลผลได้',
+            'state' => $result['state'] ?? $state,
+            'data' => array_merge($triageData, $result['data'] ?? []),
+            'quick_replies' => formatQuickReplies($result['quick_replies'] ?? []),
+            'recommend_products' => extractProductKeywords($result['products'] ?? []),
+            'suggest_pharmacist' => $result['suggest_pharmacist'] ?? false,
+            'mims_info' => $result['mims_info'] ?? null
+        ];
+    } catch (Exception $e) {
+        error_log("processWithGeminiAI error: " . $e->getMessage());
+        return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+    }
+}
+
+/**
+ * Search products using PharmacyRAG
+ */
+function searchProductsRAG($db, $query, $limit, $userId) {
+    global $aiChatModulesLoaded;
+    
+    $result = [
+        'success' => true,
+        'products' => [],
+        'knowledge' => [],
+        'suggestions' => []
+    ];
+    
+    if ($aiChatModulesLoaded) {
+        try {
+            $rag = new \Modules\AIChat\Services\PharmacyRAG($db, null);
+            $ragResult = $rag->search($query, $limit);
+            
+            $result['products'] = $ragResult['products'] ?? [];
+            $result['knowledge'] = $ragResult['knowledge'] ?? [];
+            $result['suggestions'] = $ragResult['suggestions'] ?? [];
+            
+            return $result;
+        } catch (Exception $e) {
+            error_log("searchProductsRAG error: " . $e->getMessage());
+        }
+    }
+    
+    // Fallback to basic search
+    try {
+        $searchTerm = '%' . $query . '%';
+        $stmt = $db->prepare("
+            SELECT id, name, price, sale_price, image_url, generic_name, usage_instructions, stock
+            FROM business_items 
+            WHERE is_active = 1 AND (name LIKE ? OR generic_name LIKE ? OR description LIKE ?)
+            ORDER BY stock DESC, name
+            LIMIT ?
+        ");
+        $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $limit]);
+        $result['products'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("searchProductsRAG fallback error: " . $e->getMessage());
+    }
+    
+    return $result;
+}
+
+/**
+ * Get MIMS Knowledge Base information for a symptom
+ */
+function getMIMSInfo($symptom) {
+    global $aiChatModulesLoaded;
+    
+    if (!$aiChatModulesLoaded) {
+        return ['success' => false, 'error' => 'MIMS module not available'];
+    }
+    
+    try {
+        $mims = new \Modules\AIChat\Services\MIMSKnowledgeBase();
+        $results = $mims->searchBySymptom($symptom);
+        
+        return [
+            'success' => true,
+            'symptom' => $symptom,
+            'diseases' => $results,
+            'red_flags' => $mims->checkRedFlags($symptom)
+        ];
+    } catch (Exception $e) {
+        error_log("getMIMSInfo error: " . $e->getMessage());
+        return ['success' => false, 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Check drug interactions using DrugInteractionChecker
+ */
+function checkDrugInteractions($db, $drugs, $currentMeds, $allergies, $conditions) {
+    global $aiChatModulesLoaded;
+    
+    $result = [
+        'success' => true,
+        'safe' => true,
+        'interactions' => [],
+        'allergies' => [],
+        'contraindications' => [],
+        'warnings' => []
+    ];
+    
+    if ($aiChatModulesLoaded) {
+        try {
+            $checker = new \Modules\AIChat\Services\DrugInteractionChecker();
+            
+            // Format drugs for checker
+            $drugArray = array_map(function($d) {
+                return is_array($d) ? $d : ['name' => $d, 'generic_name' => $d];
+            }, $drugs);
+            
+            $report = $checker->generateSafetyReport($drugArray, [
+                'current_medications' => $currentMeds,
+                'allergies' => $allergies,
+                'medical_conditions' => $conditions
+            ]);
+            
+            return array_merge($result, $report);
+        } catch (Exception $e) {
+            error_log("checkDrugInteractions error: " . $e->getMessage());
+        }
+    }
+    
+    // Basic fallback check
+    $result['interactions'] = checkDrugInteractionsBasic($drugs, $currentMeds);
+    $result['allergies'] = checkAllergiesBasic($drugs, $allergies);
+    
+    if (!empty($result['interactions']) || !empty($result['allergies'])) {
+        $result['safe'] = false;
+    }
+    
+    return $result;
+}
+
+/**
+ * Simple drug interaction check for products
+ */
+function checkDrugInteractionsSimple($products, $userContext) {
+    $interactions = [];
+    $currentMeds = $userContext['health_medications'] ?? '';
+    $allergies = $userContext['drug_allergies'] ?? $userContext['health_allergies'] ?? '';
+    
+    if (empty($currentMeds) && empty($allergies)) {
+        return $interactions;
+    }
+    
+    $currentMedsLower = mb_strtolower($currentMeds, 'UTF-8');
+    $allergiesLower = mb_strtolower($allergies, 'UTF-8');
+    
+    // Basic interaction database
+    $interactionDb = [
+        'warfarin' => ['aspirin', 'ibuprofen', 'naproxen'],
+        'metformin' => ['alcohol'],
+        'aspirin' => ['ibuprofen'],
+    ];
+    
+    foreach ($products as $product) {
+        $productName = mb_strtolower($product['name'] ?? '', 'UTF-8');
+        $genericName = mb_strtolower($product['generic_name'] ?? '', 'UTF-8');
+        
+        // Check allergies
+        if (!empty($allergiesLower)) {
+            if (mb_strpos($allergiesLower, $productName) !== false || 
+                mb_strpos($allergiesLower, $genericName) !== false ||
+                mb_strpos($productName, $allergiesLower) !== false) {
+                $interactions[] = [
+                    'type' => 'allergy',
+                    'severity' => 'high',
+                    'product' => $product['name'],
+                    'message' => "⛔ คุณแพ้ยานี้! ห้ามใช้ {$product['name']}"
+                ];
+            }
+        }
+        
+        // Check interactions
+        foreach ($interactionDb as $med => $interactsWith) {
+            if (mb_strpos($currentMedsLower, $med) !== false) {
+                foreach ($interactsWith as $interactDrug) {
+                    if (mb_strpos($productName, $interactDrug) !== false || 
+                        mb_strpos($genericName, $interactDrug) !== false) {
+                        $interactions[] = [
+                            'type' => 'interaction',
+                            'severity' => 'medium',
+                            'product' => $product['name'],
+                            'interacts_with' => $med,
+                            'message' => "⚠️ {$product['name']} อาจตีกับยา {$med} ที่คุณทานอยู่"
+                        ];
+                    }
+                }
+            }
+        }
+    }
+    
+    return $interactions;
+}
+
+/**
+ * Basic drug interaction check (fallback)
+ */
+function checkDrugInteractionsBasic($drugs, $currentMeds) {
+    $interactions = [];
+    
+    $interactionDb = [
+        'warfarin' => ['aspirin', 'ibuprofen', 'naproxen', 'แอสไพริน', 'ไอบูโพรเฟน'],
+        'metformin' => ['alcohol', 'แอลกอฮอล์'],
+        'aspirin' => ['ibuprofen', 'ไอบูโพรเฟน'],
+    ];
+    
+    foreach ($drugs as $drug) {
+        $drugName = is_array($drug) ? mb_strtolower($drug['name'] ?? '', 'UTF-8') : mb_strtolower($drug, 'UTF-8');
+        
+        foreach ($currentMeds as $currentMed) {
+            $currentMedLower = mb_strtolower($currentMed, 'UTF-8');
+            
+            foreach ($interactionDb as $med => $interactsWith) {
+                if (mb_strpos($currentMedLower, $med) !== false) {
+                    foreach ($interactsWith as $interactDrug) {
+                        if (mb_strpos($drugName, $interactDrug) !== false) {
+                            $interactions[] = [
+                                'drug' => is_array($drug) ? $drug['name'] : $drug,
+                                'interacts_with' => $currentMed,
+                                'severity' => 'medium',
+                                'message' => "อาจมีปฏิกิริยาระหว่างยา"
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return $interactions;
+}
+
+/**
+ * Basic allergy check (fallback)
+ */
+function checkAllergiesBasic($drugs, $allergies) {
+    $warnings = [];
+    
+    foreach ($drugs as $drug) {
+        $drugName = is_array($drug) ? mb_strtolower($drug['name'] ?? '', 'UTF-8') : mb_strtolower($drug, 'UTF-8');
+        $genericName = is_array($drug) ? mb_strtolower($drug['generic_name'] ?? '', 'UTF-8') : '';
+        
+        foreach ($allergies as $allergy) {
+            $allergyLower = mb_strtolower($allergy, 'UTF-8');
+            
+            if (mb_strpos($drugName, $allergyLower) !== false || 
+                mb_strpos($genericName, $allergyLower) !== false) {
+                $warnings[] = [
+                    'drug' => is_array($drug) ? $drug['name'] : $drug,
+                    'allergy' => $allergy,
+                    'severity' => 'high',
+                    'message' => "⛔ ห้ามใช้! คุณแพ้ยา {$allergy}"
+                ];
+            }
+        }
+    }
+    
+    return $warnings;
+}
+
+/**
+ * Format quick replies from various formats
+ */
+function formatQuickReplies($quickReplies) {
+    if (empty($quickReplies)) return [];
+    
+    $formatted = [];
+    foreach ($quickReplies as $qr) {
+        if (isset($qr['action'])) {
+            // LINE format
+            $formatted[] = [
+                'label' => $qr['action']['label'] ?? $qr['label'] ?? '',
+                'text' => $qr['action']['text'] ?? $qr['text'] ?? ''
+            ];
+        } else {
+            // Simple format
+            $formatted[] = [
+                'label' => $qr['label'] ?? $qr['text'] ?? '',
+                'text' => $qr['text'] ?? $qr['label'] ?? ''
+            ];
+        }
+    }
+    
+    return $formatted;
+}
+
+/**
+ * Extract product keywords from product array
+ */
+function extractProductKeywords($products) {
+    if (empty($products)) return [];
+    
+    $keywords = [];
+    foreach ($products as $product) {
+        if (is_array($product)) {
+            if (!empty($product['name'])) $keywords[] = $product['name'];
+            if (!empty($product['generic_name'])) $keywords[] = $product['generic_name'];
+        } else {
+            $keywords[] = $product;
+        }
+    }
+    
+    return array_unique($keywords);
 }

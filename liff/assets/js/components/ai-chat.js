@@ -20,6 +20,11 @@ class AIChat {
         this.currentState = 'greeting';
         this.triageData = {};
         
+        // New: Triage and AI mode settings
+        this.triageMode = options.triageMode || false;
+        this.useGemini = options.useGemini || false;
+        this.showDrugInteractions = options.showDrugInteractions !== false;
+        
         // Quick symptom buttons configuration
         this.quickSymptoms = options.quickSymptoms || [
             { icon: 'fa-head-side-virus', label: 'ปวดหัว', query: 'ปวดหัว' },
@@ -384,6 +389,7 @@ class AIChat {
     /**
      * Process message with AI
      * Requirements: 7.2, 7.3, 7.4, 7.5 - Display typing indicator, AI responses, product recommendations, emergency detection
+     * Enhanced: Triage mode, drug interactions, MIMS info
      * @param {string} message - User message
      */
     async processMessage(message) {
@@ -406,7 +412,9 @@ class AIChat {
                     message: message,
                     user_id: this.userId,
                     state: this.currentState,
-                    triage_data: this.triageData
+                    triage_data: this.triageData,
+                    use_triage: this.triageMode,
+                    use_gemini: this.useGemini
                 })
             });
 
@@ -422,6 +430,11 @@ class AIChat {
             if (data.success) {
                 this.currentState = data.state || this.currentState;
                 this.triageData = data.data || this.triageData;
+                
+                // Update triage mode if server indicates it
+                if (data.triage_mode !== undefined) {
+                    this.triageMode = data.triage_mode;
+                }
 
                 // Add AI response with animation
                 await this.addAIResponse({
@@ -436,16 +449,34 @@ class AIChat {
                     this.showEmergencyAlert(data.emergency_info);
                 }
 
+                // Handle drug interactions warning (new feature)
+                if (data.drug_interactions && data.drug_interactions.length > 0 && this.showDrugInteractions) {
+                    await this.delay(300);
+                    this.showDrugInteractionWarning(data.drug_interactions);
+                }
+
                 // Handle product recommendations (Requirement 7.4)
                 if (data.products && data.products.length > 0) {
                     await this.delay(300);
                     this.showProductRecommendations(data.products);
                 }
 
+                // Handle MIMS information (new feature)
+                if (data.mims_info) {
+                    await this.delay(300);
+                    this.showMIMSInfo(data.mims_info);
+                }
+
                 // Handle pharmacist consultation suggestion
                 if (data.suggest_pharmacist) {
                     await this.delay(300);
                     this.showPharmacistSuggestion();
+                }
+                
+                // Show user context info if available (allergies warning)
+                if (data.user_context?.has_allergies && !this.shownAllergyWarning) {
+                    this.showAllergyReminder(data.user_context.allergies);
+                    this.shownAllergyWarning = true;
                 }
             } else {
                 this.addMessage({
@@ -1081,6 +1112,164 @@ class AIChat {
                 this.selectSymptom(symptom);
             }, 300);
         }
+    }
+
+    /**
+     * Enable/disable triage mode
+     * @param {boolean} enabled - Whether to enable triage mode
+     */
+    setTriageMode(enabled) {
+        this.triageMode = enabled;
+    }
+
+    /**
+     * Enable/disable Gemini AI mode
+     * @param {boolean} enabled - Whether to enable Gemini AI
+     */
+    setGeminiMode(enabled) {
+        this.useGemini = enabled;
+    }
+
+    /**
+     * Show drug interaction warning
+     * @param {Array} interactions - Array of drug interaction objects
+     */
+    showDrugInteractionWarning(interactions) {
+        if (!this.chatContainer || !interactions || interactions.length === 0) return;
+
+        const warningEl = document.createElement('div');
+        warningEl.className = 'ai-chat-drug-warning';
+        
+        const highSeverity = interactions.filter(i => i.severity === 'high' || i.type === 'allergy');
+        const mediumSeverity = interactions.filter(i => i.severity === 'medium');
+
+        warningEl.innerHTML = `
+            <div class="ai-chat-warning-card ${highSeverity.length > 0 ? 'ai-chat-warning-danger' : 'ai-chat-warning-caution'}">
+                <div class="ai-chat-warning-header">
+                    <i class="fas ${highSeverity.length > 0 ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                    <span>${highSeverity.length > 0 ? '⚠️ คำเตือนสำคัญ' : 'ℹ️ ข้อควรระวัง'}</span>
+                </div>
+                <div class="ai-chat-warning-body">
+                    ${highSeverity.map(i => `
+                        <div class="ai-chat-warning-item ai-chat-warning-item-danger">
+                            <i class="fas fa-ban"></i>
+                            <span>${this.escapeHtml(i.message)}</span>
+                        </div>
+                    `).join('')}
+                    ${mediumSeverity.map(i => `
+                        <div class="ai-chat-warning-item ai-chat-warning-item-caution">
+                            <i class="fas fa-exclamation"></i>
+                            <span>${this.escapeHtml(i.message)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="ai-chat-warning-footer">
+                    <button class="ai-chat-warning-btn" onclick="window.aiChat?.requestPharmacistConsult()">
+                        <i class="fas fa-user-md"></i> ปรึกษาเภสัชกร
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.chatContainer.appendChild(warningEl);
+        this.scrollToBottom();
+    }
+
+    /**
+     * Show MIMS knowledge base information
+     * @param {Object} mimsInfo - MIMS information object
+     */
+    showMIMSInfo(mimsInfo) {
+        if (!this.chatContainer || !mimsInfo) return;
+
+        const infoEl = document.createElement('div');
+        infoEl.className = 'ai-chat-mims-info';
+
+        let content = '';
+        
+        if (mimsInfo.diseases && mimsInfo.diseases.length > 0) {
+            const disease = mimsInfo.diseases[0];
+            content = `
+                <div class="ai-chat-mims-card">
+                    <div class="ai-chat-mims-header">
+                        <i class="fas fa-book-medical"></i>
+                        <span>📚 ข้อมูลจาก MIMS</span>
+                    </div>
+                    <div class="ai-chat-mims-body">
+                        <h4>${this.escapeHtml(disease.name_th || disease.name_en || 'ข้อมูลโรค')}</h4>
+                        ${disease.non_drug_advice ? `
+                            <div class="ai-chat-mims-section">
+                                <strong>🏠 การดูแลตัวเอง:</strong>
+                                <ul>
+                                    ${disease.non_drug_advice.slice(0, 3).map(a => `<li>${this.escapeHtml(a)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        ${disease.referral_criteria ? `
+                            <div class="ai-chat-mims-section ai-chat-mims-referral">
+                                <strong>🏥 ควรพบแพทย์เมื่อ:</strong>
+                                <ul>
+                                    ${disease.referral_criteria.slice(0, 2).map(c => `<li>${this.escapeHtml(c)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        if (mimsInfo.red_flags && mimsInfo.red_flags.length > 0) {
+            content += `
+                <div class="ai-chat-mims-redflags">
+                    <strong>⚠️ อาการที่ต้องระวัง:</strong>
+                    ${mimsInfo.red_flags.map(f => `<span class="ai-chat-redflag-tag">${this.escapeHtml(f.flag?.message || f.matched_keyword)}</span>`).join('')}
+                </div>
+            `;
+        }
+
+        if (content) {
+            infoEl.innerHTML = content;
+            this.chatContainer.appendChild(infoEl);
+            this.scrollToBottom();
+        }
+    }
+
+    /**
+     * Show allergy reminder
+     * @param {string} allergies - User's allergies
+     */
+    showAllergyReminder(allergies) {
+        if (!this.chatContainer || !allergies) return;
+
+        const reminderEl = document.createElement('div');
+        reminderEl.className = 'ai-chat-allergy-reminder';
+        reminderEl.innerHTML = `
+            <div class="ai-chat-reminder-card">
+                <i class="fas fa-allergies"></i>
+                <div class="ai-chat-reminder-content">
+                    <strong>ข้อมูลการแพ้ยาของคุณ</strong>
+                    <p>${this.escapeHtml(allergies)}</p>
+                </div>
+                <button class="ai-chat-reminder-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        this.chatContainer.insertBefore(reminderEl, this.chatContainer.firstChild?.nextSibling);
+    }
+
+    /**
+     * Start triage assessment
+     */
+    startTriageAssessment() {
+        this.triageMode = true;
+        this.addMessage({
+            type: 'user',
+            content: 'เริ่มซักประวัติ',
+            timestamp: new Date()
+        });
+        this.processMessage('เริ่มซักประวัติ');
     }
 }
 
