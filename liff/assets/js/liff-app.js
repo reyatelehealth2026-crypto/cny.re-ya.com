@@ -3259,21 +3259,29 @@ class LiffApp {
             });
 
             const result = await response.json();
+            console.log('🛒 Order API response:', result);
 
             if (result.success) {
+                console.log('🛒 Order created successfully:', result.order_number);
+                
                 // Clear cart
                 window.store?.clearCart();
 
                 // Send LIFF message via LiffMessageBridge (with API fallback)
+                console.log('🛒 Checking liffMessageBridge:', !!window.liffMessageBridge);
                 if (window.liffMessageBridge) {
                     try {
+                        console.log('🛒 Calling sendOrderPlaced...');
                         await window.liffMessageBridge.sendOrderPlaced(result.order_number, {
                             total: cart.total,
                             items: cart.items.length
                         });
+                        console.log('🛒 sendOrderPlaced completed');
                     } catch (e) {
                         console.warn('Failed to send order message:', e);
                     }
+                } else {
+                    console.warn('🛒 liffMessageBridge not available');
                 }
 
                 // Show success and navigate to order confirmation
