@@ -28,13 +28,19 @@ if (!$lineUserId) {
 
 try {
     // Get user info
-    $stmt = $db->prepare("SELECT id, line_account_id, total_points, available_points, used_points, display_name FROM users WHERE line_user_id = ?");
+    $stmt = $db->prepare("SELECT id, line_account_id, total_points, available_points, used_points, points, display_name FROM users WHERE line_user_id = ?");
     $stmt->execute([$lineUserId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
         echo json_encode(['success' => false, 'error' => 'User not found']);
         exit;
+    }
+    
+    // Fallback: use 'points' column if available_points is 0 but points has value
+    if (empty($user['available_points']) && !empty($user['points'])) {
+        $user['available_points'] = $user['points'];
+        $user['total_points'] = $user['points'];
     }
     
     $loyalty = new LoyaltyPoints($db, $user['line_account_id']);
