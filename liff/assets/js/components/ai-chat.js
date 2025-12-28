@@ -1365,15 +1365,26 @@ class AIChat {
             }
 
             if (window.store) {
-                await window.store.addToCart(productId, 1);
+                // Fetch product data first
+                const config = window.store.get('config');
+                const response = await fetch(`${config?.baseUrl || ''}/api/shop-products.php?action=get_product&id=${productId}`);
+                const data = await response.json();
                 
-                // Show success state
-                if (btn) {
-                    btn.innerHTML = '<i class="fas fa-check"></i> เพิ่มแล้ว';
-                    btn.classList.add('ai-chat-product-add-btn-success');
+                if (data.success && data.product) {
+                    window.store.addToCart(data.product, 1);
+                    
+                    // Show success state
+                    if (btn) {
+                        btn.innerHTML = '<i class="fas fa-check"></i> เพิ่มแล้ว';
+                        btn.classList.add('ai-chat-product-add-btn-success');
+                    }
+                    
+                    window.liffApp?.showToast('เพิ่มลงตะกร้าแล้ว', 'success');
+                    window.liffApp?.updateCartBadge();
+                    window.liffApp?.updateCartSummaryBar();
+                } else {
+                    throw new Error('Product not found');
                 }
-                
-                window.liffApp?.showToast('เพิ่มลงตะกร้าแล้ว', 'success');
 
                 // Reset button after delay
                 setTimeout(() => {

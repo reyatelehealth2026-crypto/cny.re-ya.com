@@ -3097,7 +3097,7 @@ img[loading="lazy"] {
 /* Floating Cart Summary Bar (Requirement 2.5) */
 .cart-summary-bar {
     position: fixed;
-    bottom: calc(56px + var(--safe-area-bottom));
+    bottom: calc(70px + var(--safe-area-bottom));
     left: var(--space-4);
     right: var(--space-4);
     background: var(--text-primary);
@@ -3107,7 +3107,7 @@ img[loading="lazy"] {
     align-items: center;
     justify-content: space-between;
     box-shadow: var(--shadow-xl);
-    z-index: var(--z-fixed);
+    z-index: 250;
     transform: translateY(calc(100% + 20px));
     opacity: 0;
     transition: transform var(--transition-normal), opacity var(--transition-normal);
@@ -4067,7 +4067,7 @@ img[loading="lazy"] {
     padding-bottom: calc(16px + var(--safe-area-bottom));
     background: #ffffff;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 9999;
+    z-index: 350;
     border-top: 2px solid #11B0A6;
 }
 
