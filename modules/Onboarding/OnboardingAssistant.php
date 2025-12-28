@@ -233,7 +233,7 @@ class OnboardingAssistant {
             
             'broadcast' => "**Broadcast** 📢\n\nส่งข้อความหาลูกค้าได้ที่หน้า Broadcast ครับ\n\n👉 [ส่ง Broadcast](/broadcast.php)\n👉 [ดูสถิติ](/broadcast-stats.php)",
             
-            'loyalty' => "**ระบบแต้มสะสม** 🪙\n\nจัดการรางวัลและตั้งค่าระบบแต้มได้ที่หน้ารางวัลแลกแต้มครับ\n\n👉 [จัดการรางวัล](/loyalty-rewards.php)",
+            'loyalty' => "**ระบบแต้มสะสม** 🪙\n\nจัดการรางวัลและตั้งค่าระบบแต้มได้ที่หน้ารางวัลแลกแต้มครับ\n\n👉 [จัดการรางวัล](/admin-rewards.php)\n👉 [ตั้งค่าแต้ม](/admin-points-settings.php)",
             
             'line_connection' => "**เชื่อมต่อ LINE OA** 💚\n\nใส่ Channel Access Token และ Channel Secret ได้ที่หน้า LINE Account ครับ\n\n👉 [ตั้งค่า LINE Account](/line-accounts.php)",
             

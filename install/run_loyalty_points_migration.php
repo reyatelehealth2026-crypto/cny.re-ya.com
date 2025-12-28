@@ -84,7 +84,8 @@ try {
     }
     
     echo "\n🎉 Migration completed!\n";
-    echo "\n<a href='../loyalty-rewards.php'>👉 Go to Loyalty Rewards</a>\n";
+    echo "\n<a href='../admin-rewards.php'>👉 Go to Rewards Management</a>\n";
+    echo "\n<a href='../admin-points-settings.php'>👉 Go to Points Settings</a>\n";
     
 } catch (Exception $e) {
     echo "❌ Fatal Error: " . $e->getMessage() . "\n";

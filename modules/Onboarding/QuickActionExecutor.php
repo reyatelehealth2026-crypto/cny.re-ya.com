@@ -63,7 +63,7 @@ class QuickActionExecutor {
         'go_loyalty' => [
             'label' => 'ไปจัดการรางวัลแลกแต้ม',
             'type' => 'navigate',
-            'url' => '/loyalty-rewards.php',
+            'url' => '/admin-rewards.php',
             'icon' => 'fas fa-gift'
         ],
         'go_inbox' => [

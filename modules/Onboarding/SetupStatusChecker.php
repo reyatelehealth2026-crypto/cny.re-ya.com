@@ -79,7 +79,7 @@ class SetupStatusChecker {
             'loyalty' => [
                 'label' => 'จัดการรางวัลแลกแต้ม',
                 'description' => 'เพิ่มรางวัลและจัดการระบบแต้มสะสม',
-                'url' => '/loyalty-rewards.php',
+                'url' => '/admin-rewards.php',
                 'icon' => 'fas fa-gift'
             ],
             'member_card' => [

@@ -62,7 +62,8 @@ class OnboardingPromptBuilder {
 - Auto Reply: /auto-reply.php
 - AI Settings: /ai-settings.php
 - Broadcast: /broadcast.php
-- รางวัลแลกแต้ม: /loyalty-rewards.php
+- รางวัลแลกแต้ม: /admin-rewards.php
+- ตั้งค่าแต้ม: /admin-points-settings.php
 - Drip Campaign: /drip-campaigns.php
 - Tags: /user-tags.php
 - Segments: /customer-segments.php
