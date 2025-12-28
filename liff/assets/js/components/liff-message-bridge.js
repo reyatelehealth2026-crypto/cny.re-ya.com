@@ -49,6 +49,8 @@ class LiffMessageBridge {
      * @returns {Promise<{success: boolean, method: string, error?: string}>}
      */
     async sendActionMessage(action, data = {}) {
+        console.log('📨 LiffMessageBridge.sendActionMessage:', action, data);
+        
         // Generate message from template
         const messageGenerator = this.messageTemplates[action];
         if (!messageGenerator) {
@@ -57,6 +59,7 @@ class LiffMessageBridge {
         }
 
         const message = messageGenerator(data);
+        console.log('📨 Generated message:', message);
         
         // Show loading state (Requirement 20.11)
         this.showLoadingState();
@@ -64,13 +67,21 @@ class LiffMessageBridge {
         try {
             let result;
             
+            // Check if LIFF sendMessages is available
+            const liffAvailable = this.isLiffSendAvailable();
+            console.log('📨 LIFF sendMessages available:', liffAvailable);
+            
             // Try LIFF sendMessages first
-            if (this.isLiffSendAvailable()) {
+            if (liffAvailable) {
+                console.log('📨 Sending via LIFF...');
                 result = await this.sendViaLiff(message, action, data);
             } else {
                 // Fallback to API (Requirement 20.10)
+                console.log('📨 Sending via API fallback...');
                 result = await this.sendViaApi(action, data, message);
             }
+            
+            console.log('📨 Send result:', result);
 
             // Show success feedback
             if (result.success) {
