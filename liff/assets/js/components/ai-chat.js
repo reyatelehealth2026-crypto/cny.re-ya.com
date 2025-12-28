@@ -2,9 +2,11 @@
  * AI Chat Interface Component
  * Displays chat bubbles with animations and quick symptom selection buttons
  * 
- * Requirements: 7.1, 7.2
+ * Requirements: 6.5, 7.1, 7.2, 9.2
  * - Display a chat interface with quick symptom selection buttons
  * - Send symptom to AI and display typing indicator
+ * - Include conversation context in API calls
+ * - Handle state transitions from API response
  */
 
 class AIChat {
@@ -13,12 +15,16 @@ class AIChat {
         this.chatContainer = null;
         this.inputField = null;
         this.userId = options.userId || null;
+        this.sessionId = options.sessionId || null; // Session ID for conversation continuity
         this.onSendMessage = options.onSendMessage || null;
         this.onSymptomSelect = options.onSymptomSelect || null;
         this.messages = [];
         this.isTyping = false;
         this.currentState = 'greeting';
         this.triageData = {};
+        
+        // Session storage key prefix for this user
+        this.storageKeyPrefix = `ai_chat_${this.userId || 'anonymous'}`;
         
         // New: Triage and AI mode settings
         this.triageMode = options.triageMode || false;
@@ -42,9 +48,150 @@ class AIChat {
      */
     init(container) {
         this.container = container;
+        // Initialize session management first (Requirements 9.1, 9.5)
+        this.initializeSession();
         this.render();
         this.setupEventListeners();
         this.loadConversationHistory();
+    }
+
+    /**
+     * Initialize or restore session state
+     * Requirements: 9.1, 9.5 - Session management for conversation continuity
+     */
+    initializeSession() {
+        // Try to restore session from localStorage
+        const savedSession = this.loadSessionFromStorage();
+        
+        if (savedSession) {
+            // Restore session state
+            this.sessionId = savedSession.sessionId;
+            this.currentState = savedSession.currentState || 'greeting';
+            this.triageData = savedSession.triageData || {};
+            
+            console.log(`[AI Chat] Restored session: ${this.sessionId}, state: ${this.currentState}`);
+        } else {
+            // Generate new session ID if not provided
+            if (!this.sessionId) {
+                this.sessionId = this.generateSessionId();
+                console.log(`[AI Chat] Generated new session: ${this.sessionId}`);
+            }
+            // Save initial session state
+            this.saveSessionToStorage();
+        }
+    }
+
+    /**
+     * Generate a unique session ID
+     * Requirements: 9.1 - Generate session_id for conversation continuity
+     * @returns {string} Unique session ID
+     */
+    generateSessionId() {
+        // Generate UUID v4 format session ID
+        const timestamp = Date.now().toString(36);
+        const randomPart = Math.random().toString(36).substring(2, 15);
+        const randomPart2 = Math.random().toString(36).substring(2, 15);
+        return `sess_${timestamp}_${randomPart}${randomPart2}`;
+    }
+
+    /**
+     * Save session state to localStorage
+     * Requirements: 9.5 - Persist session state for continuity
+     */
+    saveSessionToStorage() {
+        try {
+            const sessionData = {
+                sessionId: this.sessionId,
+                currentState: this.currentState,
+                triageData: this.triageData,
+                lastUpdated: new Date().toISOString()
+            };
+            localStorage.setItem(`${this.storageKeyPrefix}_session`, JSON.stringify(sessionData));
+        } catch (error) {
+            console.error('[AI Chat] Failed to save session to storage:', error);
+        }
+    }
+
+    /**
+     * Load session state from localStorage
+     * Requirements: 9.5 - Restore session state for continuity
+     * @returns {Object|null} Saved session data or null
+     */
+    loadSessionFromStorage() {
+        try {
+            const savedData = localStorage.getItem(`${this.storageKeyPrefix}_session`);
+            if (!savedData) return null;
+            
+            const sessionData = JSON.parse(savedData);
+            
+            // Check if session is still valid (not older than 24 hours)
+            const lastUpdated = new Date(sessionData.lastUpdated);
+            const now = new Date();
+            const hoursDiff = (now - lastUpdated) / (1000 * 60 * 60);
+            
+            if (hoursDiff > 24) {
+                // Session expired, clear it
+                this.clearSessionFromStorage();
+                console.log('[AI Chat] Session expired, starting fresh');
+                return null;
+            }
+            
+            // Only restore if session is not complete
+            if (sessionData.currentState === 'complete' || sessionData.currentState === 'escalate') {
+                // Session was completed, start fresh
+                this.clearSessionFromStorage();
+                return null;
+            }
+            
+            return sessionData;
+        } catch (error) {
+            console.error('[AI Chat] Failed to load session from storage:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Clear session from localStorage
+     */
+    clearSessionFromStorage() {
+        try {
+            localStorage.removeItem(`${this.storageKeyPrefix}_session`);
+        } catch (error) {
+            console.error('[AI Chat] Failed to clear session from storage:', error);
+        }
+    }
+
+    /**
+     * Update session state and persist to storage
+     * Requirements: 9.5 - Track and persist current triage state
+     * @param {string} newState - New triage state
+     * @param {Object} newTriageData - Updated triage data
+     */
+    updateSessionState(newState, newTriageData = null) {
+        const previousState = this.currentState;
+        this.currentState = newState;
+        
+        if (newTriageData) {
+            this.triageData = { ...this.triageData, ...newTriageData };
+        }
+        
+        // Persist to storage
+        this.saveSessionToStorage();
+        
+        // Log state transition
+        if (previousState !== newState) {
+            console.log(`[AI Chat] State updated: ${previousState} -> ${newState}`);
+        }
+    }
+
+    /**
+     * Check if session is active (not in greeting or complete state)
+     * Requirements: 9.1 - Determine if session is active
+     * @returns {boolean} True if session is active
+     */
+    isSessionActive() {
+        const inactiveStates = ['greeting', 'complete', 'escalate'];
+        return !inactiveStates.includes(this.currentState);
     }
 
     /**
@@ -269,6 +416,7 @@ class AIChat {
 
     /**
      * Load conversation history from server
+     * Requirements: 6.2, 9.1, 9.5 - Load previous conversation history and restore session state
      */
     async loadConversationHistory() {
         if (!this.userId) {
@@ -283,7 +431,8 @@ class AIChat {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'get_history',
-                    user_id: this.userId
+                    user_id: this.userId,
+                    session_id: this.sessionId // Send current session_id to server (Requirement 9.1)
                 })
             });
 
@@ -296,6 +445,22 @@ class AIChat {
                     quickSymptomsSection.classList.add('hidden');
                 }
 
+                // Sync session state with server (Requirement 9.5)
+                // Server session takes precedence if available
+                if (data.session_id) {
+                    this.sessionId = data.session_id;
+                }
+                
+                // Update session state from server response (Requirements 9.1, 9.5)
+                if (data.current_state && data.current_state !== 'greeting') {
+                    this.updateSessionState(data.current_state, data.triage_data);
+                    // Update UI to reflect restored state
+                    this.updateHeaderStatus(this.currentState);
+                } else if (data.triage_data) {
+                    this.triageData = data.triage_data;
+                    this.saveSessionToStorage();
+                }
+
                 // Render history messages
                 data.messages.forEach(msg => {
                     this.messages.push(msg);
@@ -304,10 +469,14 @@ class AIChat {
 
                 this.scrollToBottom();
 
-                // Show continue message
+                // Show continue message based on session state
+                const continueMessage = this.currentState !== 'greeting' && this.currentState !== 'complete'
+                    ? '--- ประวัติการสนทนาก่อนหน้า ---\n\nเรามาต่อจากที่ค้างไว้นะคะ'
+                    : '--- ประวัติการสนทนาก่อนหน้า ---\n\nมีอะไรให้ช่วยเพิ่มเติมไหมคะ?';
+                
                 this.addMessage({
                     type: 'ai',
-                    content: '--- ประวัติการสนทนาก่อนหน้า ---\n\nมีอะไรให้ช่วยเพิ่มเติมไหมคะ?',
+                    content: continueMessage,
                     timestamp: new Date()
                 });
             } else {
@@ -483,8 +652,8 @@ class AIChat {
 
     /**
      * Process message with AI
-     * Requirements: 7.2, 7.3, 7.4, 7.5 - Display typing indicator, AI responses, product recommendations, emergency detection
-     * Enhanced: Triage mode, drug interactions, MIMS info
+     * Requirements: 6.5, 7.2, 7.3, 7.4, 7.5, 9.2 - Display typing indicator, AI responses, product recommendations, emergency detection
+     * Enhanced: Triage mode, drug interactions, MIMS info, conversation context
      * @param {string} message - User message
      */
     async processMessage(message) {
@@ -500,16 +669,22 @@ class AIChat {
 
         try {
             const baseUrl = window.APP_CONFIG?.BASE_URL || '';
+            
+            // Build conversation context from last 10 messages (Requirement 6.5)
+            const conversationContext = this.getConversationContext(10);
+            
             const response = await fetch(`${baseUrl}/api/pharmacy-ai.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: message,
                     user_id: this.userId,
+                    session_id: this.sessionId,
                     state: this.currentState,
                     triage_data: this.triageData,
                     use_triage: this.triageMode,
-                    use_gemini: this.useGemini
+                    use_gemini: this.useGemini,
+                    conversation_context: conversationContext
                 })
             });
 
@@ -523,13 +698,26 @@ class AIChat {
             this.hideTypingIndicator();
 
             if (data.success) {
-                this.currentState = data.state || this.currentState;
-                this.triageData = data.data || this.triageData;
+                // Handle state transitions from API response (Requirement 9.2)
+                const previousState = this.currentState;
+                const newState = data.state || this.currentState;
+                const newTriageData = data.data || this.triageData;
+                
+                // Update session_id from server response (Requirements 9.1, 9.5)
+                if (data.session_id) {
+                    this.sessionId = data.session_id;
+                }
+                
+                // Update session state with persistence (Requirements 9.1, 9.5)
+                this.updateSessionState(newState, newTriageData);
                 
                 // Update triage mode if server indicates it
                 if (data.triage_mode !== undefined) {
                     this.triageMode = data.triage_mode;
                 }
+                
+                // Update UI based on state transition (Requirement 9.2)
+                this.handleStateTransition(previousState, this.currentState);
 
                 // Add AI response with animation
                 await this.addAIResponse({
@@ -590,6 +778,89 @@ class AIChat {
                 timestamp: new Date()
             });
         }
+    }
+    
+    /**
+     * Get conversation context for API call
+     * Requirements: 6.5 - Include last N conversation messages as context
+     * @param {number} limit - Maximum number of messages to include
+     * @returns {Array} Array of message objects for context
+     */
+    getConversationContext(limit = 10) {
+        // Get the last N messages from the conversation
+        const recentMessages = this.messages.slice(-limit);
+        
+        // Format messages for API context
+        return recentMessages.map(msg => ({
+            role: msg.type === 'user' ? 'user' : 'assistant',
+            content: msg.content,
+            timestamp: msg.timestamp ? msg.timestamp.toISOString() : null
+        }));
+    }
+    
+    /**
+     * Handle state transition and update UI accordingly
+     * Requirements: 9.2 - Handle state transitions from API response
+     * @param {string} previousState - Previous triage state
+     * @param {string} newState - New triage state
+     */
+    handleStateTransition(previousState, newState) {
+        // Log state transition for debugging
+        if (previousState !== newState) {
+            console.log(`[AI Chat] State transition: ${previousState} -> ${newState}`);
+        }
+        
+        // Update UI based on new state
+        const quickActionsEl = document.getElementById('ai-quick-actions');
+        const quickSymptomsEl = document.getElementById('ai-quick-symptoms');
+        
+        // Hide quick symptoms when in active triage states
+        const activeTriageStates = ['symptom', 'duration', 'severity', 'associated', 'allergy', 'medical_history', 'current_meds', 'recommend'];
+        if (activeTriageStates.includes(newState)) {
+            if (quickSymptomsEl) {
+                quickSymptomsEl.classList.add('hidden');
+            }
+        }
+        
+        // Show quick symptoms again when session is complete or reset
+        if (newState === 'greeting' || newState === 'complete') {
+            if (quickSymptomsEl && this.messages.length === 0) {
+                quickSymptomsEl.classList.remove('hidden');
+            }
+        }
+        
+        // Update header status based on state
+        this.updateHeaderStatus(newState);
+    }
+    
+    /**
+     * Update header status indicator based on current state
+     * @param {string} state - Current triage state
+     */
+    updateHeaderStatus(state) {
+        const statusEl = document.querySelector('.ai-chat-status');
+        if (!statusEl) return;
+        
+        const stateLabels = {
+            'greeting': 'พร้อมให้บริการ',
+            'symptom': 'กำลังซักประวัติ...',
+            'duration': 'กำลังซักประวัติ...',
+            'severity': 'กำลังประเมินอาการ...',
+            'associated': 'กำลังซักประวัติ...',
+            'allergy': 'ตรวจสอบการแพ้ยา...',
+            'medical_history': 'ตรวจสอบประวัติ...',
+            'current_meds': 'ตรวจสอบยาที่ใช้...',
+            'recommend': 'กำลังแนะนำยา...',
+            'confirm': 'รอยืนยัน...',
+            'complete': 'เสร็จสิ้น',
+            'escalate': 'ส่งต่อเภสัชกร'
+        };
+        
+        const statusText = stateLabels[state] || 'พร้อมให้บริการ';
+        statusEl.innerHTML = `
+            <span class="ai-chat-status-dot ${state !== 'greeting' ? 'ai-chat-status-active' : ''}"></span>
+            ${statusText}
+        `;
     }
 
     /**
@@ -748,7 +1019,7 @@ class AIChat {
 
     /**
      * Show emergency alert
-     * Requirements: 7.5 - Display prominent alert for red flags with emergency contact options
+     * Requirements: 3.2, 3.3 - Display prominent alert for critical red flags with emergency contact numbers (1669, 1323, 1367)
      * @param {Object} emergencyInfo - Optional emergency information from AI
      */
     showEmergencyAlert(emergencyInfo = null) {
@@ -761,22 +1032,30 @@ class AIChat {
         
         const symptoms = emergencyInfo?.symptoms || ['อาการที่ต้องระวัง'];
         const recommendation = emergencyInfo?.recommendation || 'กรุณาติดต่อแพทย์หรือเภสัชกรโดยด่วน';
+        const severity = emergencyInfo?.severity || 'critical'; // 'critical' or 'warning'
+        const isCritical = severity === 'critical';
+        
+        // Determine alert styling based on severity
+        const alertClass = isCritical ? 'ai-chat-emergency-critical' : 'ai-chat-emergency-warning-level';
+        const iconClass = isCritical ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
+        const titleText = isCritical ? '🚨 พบอาการฉุกเฉิน!' : '⚠️ พบอาการที่ต้องระวัง';
+        const titleClass = isCritical ? 'ai-chat-emergency-title-critical' : 'ai-chat-emergency-title-warning';
         
         alertEl.innerHTML = `
-            <div class="ai-chat-modal-backdrop"></div>
-            <div class="ai-chat-emergency-content">
+            <div class="ai-chat-modal-backdrop" onclick="window.aiChat?.hideEmergencyAlert()"></div>
+            <div class="ai-chat-emergency-content ${alertClass}">
                 <div class="ai-chat-emergency-header">
-                    <div class="ai-chat-emergency-icon ai-chat-emergency-icon-pulse">
-                        <i class="fas fa-exclamation-triangle"></i>
+                    <div class="ai-chat-emergency-icon ai-chat-emergency-icon-pulse ${isCritical ? 'ai-chat-emergency-icon-critical' : 'ai-chat-emergency-icon-warning'}">
+                        <i class="fas ${iconClass}"></i>
                     </div>
-                    <h3 class="ai-chat-emergency-title">⚠️ พบอาการที่ต้องระวัง</h3>
+                    <h3 class="ai-chat-emergency-title ${titleClass}">${titleText}</h3>
                 </div>
                 
                 <div class="ai-chat-emergency-body">
                     <p class="ai-chat-emergency-desc">${this.escapeHtml(recommendation)}</p>
                     
                     ${symptoms.length > 0 ? `
-                        <div class="ai-chat-emergency-symptoms">
+                        <div class="ai-chat-emergency-symptoms ${isCritical ? 'ai-chat-emergency-symptoms-critical' : 'ai-chat-emergency-symptoms-warning'}">
                             <p class="ai-chat-emergency-symptoms-label">อาการที่ตรวจพบ:</p>
                             <ul class="ai-chat-emergency-symptoms-list">
                                 ${symptoms.map(s => `<li>${this.escapeHtml(s)}</li>`).join('')}
@@ -785,14 +1064,30 @@ class AIChat {
                     ` : ''}
                 </div>
                 
+                <div class="ai-chat-emergency-contacts">
+                    <p class="ai-chat-emergency-contacts-label">
+                        <i class="fas fa-phone-volume"></i>
+                        สายด่วนฉุกเฉิน
+                    </p>
+                </div>
+                
                 <div class="ai-chat-emergency-actions">
-                    <a href="tel:1669" class="ai-chat-emergency-btn ai-chat-emergency-btn-danger">
-                        <i class="fas fa-ambulance"></i>
-                        <span>โทร 1669 (ฉุกเฉิน)</span>
-                    </a>
-                    <a href="tel:1323" class="ai-chat-emergency-btn ai-chat-emergency-btn-warning">
+                    ${isCritical ? `
+                        <a href="tel:1669" class="ai-chat-emergency-btn ai-chat-emergency-btn-danger ai-chat-emergency-btn-call">
+                            <i class="fas fa-ambulance"></i>
+                            <span>โทร 1669</span>
+                            <small>ฉุกเฉินการแพทย์</small>
+                        </a>
+                    ` : ''}
+                    <a href="tel:1323" class="ai-chat-emergency-btn ai-chat-emergency-btn-warning ai-chat-emergency-btn-call">
                         <i class="fas fa-phone-alt"></i>
-                        <span>โทร 1323 (สายด่วนสุขภาพ)</span>
+                        <span>โทร 1323</span>
+                        <small>สายด่วนสุขภาพ</small>
+                    </a>
+                    <a href="tel:1367" class="ai-chat-emergency-btn ai-chat-emergency-btn-info ai-chat-emergency-btn-call">
+                        <i class="fas fa-heart"></i>
+                        <span>โทร 1367</span>
+                        <small>สายด่วนสุขภาพจิต</small>
                     </a>
                     <button class="ai-chat-emergency-btn ai-chat-emergency-btn-primary" 
                             onclick="window.aiChat?.requestEmergencyConsult()">
@@ -807,7 +1102,9 @@ class AIChat {
                 
                 <p class="ai-chat-emergency-disclaimer">
                     <i class="fas fa-info-circle"></i>
-                    หากมีอาการรุนแรง กรุณาไปพบแพทย์ที่โรงพยาบาลใกล้บ้านทันที
+                    ${isCritical 
+                        ? 'หากมีอาการรุนแรง กรุณาไปพบแพทย์ที่โรงพยาบาลใกล้บ้านทันที' 
+                        : 'หากอาการไม่ดีขึ้นหรือรุนแรงขึ้น ควรพบแพทย์โดยเร็ว'}
                 </p>
             </div>
         `;
@@ -819,6 +1116,19 @@ class AIChat {
         
         // Log emergency alert for analytics
         this.logEmergencyAlert(emergencyInfo);
+    }
+
+    /**
+     * Show warning alert for non-critical red flags
+     * Requirements: 3.3 - Display warning message with recommendation to see doctor
+     * @param {Object} warningInfo - Warning information
+     */
+    showWarningAlert(warningInfo = null) {
+        // Use showEmergencyAlert with warning severity
+        this.showEmergencyAlert({
+            ...warningInfo,
+            severity: 'warning'
+        });
     }
 
     /**
@@ -881,38 +1191,74 @@ class AIChat {
 
     /**
      * Check message for emergency symptoms
-     * Requirements: 7.5 - Detect emergency symptoms
+     * Requirements: 3.1, 3.3 - Detect emergency symptoms (critical and warning levels)
      * @param {string} message - User message
      * @returns {Object|null} Emergency info if detected
      */
     checkEmergencySymptoms(message) {
-        const emergencyKeywords = [
-            { keywords: ['หายใจไม่ออก', 'หายใจลำบาก', 'หอบ', 'แน่นหน้าอก'], symptom: 'หายใจลำบาก/แน่นหน้าอก' },
-            { keywords: ['เจ็บหน้าอก', 'แน่นหน้าอก', 'เจ็บอก'], symptom: 'เจ็บหน้าอก' },
-            { keywords: ['ชัก', 'หมดสติ', 'เป็นลม', 'ไม่รู้สึกตัว'], symptom: 'หมดสติ/ชัก' },
-            { keywords: ['เลือดออกมาก', 'เลือดไหลไม่หยุด', 'ตกเลือด'], symptom: 'เลือดออกมาก' },
-            { keywords: ['อัมพาต', 'แขนขาอ่อนแรง', 'พูดไม่ชัด', 'หน้าเบี้ยว'], symptom: 'อาการคล้ายโรคหลอดเลือดสมอง' },
-            { keywords: ['แพ้ยารุนแรง', 'บวมทั้งตัว', 'ผื่นขึ้นทั้งตัว', 'หายใจไม่ออกหลังกินยา'], symptom: 'แพ้ยารุนแรง' },
-            { keywords: ['กินยาเกินขนาด', 'กินยาผิด', 'overdose'], symptom: 'กินยาเกินขนาด' },
-            { keywords: ['ฆ่าตัวตาย', 'ทำร้ายตัวเอง', 'ไม่อยากมีชีวิต'], symptom: 'ความคิดทำร้ายตัวเอง' }
+        // Critical red flags - require immediate medical attention (Requirement 3.1)
+        const criticalKeywords = [
+            { keywords: ['หายใจไม่ออก', 'หายใจลำบาก', 'หอบหนัก', 'แน่นหน้าอกมาก'], symptom: 'หายใจลำบาก/แน่นหน้าอก' },
+            { keywords: ['เจ็บหน้าอก', 'แน่นหน้าอก', 'เจ็บอกร้าวไปแขน'], symptom: 'เจ็บหน้าอก' },
+            { keywords: ['ชัก', 'หมดสติ', 'เป็นลม', 'ไม่รู้สึกตัว', 'ไม่ตอบสนอง'], symptom: 'หมดสติ/ชัก' },
+            { keywords: ['เลือดออกมาก', 'เลือดไหลไม่หยุด', 'ตกเลือด', 'อาเจียนเป็นเลือด'], symptom: 'เลือดออกมาก' },
+            { keywords: ['อัมพาต', 'แขนขาอ่อนแรงทันที', 'พูดไม่ชัดทันที', 'หน้าเบี้ยว', 'ปากเบี้ยว'], symptom: 'อาการคล้ายโรคหลอดเลือดสมอง' },
+            { keywords: ['แพ้ยารุนแรง', 'บวมทั้งตัว', 'ผื่นขึ้นทั้งตัว', 'หายใจไม่ออกหลังกินยา', 'ลิ้นบวม', 'คอบวม'], symptom: 'แพ้ยารุนแรง (Anaphylaxis)' },
+            { keywords: ['กินยาเกินขนาด', 'กินยาผิด', 'overdose', 'กินยาฆ่าตัวตาย'], symptom: 'กินยาเกินขนาด' },
+            { keywords: ['ฆ่าตัวตาย', 'ทำร้ายตัวเอง', 'ไม่อยากมีชีวิต', 'อยากตาย'], symptom: 'ความคิดทำร้ายตัวเอง' }
+        ];
+
+        // Warning red flags - should see doctor soon (Requirement 3.3)
+        const warningKeywords = [
+            { keywords: ['ไข้สูงมาก', 'ไข้ 40', 'ไข้สูง 3 วัน', 'ไข้ไม่ลด'], symptom: 'ไข้สูง' },
+            { keywords: ['ปวดหัวรุนแรง', 'ปวดหัวมาก', 'ปวดหัวแบบไม่เคยเป็น'], symptom: 'ปวดหัวรุนแรง' },
+            { keywords: ['ท้องเสียมาก', 'ท้องเสียหลายวัน', 'ถ่ายเป็นเลือด', 'อุจจาระเป็นเลือด'], symptom: 'ท้องเสียรุนแรง/ถ่ายเป็นเลือด' },
+            { keywords: ['ปวดท้องรุนแรง', 'ปวดท้องมาก', 'ปวดท้องน้อยข้างเดียว'], symptom: 'ปวดท้องรุนแรง' },
+            { keywords: ['ตาเหลือง', 'ตัวเหลือง', 'ปัสสาวะสีเข้ม'], symptom: 'อาการตัวเหลือง' },
+            { keywords: ['หายใจเหนื่อย', 'หอบเหนื่อย', 'เหนื่อยง่าย'], symptom: 'หายใจเหนื่อย' },
+            { keywords: ['บวมขา', 'บวมเท้า', 'บวมทั้งสองข้าง'], symptom: 'อาการบวม' },
+            { keywords: ['น้ำหนักลดมาก', 'ผอมลงเร็ว', 'เบื่ออาหารมาก'], symptom: 'น้ำหนักลดผิดปกติ' }
         ];
 
         const lowerMessage = message.toLowerCase();
-        const detectedSymptoms = [];
+        const detectedCritical = [];
+        const detectedWarning = [];
 
-        for (const emergency of emergencyKeywords) {
+        // Check critical symptoms
+        for (const emergency of criticalKeywords) {
             for (const keyword of emergency.keywords) {
                 if (lowerMessage.includes(keyword)) {
-                    detectedSymptoms.push(emergency.symptom);
+                    detectedCritical.push(emergency.symptom);
                     break;
                 }
             }
         }
 
-        if (detectedSymptoms.length > 0) {
+        // Check warning symptoms
+        for (const warning of warningKeywords) {
+            for (const keyword of warning.keywords) {
+                if (lowerMessage.includes(keyword)) {
+                    detectedWarning.push(warning.symptom);
+                    break;
+                }
+            }
+        }
+
+        // Return critical if any critical symptoms found
+        if (detectedCritical.length > 0) {
             return {
-                symptoms: [...new Set(detectedSymptoms)],
-                recommendation: 'อาการเหล่านี้อาจเป็นอันตราย กรุณาติดต่อแพทย์หรือไปโรงพยาบาลทันที'
+                symptoms: [...new Set(detectedCritical)],
+                recommendation: '🚨 อาการเหล่านี้เป็นอันตรายร้ายแรง กรุณาโทรเรียกรถพยาบาลหรือไปห้องฉุกเฉินทันที!',
+                severity: 'critical'
+            };
+        }
+
+        // Return warning if any warning symptoms found
+        if (detectedWarning.length > 0) {
+            return {
+                symptoms: [...new Set(detectedWarning)],
+                recommendation: 'อาการเหล่านี้ควรได้รับการตรวจจากแพทย์ หากอาการไม่ดีขึ้นหรือรุนแรงขึ้น ควรพบแพทย์โดยเร็ว',
+                severity: 'warning'
             };
         }
 
@@ -1183,6 +1529,12 @@ class AIChat {
         this.currentState = 'greeting';
         this.triageData = {};
         
+        // Generate new session ID for fresh start (Requirement 9.1)
+        this.sessionId = this.generateSessionId();
+        
+        // Clear session from localStorage (Requirement 9.5)
+        this.clearSessionFromStorage();
+        
         if (this.chatContainer) {
             this.chatContainer.innerHTML = '';
         }
@@ -1193,6 +1545,9 @@ class AIChat {
             quickSymptomsSection.classList.remove('hidden');
         }
         
+        // Update header status to greeting
+        this.updateHeaderStatus('greeting');
+        
         // Clear server-side history
         if (this.userId) {
             const baseUrl = window.APP_CONFIG?.BASE_URL || '';
@@ -1201,11 +1556,13 @@ class AIChat {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'clear_history',
-                    user_id: this.userId
+                    user_id: this.userId,
+                    session_id: this.sessionId // Send new session_id to server
                 })
             }).catch(err => console.error('[AI Chat] Clear history error:', err));
         }
         
+        console.log(`[AI Chat] Chat cleared, new session: ${this.sessionId}`);
         this.showWelcomeMessage();
     }
 
@@ -1240,6 +1597,7 @@ class AIChat {
 
     /**
      * Show drug interaction warning
+     * Requirements: 7.2, 7.4 - Display warning message for interactions and highlight allergic medications
      * @param {Array} interactions - Array of drug interaction objects
      */
     showDrugInteractionWarning(interactions) {
@@ -1248,30 +1606,73 @@ class AIChat {
         const warningEl = document.createElement('div');
         warningEl.className = 'ai-chat-drug-warning';
         
-        const highSeverity = interactions.filter(i => i.severity === 'high' || i.type === 'allergy');
-        const mediumSeverity = interactions.filter(i => i.severity === 'medium');
+        // Separate allergies (high severity) from interactions (medium severity)
+        const allergyWarnings = interactions.filter(i => i.type === 'allergy' || i.severity === 'high');
+        const interactionWarnings = interactions.filter(i => i.type === 'interaction' && i.severity !== 'high');
+        
+        const hasAllergies = allergyWarnings.length > 0;
+        const hasInteractions = interactionWarnings.length > 0;
 
         warningEl.innerHTML = `
-            <div class="ai-chat-warning-card ${highSeverity.length > 0 ? 'ai-chat-warning-danger' : 'ai-chat-warning-caution'}">
+            <div class="ai-chat-warning-card ${hasAllergies ? 'ai-chat-warning-danger' : 'ai-chat-warning-caution'}">
                 <div class="ai-chat-warning-header">
-                    <i class="fas ${highSeverity.length > 0 ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
-                    <span>${highSeverity.length > 0 ? '⚠️ คำเตือนสำคัญ' : 'ℹ️ ข้อควรระวัง'}</span>
+                    <i class="fas ${hasAllergies ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                    <span>${hasAllergies ? '⛔ คำเตือนการแพ้ยา!' : '⚠️ ข้อควรระวังการใช้ยา'}</span>
                 </div>
                 <div class="ai-chat-warning-body">
-                    ${highSeverity.map(i => `
-                        <div class="ai-chat-warning-item ai-chat-warning-item-danger">
-                            <i class="fas fa-ban"></i>
-                            <span>${this.escapeHtml(i.message)}</span>
+                    ${allergyWarnings.length > 0 ? `
+                        <div class="ai-chat-warning-section ai-chat-warning-section-allergy">
+                            <p class="ai-chat-warning-section-title">
+                                <i class="fas fa-allergies"></i> ยาที่คุณแพ้:
+                            </p>
+                            ${allergyWarnings.map(i => `
+                                <div class="ai-chat-warning-item ai-chat-warning-item-danger">
+                                    <i class="fas fa-ban"></i>
+                                    <div class="ai-chat-warning-item-content">
+                                        <span class="ai-chat-warning-item-message">${this.escapeHtml(i.message)}</span>
+                                        ${i.reaction_type && i.reaction_type !== 'unknown' ? `
+                                            <span class="ai-chat-warning-item-detail">
+                                                อาการแพ้: ${this.getReactionTypeLabel(i.reaction_type)}
+                                            </span>
+                                        ` : ''}
+                                        ${i.allergy ? `
+                                            <span class="ai-chat-warning-item-highlight">
+                                                ⚠️ ห้ามใช้ยา ${this.escapeHtml(i.product)} เด็ดขาด!
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
-                    ${mediumSeverity.map(i => `
-                        <div class="ai-chat-warning-item ai-chat-warning-item-caution">
-                            <i class="fas fa-exclamation"></i>
-                            <span>${this.escapeHtml(i.message)}</span>
+                    ` : ''}
+                    ${interactionWarnings.length > 0 ? `
+                        <div class="ai-chat-warning-section ai-chat-warning-section-interaction">
+                            <p class="ai-chat-warning-section-title">
+                                <i class="fas fa-pills"></i> ปฏิกิริยาระหว่างยา:
+                            </p>
+                            ${interactionWarnings.map(i => `
+                                <div class="ai-chat-warning-item ai-chat-warning-item-caution">
+                                    <i class="fas fa-exclamation"></i>
+                                    <div class="ai-chat-warning-item-content">
+                                        <span class="ai-chat-warning-item-message">${this.escapeHtml(i.message)}</span>
+                                        ${i.interacts_with ? `
+                                            <span class="ai-chat-warning-item-detail">
+                                                ยาที่ตีกัน: ${this.escapeHtml(i.interacts_with)}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
+                    ` : ''}
                 </div>
                 <div class="ai-chat-warning-footer">
+                    <p class="ai-chat-warning-advice">
+                        <i class="fas fa-lightbulb"></i>
+                        ${hasAllergies 
+                            ? 'กรุณาหลีกเลี่ยงยาที่แพ้และปรึกษาเภสัชกรเพื่อหายาทดแทน' 
+                            : 'ควรปรึกษาเภสัชกรก่อนใช้ยาร่วมกัน'}
+                    </p>
                     <button class="ai-chat-warning-btn" onclick="window.aiChat?.requestPharmacistConsult()">
                         <i class="fas fa-user-md"></i> ปรึกษาเภสัชกร
                     </button>
@@ -1281,6 +1682,21 @@ class AIChat {
 
         this.chatContainer.appendChild(warningEl);
         this.scrollToBottom();
+    }
+
+    /**
+     * Get human-readable label for reaction type
+     * @param {string} reactionType - Reaction type code
+     * @returns {string} Human-readable label
+     */
+    getReactionTypeLabel(reactionType) {
+        const labels = {
+            'rash': 'ผื่นคัน',
+            'breathing': 'หายใจลำบาก',
+            'swelling': 'บวม',
+            'other': 'อื่นๆ'
+        };
+        return labels[reactionType] || reactionType;
     }
 
     /**
@@ -1378,6 +1794,35 @@ class AIChat {
             timestamp: new Date()
         });
         this.processMessage('เริ่มซักประวัติ');
+    }
+
+    /**
+     * Get current session information
+     * Requirements: 9.1, 9.5 - Expose session state for debugging and external access
+     * @returns {Object} Current session information
+     */
+    getSessionInfo() {
+        return {
+            sessionId: this.sessionId,
+            currentState: this.currentState,
+            triageData: this.triageData,
+            isActive: this.isSessionActive(),
+            userId: this.userId,
+            messageCount: this.messages.length
+        };
+    }
+
+    /**
+     * Reset session to start fresh
+     * Requirements: 9.1 - Allow manual session reset
+     */
+    resetSession() {
+        this.sessionId = this.generateSessionId();
+        this.currentState = 'greeting';
+        this.triageData = {};
+        this.clearSessionFromStorage();
+        this.saveSessionToStorage();
+        console.log(`[AI Chat] Session reset, new session: ${this.sessionId}`);
     }
 }
 

@@ -27,6 +27,9 @@ class PharmacyAIAdapter
     private PharmacyRAG $rag;
     private ProductFlexTemplates $flexTemplates;
     private array $lastFoundProducts = [];
+    private array $conversationHistory = [];
+    private ?string $sessionId = null;
+    private ?string $triageState = null;
     
     private const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
     
@@ -79,6 +82,52 @@ class PharmacyAIAdapter
     {
         $this->userId = $userId;
         return $this;
+    }
+    
+    /**
+     * Set conversation history for context
+     */
+    public function setConversationHistory(array $history): self
+    {
+        $this->conversationHistory = $history;
+        return $this;
+    }
+    
+    /**
+     * Set session ID for state tracking
+     */
+    public function setSessionId(string $sessionId): self
+    {
+        $this->sessionId = $sessionId;
+        return $this;
+    }
+    
+    /**
+     * Set current triage state
+     */
+    public function setTriageState(string $state): self
+    {
+        $this->triageState = $state;
+        return $this;
+    }
+    
+    /**
+     * Get current triage state
+     */
+    public function getTriageState(): ?string
+    {
+        return $this->triageState;
+    }
+    
+    /**
+     * Check if session is active (not greeting state)
+     */
+    public function isSessionActive(): bool
+    {
+        return $this->triageState !== null && 
+               $this->triageState !== 'greeting' && 
+               $this->triageState !== 'complete' && 
+               $this->triageState !== 'escalate';
     }
 
     public function isEnabled(): bool
@@ -187,7 +236,10 @@ class PharmacyAIAdapter
             $ragContext = $this->rag->formatForAI($ragResults);
             $this->lastFoundProducts = $ragResults['products'] ?? [];
             
-            $systemPrompt = $this->buildPharmacySystemPrompt($customerInfo, $ragContext, $redFlags);
+            // Check if session is active to prevent greeting
+            $isActiveSession = $this->isSessionActive();
+            
+            $systemPrompt = $this->buildPharmacySystemPrompt($customerInfo, $ragContext, $redFlags, $isActiveSession);
             $result = $this->callGeminiAPI($systemPrompt, $history, $message);
             
             if (!$result['success']) {
@@ -211,7 +263,7 @@ class PharmacyAIAdapter
                 'response' => $responseText,
                 'message' => $this->buildLINEMessage($responseText),
                 'products' => $this->lastFoundProducts,
-                'state' => 'chat'
+                'state' => $this->triageState ?? 'chat'
             ];
             
         } catch (\Exception $e) {
@@ -228,7 +280,7 @@ class PharmacyAIAdapter
     /**
      * สร้าง System Prompt - เน้นแนะนำยาแบบละเอียด
      */
-    private function buildPharmacySystemPrompt(?array $customerInfo, ?string $ragContext, array $redFlags): string
+    private function buildPharmacySystemPrompt(?array $customerInfo, ?string $ragContext, array $redFlags, bool $isActiveSession = false): string
     {
         $totalProducts = $this->getTotalProductCount();
         
@@ -241,6 +293,23 @@ class PharmacyAIAdapter
 - ห้ามทักทายใหม่ ("สวัสดีค่ะ") ถ้าเป็นการสนทนาต่อเนื่อง
 - ถ้าลูกค้าตอบเป็นตัวเลข (เช่น "9", "7") → นั่นคือคำตอบของคำถามก่อนหน้า
 - ถ้าลูกค้าตอบเป็นระยะเวลา (เช่น "7 วัน", "2 สัปดาห์") → นั่นคือคำตอบเรื่องระยะเวลา
+
+PROMPT;
+
+        // Add active session warning
+        if ($isActiveSession) {
+            $prompt .= <<<PROMPT
+
+## ⚠️ สถานะ Session: กำลังซักประวัติอยู่
+**ห้ามทักทายใหม่! ห้ามพูดว่า "สวัสดีค่ะ" หรือ "ยินดีให้บริการ"**
+- นี่คือการสนทนาต่อเนื่อง ให้ดำเนินการซักประวัติต่อจากจุดที่ค้างไว้
+- ตอบรับคำตอบของลูกค้าและถามคำถามถัดไปตามลำดับ
+- สถานะปัจจุบัน: {$this->triageState}
+
+PROMPT;
+        }
+
+        $prompt .= <<<PROMPT
 
 ## ตัวอย่างการสนทนาที่ถูกต้อง:
 AI: "อาการรุนแรงแค่ไหนคะ (1-10)?"
@@ -585,6 +654,7 @@ PROMPT;
     
     /**
      * แจ้งเตือนเภสัชกร
+     * Requirements: 4.1, 4.2 - Create notification when severity is high/critical
      */
     private function notifyPharmacist(int $assessmentId, array $data): bool
     {
@@ -594,7 +664,20 @@ PROMPT;
             $stmt->execute([$this->userId]);
             $user = $stmt->fetch(\PDO::FETCH_ASSOC);
             
-            // Create notification
+            // Get active triage session for linking
+            $triageSessionId = null;
+            try {
+                $stmt = $this->db->prepare("SELECT id FROM triage_sessions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1");
+                $stmt->execute([$this->userId]);
+                $session = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($session) {
+                    $triageSessionId = $session['id'];
+                }
+            } catch (\Exception $e) {
+                // Table might not exist
+            }
+            
+            // Ensure pharmacist_notifications table exists with all required columns
             $this->db->exec("
                 CREATE TABLE IF NOT EXISTS pharmacist_notifications (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -602,49 +685,190 @@ PROMPT;
                     type VARCHAR(50) DEFAULT 'triage_alert',
                     title VARCHAR(255),
                     message TEXT,
+                    notification_data JSON,
                     reference_id INT,
                     reference_type VARCHAR(50),
                     user_id INT,
+                    triage_session_id INT NULL,
+                    priority ENUM('normal', 'urgent') DEFAULT 'normal',
+                    status ENUM('pending', 'handled', 'dismissed') DEFAULT 'pending',
                     is_read TINYINT(1) DEFAULT 0,
+                    handled_by INT NULL,
+                    handled_at TIMESTAMP NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_line_account (line_account_id),
+                    INDEX idx_status (status),
+                    INDEX idx_priority (priority),
                     INDEX idx_is_read (is_read)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ");
             
             $severityLevel = $data['severity_level'] ?? 'high';
             $severityText = $severityLevel === 'critical' ? '🚨 ฉุกเฉิน' : '⚠️ รุนแรง';
+            $priority = $severityLevel === 'critical' ? 'urgent' : 'normal';
             
             $stmt = $this->db->prepare("
                 INSERT INTO pharmacist_notifications 
-                (line_account_id, type, title, message, reference_id, reference_type, user_id)
-                VALUES (?, 'triage_alert', ?, ?, ?, 'triage_assessment', ?)
+                (line_account_id, type, title, message, notification_data, reference_id, reference_type, user_id, triage_session_id, priority, status)
+                VALUES (?, 'triage_alert', ?, ?, ?, ?, 'triage_assessment', ?, ?, ?, 'pending')
             ");
             
             $title = "{$severityText} - ลูกค้าต้องการความช่วยเหลือ";
             $message = "ลูกค้า: " . ($user['display_name'] ?? 'ไม่ระบุชื่อ') . "\n";
             $message .= "อาการ: " . ($data['symptoms'] ?? '-') . "\n";
             $message .= "ระยะเวลา: " . ($data['duration'] ?? '-') . "\n";
+            $message .= "ความรุนแรง: " . ($data['severity'] ?? '-') . "/10\n";
             $message .= "การประเมิน: " . ($data['ai_assessment'] ?? '-');
+            
+            // Include full triage data in notification_data for dashboard display
+            $notificationData = json_encode([
+                'symptoms' => $data['symptoms'] ?? '',
+                'duration' => $data['duration'] ?? '',
+                'severity' => $data['severity'] ?? 5,
+                'severity_level' => $severityLevel,
+                'associated_symptoms' => $data['associated_symptoms'] ?? '',
+                'allergies' => $data['allergies'] ?? '',
+                'medical_conditions' => $data['medical_conditions'] ?? '',
+                'current_medications' => $data['current_medications'] ?? '',
+                'ai_assessment' => $data['ai_assessment'] ?? '',
+                'recommended_action' => $data['recommended_action'] ?? 'consult_pharmacist'
+            ], JSON_UNESCAPED_UNICODE);
             
             $stmt->execute([
                 $this->lineAccountId,
                 $title,
                 $message,
+                $notificationData,
                 $assessmentId,
-                $this->userId
+                $this->userId,
+                $triageSessionId,
+                $priority
             ]);
             
             // Update assessment as notified
             $stmt = $this->db->prepare("UPDATE ai_triage_assessments SET pharmacist_notified = 1 WHERE id = ?");
             $stmt->execute([$assessmentId]);
             
-            error_log("notifyPharmacist: Created notification for assessment #{$assessmentId}");
+            error_log("notifyPharmacist: Created notification for assessment #{$assessmentId}, severity={$severityLevel}, priority={$priority}");
             
             return true;
             
         } catch (\Exception $e) {
             error_log("notifyPharmacist error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Create notification when user explicitly requests pharmacist consultation
+     * Requirements: 4.1 - Create notification when user requests pharmacist
+     * 
+     * @param string $reason Reason for requesting pharmacist (e.g., 'user_request', 'escalation')
+     * @return bool Success status
+     */
+    public function createPharmacistRequestNotification(string $reason = 'user_request'): bool
+    {
+        if (!$this->userId) {
+            return false;
+        }
+        
+        try {
+            // Get user info
+            $stmt = $this->db->prepare("SELECT display_name, line_user_id FROM users WHERE id = ?");
+            $stmt->execute([$this->userId]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            // Get active triage session for linking
+            $triageSessionId = null;
+            $triageData = [];
+            try {
+                $stmt = $this->db->prepare("SELECT id, triage_data FROM triage_sessions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1");
+                $stmt->execute([$this->userId]);
+                $session = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($session) {
+                    $triageSessionId = $session['id'];
+                    $triageData = json_decode($session['triage_data'] ?? '{}', true) ?: [];
+                }
+            } catch (\Exception $e) {
+                // Table might not exist
+            }
+            
+            // Ensure pharmacist_notifications table exists
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS pharmacist_notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    line_account_id INT NULL,
+                    type VARCHAR(50) DEFAULT 'triage_alert',
+                    title VARCHAR(255),
+                    message TEXT,
+                    notification_data JSON,
+                    reference_id INT,
+                    reference_type VARCHAR(50),
+                    user_id INT,
+                    triage_session_id INT NULL,
+                    priority ENUM('normal', 'urgent') DEFAULT 'normal',
+                    status ENUM('pending', 'handled', 'dismissed') DEFAULT 'pending',
+                    is_read TINYINT(1) DEFAULT 0,
+                    handled_by INT NULL,
+                    handled_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_line_account (line_account_id),
+                    INDEX idx_status (status),
+                    INDEX idx_priority (priority),
+                    INDEX idx_is_read (is_read)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+            
+            $title = "👨‍⚕️ ลูกค้าขอปรึกษาเภสัชกร";
+            $message = "ลูกค้า: " . ($user['display_name'] ?? 'ไม่ระบุชื่อ') . "\n";
+            
+            if (!empty($triageData['symptoms'])) {
+                $symptoms = is_array($triageData['symptoms']) ? implode(', ', $triageData['symptoms']) : $triageData['symptoms'];
+                $message .= "อาการ: {$symptoms}\n";
+            }
+            if (!empty($triageData['duration'])) {
+                $message .= "ระยะเวลา: {$triageData['duration']}\n";
+            }
+            if (!empty($triageData['severity'])) {
+                $message .= "ความรุนแรง: {$triageData['severity']}/10\n";
+            }
+            $message .= "เหตุผล: " . ($reason === 'user_request' ? 'ลูกค้าขอปรึกษาเภสัชกรโดยตรง' : $reason);
+            
+            // Include full triage data in notification_data
+            $notificationData = json_encode([
+                'reason' => $reason,
+                'symptoms' => $triageData['symptoms'] ?? [],
+                'duration' => $triageData['duration'] ?? '',
+                'severity' => $triageData['severity'] ?? null,
+                'associated_symptoms' => $triageData['associated_symptoms'] ?? [],
+                'allergies' => $triageData['allergies'] ?? [],
+                'medical_history' => $triageData['medical_history'] ?? [],
+                'current_medications' => $triageData['current_medications'] ?? [],
+                'red_flags' => $triageData['red_flags'] ?? []
+            ], JSON_UNESCAPED_UNICODE);
+            
+            $stmt = $this->db->prepare("
+                INSERT INTO pharmacist_notifications 
+                (line_account_id, type, title, message, notification_data, user_id, triage_session_id, priority, status)
+                VALUES (?, 'escalation', ?, ?, ?, ?, ?, 'normal', 'pending')
+            ");
+            
+            $stmt->execute([
+                $this->lineAccountId,
+                $title,
+                $message,
+                $notificationData,
+                $this->userId,
+                $triageSessionId
+            ]);
+            
+            $notificationId = $this->db->lastInsertId();
+            error_log("createPharmacistRequestNotification: Created notification #{$notificationId} for user #{$this->userId}, reason={$reason}");
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            error_log("createPharmacistRequestNotification error: " . $e->getMessage());
             return false;
         }
     }
@@ -725,6 +949,11 @@ PROMPT;
      */
     private function getConversationHistory(): array
     {
+        // Use externally set history if available
+        if (!empty($this->conversationHistory)) {
+            return $this->conversationHistory;
+        }
+        
         if (!$this->userId) return [];
         
         try {

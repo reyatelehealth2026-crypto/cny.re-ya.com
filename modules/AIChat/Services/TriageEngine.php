@@ -143,6 +143,8 @@ class TriageEngine
     
     /**
      * บันทึก state
+     * Updates status to 'completed' and sets completed_at when session reaches STATE_COMPLETE
+     * Updates status to 'escalated' when session reaches STATE_ESCALATE
      */
     private function saveState(): void
     {
@@ -150,16 +152,34 @@ class TriageEngine
         
         try {
             $data = json_encode($this->currentState['data'], JSON_UNESCAPED_UNICODE);
+            $state = $this->currentState['state'];
+            $now = date('Y-m-d H:i:s');
             
             if (isset($this->currentState['id'])) {
-                $this->db->execute(
-                    "UPDATE triage_sessions SET current_state = ?, triage_data = ?, updated_at = NOW() WHERE id = ?",
-                    [$this->currentState['state'], $data, $this->currentState['id']]
-                );
+                // Determine status based on current state
+                if ($state === self::STATE_COMPLETE) {
+                    // Session completed - update status and set completed_at timestamp
+                    $this->db->execute(
+                        "UPDATE triage_sessions SET current_state = ?, triage_data = ?, status = 'completed', completed_at = ?, updated_at = ? WHERE id = ?",
+                        [$state, $data, $now, $now, $this->currentState['id']]
+                    );
+                } elseif ($state === self::STATE_ESCALATE) {
+                    // Session escalated - update status
+                    $this->db->execute(
+                        "UPDATE triage_sessions SET current_state = ?, triage_data = ?, status = 'escalated', updated_at = ? WHERE id = ?",
+                        [$state, $data, $now, $this->currentState['id']]
+                    );
+                } else {
+                    // Normal state update
+                    $this->db->execute(
+                        "UPDATE triage_sessions SET current_state = ?, triage_data = ?, updated_at = ? WHERE id = ?",
+                        [$state, $data, $now, $this->currentState['id']]
+                    );
+                }
             } else {
                 $this->db->execute(
-                    "INSERT INTO triage_sessions (user_id, line_account_id, current_state, triage_data, status) VALUES (?, ?, ?, ?, 'active')",
-                    [$this->userId, $this->lineAccountId, $this->currentState['state'], $data]
+                    "INSERT INTO triage_sessions (user_id, line_account_id, current_state, triage_data, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?)",
+                    [$this->userId, $this->lineAccountId, $state, $data, $now, $now]
                 );
                 $this->currentState['id'] = $this->db->lastInsertId();
             }
@@ -199,8 +219,76 @@ class TriageEngine
             return $this->skipCurrentStep();
         }
         
+        // ตรวจสอบว่าเป็น numeric response สำหรับ severity state หรือไม่
+        if ($this->currentState['state'] === self::STATE_SEVERITY && $this->isNumericSeverityResponse($message)) {
+            return $this->handleSeverity($message);
+        }
+        
+        // ตรวจสอบว่าเป็น duration response สำหรับ duration state หรือไม่
+        if ($this->currentState['state'] === self::STATE_DURATION && $this->isDurationResponse($message)) {
+            return $this->handleDuration($message);
+        }
+        
         // ประมวลผลตาม state ปัจจุบัน
         return $this->processState($message);
+    }
+    
+    /**
+     * ตรวจสอบว่าข้อความเป็น numeric severity response (1-10) หรือไม่
+     */
+    public function isNumericSeverityResponse(string $message): bool
+    {
+        $message = trim($message);
+        
+        // First, check if this is a duration response - if so, it's NOT a severity response
+        if ($this->isDurationResponse($message)) {
+            return false;
+        }
+        
+        // ตรวจสอบว่าเป็นตัวเลข 1-10 โดยตรง
+        if (preg_match('/^(\d+)$/', $message, $matches)) {
+            $num = (int)$matches[1];
+            return $num >= 1 && $num <= 10;
+        }
+        
+        // ตรวจสอบว่ามีตัวเลขในข้อความ (but not negative numbers)
+        if (preg_match('/(?<![0-9-])(\d+)(?![0-9])/', $message, $matches)) {
+            $num = (int)$matches[1];
+            return $num >= 1 && $num <= 10;
+        }
+        
+        // ตรวจสอบคำบอกความรุนแรง
+        $severityWords = ['เล็กน้อย', 'นิดหน่อย', 'ไม่มาก', 'ปานกลาง', 'พอทน', 'มาก', 'รุนแรง', 'มากๆ', 'ทนไม่ไหว', 'รุนแรงมาก'];
+        foreach ($severityWords as $word) {
+            if (mb_strpos($message, $word) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * ตรวจสอบว่าข้อความเป็น duration response หรือไม่
+     */
+    public function isDurationResponse(string $message): bool
+    {
+        $message = trim($message);
+        
+        // ตรวจสอบ pattern: X วัน, X สัปดาห์, X ชั่วโมง, X เดือน
+        if (preg_match('/(\d+)\s*(วัน|สัปดาห์|อาทิตย์|ชั่วโมง|เดือน|ปี)/u', $message)) {
+            return true;
+        }
+        
+        // ตรวจสอบคำบอกเวลา
+        $timeWords = ['เมื่อวาน', 'วันนี้', 'เมื่อกี้', 'ตอนเช้า', 'ตอนบ่าย', 'ตอนเย็น', 'ตอนดึก', 'เมื่อคืน', 'สักครู่', 'นานแล้ว'];
+        foreach ($timeWords as $word) {
+            if (mb_strpos($message, $word) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -209,6 +297,13 @@ class TriageEngine
     private function processState(string $message): array
     {
         $state = $this->currentState['state'];
+        
+        // Check if session is active - if so, don't reset to greeting
+        if ($this->isActiveSession() && $state === self::STATE_GREETING) {
+            // Session is active but state is greeting - this shouldn't happen
+            // Continue from the last known active state
+            return $this->continueFromCurrentState($message);
+        }
         
         switch ($state) {
             case self::STATE_GREETING:
@@ -250,12 +345,69 @@ class TriageEngine
                 return $this->handleGreeting($message);
         }
     }
+    
+    /**
+     * Check if the current session is active (not complete or escalate)
+     */
+    public function isActiveSession(): bool
+    {
+        $state = $this->currentState['state'] ?? self::STATE_GREETING;
+        
+        // Active states are all states except greeting, complete, and escalate
+        $activeStates = [
+            self::STATE_SYMPTOM,
+            self::STATE_DURATION,
+            self::STATE_SEVERITY,
+            self::STATE_ASSOCIATED,
+            self::STATE_ALLERGY,
+            self::STATE_MEDICAL_HISTORY,
+            self::STATE_CURRENT_MEDS,
+            self::STATE_RECOMMEND,
+            self::STATE_CONFIRM,
+        ];
+        
+        return in_array($state, $activeStates);
+    }
+    
+    /**
+     * Continue from current state without resetting
+     */
+    private function continueFromCurrentState(string $message): array
+    {
+        // Get the current state and continue processing
+        $state = $this->currentState['state'];
+        
+        // If we have data, continue from where we left off
+        if (!empty($this->currentState['data']['symptoms'])) {
+            if (empty($this->currentState['data']['duration'])) {
+                $this->currentState['state'] = self::STATE_DURATION;
+                return $this->handleDuration($message);
+            }
+            if (empty($this->currentState['data']['severity'])) {
+                $this->currentState['state'] = self::STATE_SEVERITY;
+                return $this->handleSeverity($message);
+            }
+        }
+        
+        // Default: process as symptom
+        return $this->handleSymptom($message);
+    }
 
     /**
      * Handle Greeting State
+     * Prevents greeting during active session (Requirements 9.1, 9.5)
      */
     private function handleGreeting(string $message): array
     {
+        // Check if there's an active session - if so, don't greet
+        if ($this->hasActiveSessionInDb()) {
+            // Load the active session and continue from current state
+            $this->loadState();
+            if ($this->isActiveSession()) {
+                return $this->continueFromCurrentState($message);
+            }
+        }
+        
         // ตรวจสอบว่ามีอาการในข้อความแรกหรือไม่
         $symptoms = $this->extractSymptoms($message);
         
@@ -279,6 +431,31 @@ class TriageEngine
             self::STATE_SYMPTOM,
             $this->getSymptomQuickReplies()
         );
+    }
+    
+    /**
+     * Check if there's an active session in database
+     */
+    private function hasActiveSessionInDb(): bool
+    {
+        if (!$this->userId) return false;
+        
+        try {
+            $result = $this->db->fetchOne(
+                "SELECT id, current_state FROM triage_sessions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+                [$this->userId]
+            );
+            
+            if ($result) {
+                $state = $result['current_state'];
+                // Check if state is active (not greeting, complete, or escalate)
+                return !in_array($state, [self::STATE_GREETING, self::STATE_COMPLETE, self::STATE_ESCALATE]);
+            }
+        } catch (\Exception $e) {
+            // Table might not exist yet
+        }
+        
+        return false;
     }
     
     /**
@@ -307,6 +484,7 @@ class TriageEngine
     
     /**
      * Handle Duration State
+     * Interprets duration responses (วัน, สัปดาห์, เดือน patterns)
      */
     private function handleDuration(string $message): array
     {
@@ -315,15 +493,66 @@ class TriageEngine
         $this->currentState['state'] = self::STATE_SEVERITY;
         $this->saveState();
         
+        // Acknowledge the duration response explicitly
+        $durationValue = $this->currentState['data']['duration'];
+        $acknowledgment = "รับทราบค่ะ เป็นมา {$durationValue} ⏱️\n\n";
+        
         return $this->buildResponse(
-            "เป็นมา {$this->currentState['data']['duration']} ค่ะ ⏱️\n\n" . self::STATE_QUESTIONS[self::STATE_SEVERITY],
+            $acknowledgment . self::STATE_QUESTIONS[self::STATE_SEVERITY],
             self::STATE_SEVERITY,
             $this->getSeverityQuickReplies()
         );
     }
     
     /**
+     * Parse duration value from message and return structured data
+     */
+    public function parseDurationValue(string $message): ?array
+    {
+        // Pattern: X วัน, X สัปดาห์, X ชั่วโมง
+        if (preg_match('/(\d+)\s*(วัน|สัปดาห์|อาทิตย์|ชั่วโมง|เดือน|ปี)/u', $message, $matches)) {
+            $value = (int)$matches[1];
+            $unit = $matches[2];
+            
+            // Normalize unit
+            $unitMap = [
+                'วัน' => 'day',
+                'สัปดาห์' => 'week',
+                'อาทิตย์' => 'week',
+                'ชั่วโมง' => 'hour',
+                'เดือน' => 'month',
+                'ปี' => 'year'
+            ];
+            
+            return [
+                'value' => $value,
+                'unit' => $unitMap[$unit] ?? $unit,
+                'original' => $matches[0]
+            ];
+        }
+        
+        // Pattern: เมื่อวาน, วันนี้, etc.
+        $timeWords = [
+            'เมื่อวาน' => ['value' => 1, 'unit' => 'day'],
+            'วันนี้' => ['value' => 0, 'unit' => 'day'],
+            'เมื่อกี้' => ['value' => 0, 'unit' => 'hour'],
+            'เมื่อคืน' => ['value' => 1, 'unit' => 'day'],
+            'สักครู่' => ['value' => 0, 'unit' => 'hour'],
+            'นานแล้ว' => ['value' => 7, 'unit' => 'day']
+        ];
+        
+        foreach ($timeWords as $word => $data) {
+            if (mb_strpos($message, $word) !== false) {
+                return array_merge($data, ['original' => $word]);
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * Handle Severity State
+     * Interprets numeric responses (1-10) as severity values
      */
     private function handleSeverity(string $message): array
     {
@@ -333,8 +562,19 @@ class TriageEngine
         $this->saveState();
         
         $severityText = $this->getSeverityText($severity);
+        
+        // Acknowledge the numeric response explicitly
+        $acknowledgment = "รับทราบค่ะ ";
+        if ($severity >= 7) {
+            $acknowledgment .= "ความรุนแรงระดับ {$severity} ถือว่าค่อนข้างมากนะคะ 😟\n\n";
+        } elseif ($severity >= 4) {
+            $acknowledgment .= "ความรุนแรงระดับ {$severity} ค่ะ 📊\n\n";
+        } else {
+            $acknowledgment .= "ความรุนแรงระดับ {$severity} ถือว่าไม่มากค่ะ 😊\n\n";
+        }
+        
         return $this->buildResponse(
-            "ความรุนแรง: {$severityText} 📊\n\n" . self::STATE_QUESTIONS[self::STATE_ASSOCIATED],
+            $acknowledgment . self::STATE_QUESTIONS[self::STATE_ASSOCIATED],
             self::STATE_ASSOCIATED,
             $this->getAssociatedQuickReplies()
         );
@@ -877,6 +1117,71 @@ class TriageEngine
     }
     
     /**
+     * Complete the current session programmatically
+     * Sets status to 'completed' and completed_at timestamp
+     * 
+     * @return bool True if session was completed successfully
+     */
+    public function completeSession(): bool
+    {
+        if (!isset($this->currentState['id'])) {
+            return false;
+        }
+        
+        try {
+            $this->currentState['state'] = self::STATE_COMPLETE;
+            $this->saveState();
+            return true;
+        } catch (\Exception $e) {
+            error_log("TriageEngine completeSession error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Get session completion information
+     * 
+     * @param int $sessionId The session ID to get info for
+     * @return array|null Session info with completion data or null if not found
+     */
+    public function getSessionCompletionInfo(int $sessionId): ?array
+    {
+        try {
+            $result = $this->db->fetchOne(
+                "SELECT id, user_id, current_state, status, created_at, updated_at, completed_at,
+                        TIMESTAMPDIFF(MINUTE, created_at, completed_at) as completion_time_minutes
+                 FROM triage_sessions WHERE id = ?",
+                [$sessionId]
+            );
+            
+            return $result ?: null;
+        } catch (\Exception $e) {
+            error_log("TriageEngine getSessionCompletionInfo error: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Get current session ID
+     * 
+     * @return int|null The current session ID or null if no session
+     */
+    public function getSessionId(): ?int
+    {
+        return $this->currentState['id'] ?? null;
+    }
+    
+    /**
+     * Get current state
+     * 
+     * @return string The current triage state
+     */
+    public function getCurrentState(): string
+    {
+        return $this->currentState['state'] ?? self::STATE_GREETING;
+    }
+    
+    /**
      * Skip Current Step
      */
     private function skipCurrentStep(): array
@@ -1311,24 +1616,74 @@ class TriageEngine
         } catch (\Exception $e) {}
     }
     
+    /**
+     * แจ้งเตือนเภสัชกร
+     * Requirements: 4.1, 4.2 - Create notification when user requests pharmacist or severity is high/critical
+     */
     private function notifyPharmacist(bool $urgent = false): void
     {
         try {
             $data = $this->currentState['data'];
             $priority = $urgent ? 'urgent' : 'normal';
             
-            // บันทึกลง database
+            // Get user info for notification
+            $userName = $this->getUserName();
+            
+            // Build notification title and message
+            $title = $urgent 
+                ? '🚨 ฉุกเฉิน - ลูกค้าต้องการความช่วยเหลือด่วน'
+                : '👨‍⚕️ ลูกค้าขอปรึกษาเภสัชกร';
+            
+            $message = "ลูกค้า: {$userName}\n";
+            
+            if (!empty($data['symptoms'])) {
+                $symptoms = is_array($data['symptoms']) ? implode(', ', $data['symptoms']) : $data['symptoms'];
+                $message .= "อาการ: {$symptoms}\n";
+            }
+            if (!empty($data['duration'])) {
+                $message .= "ระยะเวลา: {$data['duration']}\n";
+            }
+            if (!empty($data['severity'])) {
+                $message .= "ความรุนแรง: {$data['severity']}/10\n";
+            }
+            if (!empty($data['red_flags'])) {
+                $message .= "⚠️ Red Flags: " . count($data['red_flags']) . " รายการ\n";
+            }
+            
+            // Include full triage data in notification_data for dashboard display
+            $notificationData = json_encode([
+                'symptoms' => $data['symptoms'] ?? [],
+                'duration' => $data['duration'] ?? '',
+                'severity' => $data['severity'] ?? null,
+                'associated_symptoms' => $data['associated_symptoms'] ?? [],
+                'allergies' => $data['allergies'] ?? [],
+                'medical_history' => $data['medical_history'] ?? [],
+                'current_medications' => $data['current_medications'] ?? [],
+                'red_flags' => $data['red_flags'] ?? [],
+                'recommendations' => $data['recommendations'] ?? [],
+                'interactions' => $data['interactions'] ?? [],
+                'user_name' => $userName
+            ], JSON_UNESCAPED_UNICODE);
+            
+            // บันทึกลง database with all required fields
             $this->db->execute(
-                "INSERT INTO pharmacist_notifications (user_id, line_account_id, triage_session_id, priority, notification_data, status) 
-                 VALUES (?, ?, ?, ?, ?, 'pending')",
+                "INSERT INTO pharmacist_notifications 
+                 (user_id, line_account_id, triage_session_id, type, title, message, notification_data, priority, status) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
                 [
                     $this->userId,
                     $this->lineAccountId,
                     $this->currentState['id'] ?? null,
-                    $priority,
-                    json_encode($data, JSON_UNESCAPED_UNICODE)
+                    $urgent ? 'emergency_alert' : 'escalation',
+                    $title,
+                    $message,
+                    $notificationData,
+                    $priority
                 ]
             );
+            
+            $notificationId = $this->db->lastInsertId();
+            error_log("notifyPharmacist: Created notification #{$notificationId} for user #{$this->userId}, urgent={$urgent}");
             
             // ส่ง LINE notification ให้เภสัชกร
             try {
@@ -1336,7 +1691,6 @@ class TriageEngine
                 $notifier = new PharmacistNotifier($this->lineAccountId);
                 
                 // เพิ่มชื่อลูกค้า
-                $userName = $this->getUserName();
                 $data['user_name'] = $userName;
                 
                 $notifier->notifyAllPharmacists($data, $urgent);
@@ -1430,14 +1784,6 @@ class TriageEngine
             'quick_replies' => $quickReplies,
             'data' => $this->currentState['data'],
         ];
-    }
-    
-    /**
-     * Get current state
-     */
-    public function getCurrentState(): string
-    {
-        return $this->currentState['state'];
     }
     
     /**

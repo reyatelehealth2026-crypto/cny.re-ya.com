@@ -925,6 +925,55 @@ CREATE TABLE IF NOT EXISTS `ai_conversations` (
     INDEX `idx_ai_conv_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Emergency Alerts (Red Flag Detection Logging)
+-- Requirements: 3.4 - Log red flags to database for pharmacist review
+CREATE TABLE IF NOT EXISTS `emergency_alerts` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NULL,
+    `line_account_id` INT NULL,
+    `message` TEXT COMMENT 'Original message that triggered the alert',
+    `red_flags` JSON COMMENT 'Detected red flags array',
+    `severity` ENUM('warning', 'high', 'critical') DEFAULT 'warning',
+    `emergency_info` JSON COMMENT 'Additional emergency information',
+    `status` ENUM('pending', 'reviewed', 'handled', 'dismissed') DEFAULT 'pending',
+    `reviewed_by` INT NULL COMMENT 'Admin user who reviewed',
+    `reviewed_at` TIMESTAMP NULL,
+    `notes` TEXT COMMENT 'Pharmacist notes',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_line_account` (`line_account_id`),
+    INDEX `idx_severity` (`severity`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pharmacist Notifications
+-- Requirements: 3.4, 4.1, 4.2 - Notify pharmacist for critical red flags and escalations
+CREATE TABLE IF NOT EXISTS `pharmacist_notifications` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `line_account_id` INT NULL,
+    `type` VARCHAR(50) DEFAULT 'emergency_alert' COMMENT 'emergency_alert, triage_alert, escalation',
+    `title` VARCHAR(255),
+    `message` TEXT,
+    `notification_data` JSON,
+    `reference_id` INT COMMENT 'ID of related record (emergency_alert, triage_session, etc)',
+    `reference_type` VARCHAR(50) COMMENT 'Type of related record',
+    `user_id` INT COMMENT 'User who triggered the notification',
+    `triage_session_id` INT NULL,
+    `priority` ENUM('normal', 'urgent') DEFAULT 'normal',
+    `status` ENUM('pending', 'handled', 'dismissed') DEFAULT 'pending',
+    `is_read` TINYINT(1) DEFAULT 0,
+    `handled_by` INT NULL COMMENT 'Admin user who handled',
+    `handled_at` TIMESTAMP NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_line_account` (`line_account_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_priority` (`priority`),
+    INDEX `idx_is_read` (`is_read`),
+    INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- User States (Conversation Flow)
 CREATE TABLE IF NOT EXISTS `user_states` (
     `user_id` INT PRIMARY KEY,

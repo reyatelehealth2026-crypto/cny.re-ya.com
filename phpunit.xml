@@ -8,6 +8,9 @@
         <testsuite name="Landing Page Tests">
             <directory>tests/LandingPage</directory>
         </testsuite>
+        <testsuite name="AIChat Tests">
+            <directory>tests/AIChat</directory>
+        </testsuite>
     </testsuites>
     <coverage>
         <include>

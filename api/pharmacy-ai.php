@@ -43,10 +43,12 @@ $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? 'chat';
 $message = $input['message'] ?? '';
 $userId = $input['user_id'] ?? null;
+$sessionId = $input['session_id'] ?? null;
 $state = $input['state'] ?? 'greeting';
 $triageData = $input['triage_data'] ?? [];
 $useTriage = $input['use_triage'] ?? false; // Enable triage mode
 $useGemini = $input['use_gemini'] ?? false; // Enable Gemini AI
+$clientConversationContext = $input['conversation_context'] ?? []; // Client-side conversation context (Requirement 6.5)
 
 // Handle different actions
 if ($action === 'log_emergency') {
@@ -114,59 +116,135 @@ try {
     $lineAccountId = $userContext['line_account_id'] ?? null;
     $internalUserId = $userContext['id'] ?? null;
     
-    // Save user message to history
-    saveConversationMessage($db, $userId, 'user', $message);
-    
     // Get business context
     $businessContext = getBusinessContext($db, $lineAccountId);
     
-    // Check for emergency symptoms first (enhanced detection)
+    // ===== RED FLAG DETECTION - Requirements 3.1, 3.4 =====
+    // Call RedFlagDetector for every message BEFORE AI processing
+    $redFlagsFromDetector = [];
+    $redFlagAlertId = null;
+    
+    if ($aiChatModulesLoaded) {
+        // Use the comprehensive RedFlagDetector from AIChat module
+        $redFlagDetector = new \Modules\AIChat\Services\RedFlagDetector();
+        $redFlagsFromDetector = $redFlagDetector->detect($message);
+        
+        // Check if critical and log to database (Requirement 3.4)
+        if (!empty($redFlagsFromDetector)) {
+            $redFlagAlertId = logRedFlagsToDatabase($db, $message, $redFlagsFromDetector, $userId, $lineAccountId);
+            error_log("RedFlagDetector: Found " . count($redFlagsFromDetector) . " red flags, alert_id={$redFlagAlertId}");
+        }
+    }
+    
+    // Also check for emergency symptoms using the enhanced detection function
     $emergencyCheck = checkEmergencySymptoms($message, $userContext);
+    
+    // Merge emergency check results with RedFlagDetector results
+    if ($emergencyCheck['is_critical'] && empty($redFlagsFromDetector)) {
+        // If checkEmergencySymptoms found critical but RedFlagDetector didn't, log it
+        $emergencyRedFlags = array_map(function($symptom) {
+            return ['message' => $symptom, 'severity' => 'critical'];
+        }, $emergencyCheck['symptoms'] ?? []);
+        
+        if (!empty($emergencyRedFlags)) {
+            $redFlagAlertId = logRedFlagsToDatabase($db, $message, $emergencyRedFlags, $userId, $lineAccountId);
+        }
+    }
+    
+    // Load conversation history for context (last 10 messages) - Requirement 6.5
+    // Prefer server-side history, but use client context as fallback
+    $conversationHistory = [];
+    if ($userId) {
+        $historyResult = getConversationHistoryForContext($db, $userId, 10);
+        $conversationHistory = $historyResult['messages'] ?? [];
+    }
+    
+    // If server history is empty but client sent context, use client context
+    if (empty($conversationHistory) && !empty($clientConversationContext)) {
+        $conversationHistory = array_slice($clientConversationContext, -10); // Limit to last 10
+        error_log("Using client-side conversation context: " . count($conversationHistory) . " messages");
+    }
+    
+    // Get or create triage session for session continuity
+    $triageSession = null;
+    if ($userId) {
+        $triageSession = getOrCreateTriageSession($db, $userId, $sessionId, $lineAccountId);
+        if ($triageSession) {
+            $sessionId = $triageSession['id'];
+            // Use session state if not explicitly provided
+            if ($state === 'greeting' && $triageSession['current_state'] !== 'greeting') {
+                $state = $triageSession['current_state'];
+            }
+            // Merge triage data from session
+            $sessionTriageData = json_decode($triageSession['triage_data'] ?? '{}', true);
+            $triageData = array_merge($sessionTriageData ?: [], $triageData);
+        }
+    }
+    
+    // Save user message to history with session_id (Requirement 6.1)
+    // Now saved after session is retrieved so we have the correct session_id
+    saveConversationMessage($db, $userId, 'user', $message, $sessionId);
     
     // Always use Gemini AI for conversation history support
     if ($aiChatModulesLoaded) {
         // Use Gemini AI with function calling and conversation history
-        $result = processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
+        $result = processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext, $conversationHistory, $sessionId);
     } else {
         // Fallback to rule-based processing if AI modules not loaded
         $result = processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
     }
     
-    // Save AI response to history
-    saveConversationMessage($db, $userId, 'assistant', $result['response']);
+    // Save AI response to history with session_id (Requirement 6.1)
+    saveConversationMessage($db, $userId, 'assistant', $result['response'], $sessionId);
+    
+    // Update triage session state if session exists
+    $newState = $result['state'] ?? $state;
+    if ($sessionId && $newState) {
+        updateTriageSessionState($db, $sessionId, $newState, $result['data'] ?? $triageData);
+    }
     
     // Get product recommendations if applicable
     $products = [];
     if (!empty($result['recommend_products'])) {
         $products = getProductRecommendations($db, $result['recommend_products'], $lineAccountId);
+        
+        // Filter out allergic medications from recommendations (Requirements 7.3)
+        $products = filterAllergicMedications($products, $userContext);
     }
     
-    // Check drug interactions if products recommended and user has medications
+    // Check drug interactions if products recommended (Requirements 7.1, 7.2, 7.4)
+    // Check against both current medications list and health profile text
     $drugInteractions = [];
-    if (!empty($products) && !empty($userContext['health_medications'])) {
+    if (!empty($products)) {
         $drugInteractions = checkDrugInteractionsSimple($products, $userContext);
     }
     
     echo json_encode([
         'success' => true,
         'response' => $result['response'],
-        'state' => $result['state'],
-        'data' => $result['data'],
+        'state' => $newState,
+        'session_id' => $sessionId,
+        'data' => $result['data'] ?? $triageData,
         'quick_replies' => $result['quick_replies'] ?? [],
         'is_critical' => $emergencyCheck['is_critical'] ?? false,
         'emergency_info' => $emergencyCheck['is_critical'] ? $emergencyCheck : null,
+        'red_flags' => $redFlagsFromDetector,
+        'red_flag_alert_id' => $redFlagAlertId,
         'products' => $products,
         'drug_interactions' => $drugInteractions,
         'suggest_pharmacist' => $result['suggest_pharmacist'] ?? false,
-        'triage_mode' => $shouldUseTriage,
+        'triage_mode' => $shouldUseTriage ?? false,
         'mims_info' => $result['mims_info'] ?? null,
         'user_context' => [
             'name' => $userContext['display_name'] ?? null,
             'points' => $userContext['points'] ?? 0,
             'tier' => $userContext['tier'] ?? 'bronze',
-            'has_allergies' => !empty($userContext['drug_allergies']),
+            'has_allergies' => !empty($userContext['drug_allergies']) || !empty($userContext['drug_allergies_list']),
             'allergies' => $userContext['drug_allergies'] ?? null,
-            'conditions' => $userContext['chronic_diseases'] ?? null
+            'allergies_list' => $userContext['drug_allergies_list'] ?? [],
+            'conditions' => $userContext['chronic_diseases'] ?? null,
+            'has_medications' => !empty($userContext['health_medications']) || !empty($userContext['current_medications_list']),
+            'medications_list' => $userContext['current_medications_list'] ?? []
         ]
     ]);
     
@@ -182,6 +260,7 @@ try {
 
 /**
  * Get full user context including health profile, orders, points
+ * Enhanced: Requirements 7.1, 7.3 - Load drug allergies and current medications from health profile
  */
 function getUserFullContext($db, $lineUserId) {
     if (!$lineUserId) return [];
@@ -202,6 +281,12 @@ function getUserFullContext($db, $lineUserId) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$user) return [];
+        
+        // Get drug allergies from user_drug_allergies table (Requirements 7.1, 7.3)
+        $user['drug_allergies_list'] = getUserDrugAllergies($db, $lineUserId);
+        
+        // Get current medications from user_current_medications table (Requirements 7.1)
+        $user['current_medications_list'] = getUserCurrentMedications($db, $lineUserId);
         
         // Get recent orders
         $stmt = $db->prepare("
@@ -247,6 +332,54 @@ function getUserFullContext($db, $lineUserId) {
         
     } catch (Exception $e) {
         error_log("getUserFullContext error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get user's drug allergies from user_drug_allergies table
+ * Requirements: 7.1, 7.3 - Load user's drug allergies for filtering recommendations
+ * 
+ * @param PDO $db Database connection
+ * @param string $lineUserId LINE user ID
+ * @return array Array of drug allergy records
+ */
+function getUserDrugAllergies($db, $lineUserId) {
+    try {
+        $stmt = $db->prepare("
+            SELECT id, drug_name, drug_id, reaction_type, reaction_notes, severity
+            FROM user_drug_allergies 
+            WHERE line_user_id = ?
+            ORDER BY created_at DESC
+        ");
+        $stmt->execute([$lineUserId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("getUserDrugAllergies error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get user's current medications from user_current_medications table
+ * Requirements: 7.1 - Load user's current medications for interaction checking
+ * 
+ * @param PDO $db Database connection
+ * @param string $lineUserId LINE user ID
+ * @return array Array of current medication records
+ */
+function getUserCurrentMedications($db, $lineUserId) {
+    try {
+        $stmt = $db->prepare("
+            SELECT id, medication_name, product_id, dosage, frequency, start_date, notes
+            FROM user_current_medications 
+            WHERE line_user_id = ? AND is_active = 1
+            ORDER BY created_at DESC
+        ");
+        $stmt->execute([$lineUserId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("getUserCurrentMedications error: " . $e->getMessage());
         return [];
     }
 }
@@ -854,23 +987,274 @@ function getProductRecommendations($db, $keywords, $lineAccountId) {
 }
 
 /**
- * Log emergency alert
+ * Log emergency alert to emergency_alerts table
+ * Requirements: 3.4 - Log red flags to database for pharmacist review
+ * 
+ * @param PDO $db Database connection
+ * @param array $input Input data containing emergency info
+ * @return array Result of logging operation
  */
 function logEmergencyAlert($db, $input) {
     try {
-        $stmt = $db->prepare("INSERT INTO triage_analytics 
-            (date, line_account_id, urgent_sessions, top_symptoms) 
-            VALUES (CURDATE(), ?, 1, ?)
-            ON DUPLICATE KEY UPDATE urgent_sessions = urgent_sessions + 1");
+        // Ensure emergency_alerts table exists
+        ensureEmergencyAlertsTable($db);
+        
+        $userId = $input['user_id'] ?? null;
+        $lineAccountId = $input['line_account_id'] ?? null;
+        $message = $input['message'] ?? '';
+        $redFlags = $input['red_flags'] ?? [];
+        $severity = $input['severity'] ?? 'warning';
+        $emergencyInfo = $input['emergency_info'] ?? [];
+        
+        // Get internal user ID if line_user_id provided
+        $internalUserId = null;
+        if ($userId) {
+            $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ? LIMIT 1");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $internalUserId = $user['id'] ?? null;
+        }
+        
+        // Insert into emergency_alerts table
+        $stmt = $db->prepare("
+            INSERT INTO emergency_alerts 
+            (user_id, line_account_id, message, red_flags, severity, emergency_info, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        ");
         
         $stmt->execute([
-            $input['line_account_id'] ?? null,
-            json_encode($input['emergency_info'] ?? [])
+            $internalUserId,
+            $lineAccountId,
+            $message,
+            json_encode($redFlags),
+            $severity,
+            json_encode($emergencyInfo)
         ]);
         
-        echo json_encode(['success' => true]);
+        $alertId = $db->lastInsertId();
+        
+        // Also update triage_analytics for statistics
+        try {
+            $stmt = $db->prepare("INSERT INTO triage_analytics 
+                (date, line_account_id, urgent_sessions, top_symptoms) 
+                VALUES (CURDATE(), ?, 1, ?)
+                ON DUPLICATE KEY UPDATE urgent_sessions = urgent_sessions + 1");
+            
+            $stmt->execute([
+                $lineAccountId,
+                json_encode($emergencyInfo)
+            ]);
+        } catch (Exception $e) {
+            // Ignore triage_analytics errors - not critical
+            error_log("logEmergencyAlert triage_analytics error: " . $e->getMessage());
+        }
+        
+        // Create pharmacist notification for critical alerts
+        if ($severity === 'critical') {
+            createPharmacistNotificationForEmergency($db, $alertId, $internalUserId, $lineAccountId, $redFlags);
+        }
+        
+        error_log("logEmergencyAlert: Created alert #{$alertId}, severity={$severity}");
+        
+        echo json_encode([
+            'success' => true,
+            'alert_id' => $alertId,
+            'severity' => $severity
+        ]);
     } catch (Exception $e) {
+        error_log("logEmergencyAlert error: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+/**
+ * Ensure emergency_alerts table exists
+ * Requirements: 3.4 - Create emergency_alerts table for logging red flags
+ */
+function ensureEmergencyAlertsTable($db) {
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS emergency_alerts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                line_account_id INT NULL,
+                message TEXT COMMENT 'Original message that triggered the alert',
+                red_flags JSON COMMENT 'Detected red flags array',
+                severity ENUM('warning', 'high', 'critical') DEFAULT 'warning',
+                emergency_info JSON COMMENT 'Additional emergency information',
+                status ENUM('pending', 'reviewed', 'handled', 'dismissed') DEFAULT 'pending',
+                reviewed_by INT NULL COMMENT 'Admin user who reviewed',
+                reviewed_at TIMESTAMP NULL,
+                notes TEXT COMMENT 'Pharmacist notes',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_user_id (user_id),
+                INDEX idx_line_account (line_account_id),
+                INDEX idx_severity (severity),
+                INDEX idx_status (status),
+                INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (Exception $e) {
+        // Table might already exist
+        error_log("ensureEmergencyAlertsTable: " . $e->getMessage());
+    }
+}
+
+/**
+ * Create pharmacist notification for emergency alert
+ * Requirements: 3.4 - Notify pharmacist for critical red flags
+ */
+function createPharmacistNotificationForEmergency($db, $alertId, $userId, $lineAccountId, $redFlags) {
+    try {
+        // Get user info if available
+        $userName = 'ไม่ระบุชื่อ';
+        if ($userId) {
+            $stmt = $db->prepare("SELECT display_name FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $userName = $user['display_name'] ?? 'ไม่ระบุชื่อ';
+        }
+        
+        // Build notification message
+        $flagMessages = [];
+        foreach ($redFlags as $flag) {
+            if (is_array($flag)) {
+                $flagMessages[] = $flag['message'] ?? $flag['symptom'] ?? 'อาการฉุกเฉิน';
+            } else {
+                $flagMessages[] = $flag;
+            }
+        }
+        
+        $title = '🚨 พบอาการฉุกเฉิน - ต้องตรวจสอบด่วน';
+        $message = "ลูกค้า: {$userName}\n";
+        $message .= "อาการที่ตรวจพบ:\n• " . implode("\n• ", $flagMessages);
+        
+        // Ensure pharmacist_notifications table exists
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS pharmacist_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                line_account_id INT NULL,
+                type VARCHAR(50) DEFAULT 'emergency_alert',
+                title VARCHAR(255),
+                message TEXT,
+                notification_data JSON,
+                reference_id INT,
+                reference_type VARCHAR(50),
+                user_id INT,
+                triage_session_id INT NULL,
+                priority ENUM('normal', 'urgent') DEFAULT 'normal',
+                status ENUM('pending', 'handled', 'dismissed') DEFAULT 'pending',
+                is_read TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_line_account (line_account_id),
+                INDEX idx_status (status),
+                INDEX idx_priority (priority)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        
+        $stmt = $db->prepare("
+            INSERT INTO pharmacist_notifications 
+            (line_account_id, type, title, message, notification_data, reference_id, reference_type, user_id, priority)
+            VALUES (?, 'emergency_alert', ?, ?, ?, ?, 'emergency_alert', ?, 'urgent')
+        ");
+        
+        $stmt->execute([
+            $lineAccountId,
+            $title,
+            $message,
+            json_encode(['red_flags' => $redFlags]),
+            $alertId,
+            $userId
+        ]);
+        
+        error_log("createPharmacistNotificationForEmergency: Created notification for alert #{$alertId}");
+        
+    } catch (Exception $e) {
+        error_log("createPharmacistNotificationForEmergency error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Log red flags detected by RedFlagDetector
+ * Requirements: 3.1, 3.4 - Call detect() before AI processing and log to database
+ * 
+ * @param PDO $db Database connection
+ * @param string $message User message
+ * @param array $redFlags Detected red flags from RedFlagDetector
+ * @param string|null $lineUserId LINE user ID
+ * @param int|null $lineAccountId LINE account ID
+ * @return int|null Alert ID if logged, null otherwise
+ */
+function logRedFlagsToDatabase($db, $message, $redFlags, $lineUserId = null, $lineAccountId = null) {
+    if (empty($redFlags)) {
+        return null;
+    }
+    
+    try {
+        // Ensure emergency_alerts table exists
+        ensureEmergencyAlertsTable($db);
+        
+        // Get internal user ID
+        $internalUserId = null;
+        if ($lineUserId) {
+            $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ? LIMIT 1");
+            $stmt->execute([$lineUserId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $internalUserId = $user['id'] ?? null;
+        }
+        
+        // Determine severity from red flags
+        $severity = 'warning';
+        foreach ($redFlags as $flag) {
+            $flagSeverity = is_array($flag) ? ($flag['severity'] ?? 'warning') : 'warning';
+            if ($flagSeverity === 'critical') {
+                $severity = 'critical';
+                break;
+            } elseif ($flagSeverity === 'high' && $severity !== 'critical') {
+                $severity = 'high';
+            }
+        }
+        
+        // Build emergency info
+        $emergencyInfo = [
+            'symptoms' => array_map(function($flag) {
+                return is_array($flag) ? ($flag['message'] ?? $flag['symptom'] ?? 'Unknown') : $flag;
+            }, $redFlags),
+            'detected_at' => date('Y-m-d H:i:s'),
+            'is_critical' => $severity === 'critical'
+        ];
+        
+        // Insert into emergency_alerts table
+        $stmt = $db->prepare("
+            INSERT INTO emergency_alerts 
+            (user_id, line_account_id, message, red_flags, severity, emergency_info, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        ");
+        
+        $stmt->execute([
+            $internalUserId,
+            $lineAccountId,
+            $message,
+            json_encode($redFlags),
+            $severity,
+            json_encode($emergencyInfo)
+        ]);
+        
+        $alertId = $db->lastInsertId();
+        
+        // Create pharmacist notification for critical/high severity
+        if (in_array($severity, ['critical', 'high'])) {
+            createPharmacistNotificationForEmergency($db, $alertId, $internalUserId, $lineAccountId, $redFlags);
+        }
+        
+        error_log("logRedFlagsToDatabase: Logged {$severity} alert #{$alertId} for message: " . substr($message, 0, 50));
+        
+        return $alertId;
+        
+    } catch (Exception $e) {
+        error_log("logRedFlagsToDatabase error: " . $e->getMessage());
+        return null;
     }
 }
 
@@ -942,7 +1326,7 @@ function processTriageMessage($db, $message, $userId, $triageData) {
 /**
  * Process message using Gemini AI with function calling
  */
-function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext) {
+function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext, $conversationHistory = [], $sessionId = null) {
     global $aiChatModulesLoaded;
     
     if (!$aiChatModulesLoaded) {
@@ -961,6 +1345,24 @@ function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId,
             error_log("processWithGeminiAI: No internal userId found");
         }
         
+        // Set conversation history for context
+        if (!empty($conversationHistory)) {
+            $adapter->setConversationHistory($conversationHistory);
+            error_log("processWithGeminiAI: Set conversation history with " . count($conversationHistory) . " messages");
+        }
+        
+        // Set session ID for state tracking
+        if ($sessionId) {
+            $adapter->setSessionId($sessionId);
+            error_log("processWithGeminiAI: Set sessionId to {$sessionId}");
+        }
+        
+        // Set current triage state
+        if ($state && $state !== 'greeting') {
+            $adapter->setTriageState($state);
+            error_log("processWithGeminiAI: Set triage state to {$state}");
+        }
+        
         if (!$adapter->isEnabled()) {
             error_log("processWithGeminiAI: Gemini not enabled (no API key?), falling back to rule-based");
             return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
@@ -977,7 +1379,8 @@ function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId,
             'quick_replies' => formatQuickReplies($result['quick_replies'] ?? []),
             'recommend_products' => extractProductKeywords($result['products'] ?? []),
             'suggest_pharmacist' => $result['suggest_pharmacist'] ?? false,
-            'mims_info' => $result['mims_info'] ?? null
+            'mims_info' => $result['mims_info'] ?? null,
+            'session_id' => $sessionId
         ];
     } catch (Exception $e) {
         error_log("processWithGeminiAI error: " . $e->getMessage());
@@ -1107,32 +1510,104 @@ function checkDrugInteractions($db, $drugs, $currentMeds, $allergies, $condition
 
 /**
  * Simple drug interaction check for products
+ * Enhanced: Requirements 7.1, 7.2, 7.3, 7.4 - Check interactions with user's current medications and filter allergic medications
+ * 
+ * @param array $products Array of recommended products
+ * @param array $userContext User context including allergies and current medications
+ * @return array Array of interaction warnings
  */
 function checkDrugInteractionsSimple($products, $userContext) {
     $interactions = [];
-    $currentMeds = $userContext['health_medications'] ?? '';
-    $allergies = $userContext['drug_allergies'] ?? $userContext['health_allergies'] ?? '';
     
-    if (empty($currentMeds) && empty($allergies)) {
+    // Get current medications from health profile (text field) and detailed list
+    $currentMeds = $userContext['health_medications'] ?? '';
+    $currentMedsList = $userContext['current_medications_list'] ?? [];
+    
+    // Get allergies from health profile (text field) and detailed list
+    $allergies = $userContext['drug_allergies'] ?? $userContext['health_allergies'] ?? '';
+    $allergiesList = $userContext['drug_allergies_list'] ?? [];
+    
+    // Build allergy names array for matching
+    $allergyNames = [];
+    foreach ($allergiesList as $allergy) {
+        $allergyNames[] = mb_strtolower($allergy['drug_name'], 'UTF-8');
+    }
+    // Also add from text field if present
+    if (!empty($allergies)) {
+        $allergyNames[] = mb_strtolower($allergies, 'UTF-8');
+    }
+    
+    // Build current medication names array for matching
+    $currentMedNames = [];
+    foreach ($currentMedsList as $med) {
+        $currentMedNames[] = mb_strtolower($med['medication_name'], 'UTF-8');
+    }
+    // Also add from text field if present
+    if (!empty($currentMeds)) {
+        $currentMedNames[] = mb_strtolower($currentMeds, 'UTF-8');
+    }
+    
+    if (empty($allergyNames) && empty($currentMedNames)) {
         return $interactions;
     }
     
-    $currentMedsLower = mb_strtolower($currentMeds, 'UTF-8');
-    $allergiesLower = mb_strtolower($allergies, 'UTF-8');
-    
     // Basic interaction database
     $interactionDb = [
-        'warfarin' => ['aspirin', 'ibuprofen', 'naproxen'],
-        'metformin' => ['alcohol'],
-        'aspirin' => ['ibuprofen'],
+        'warfarin' => ['aspirin', 'ibuprofen', 'naproxen', 'แอสไพริน', 'ไอบูโพรเฟน'],
+        'metformin' => ['alcohol', 'แอลกอฮอล์'],
+        'aspirin' => ['ibuprofen', 'ไอบูโพรเฟน', 'naproxen'],
+        'lisinopril' => ['potassium', 'โพแทสเซียม'],
+        'simvastatin' => ['grapefruit', 'เกรปฟรุต'],
+        'methotrexate' => ['nsaid', 'ibuprofen', 'aspirin'],
+        'digoxin' => ['amiodarone', 'verapamil'],
+        'clopidogrel' => ['omeprazole', 'โอเมพราโซล'],
     ];
     
     foreach ($products as $product) {
         $productName = mb_strtolower($product['name'] ?? '', 'UTF-8');
         $genericName = mb_strtolower($product['generic_name'] ?? '', 'UTF-8');
+        $productId = $product['id'] ?? null;
         
-        // Check allergies
-        if (!empty($allergiesLower)) {
+        // Check allergies - Requirements 7.3
+        foreach ($allergiesList as $allergy) {
+            $allergyName = mb_strtolower($allergy['drug_name'], 'UTF-8');
+            $allergyId = $allergy['drug_id'] ?? null;
+            
+            // Match by ID if available
+            if ($allergyId && $productId && $allergyId == $productId) {
+                $interactions[] = [
+                    'type' => 'allergy',
+                    'severity' => 'high',
+                    'product' => $product['name'],
+                    'product_id' => $productId,
+                    'allergy' => $allergy['drug_name'],
+                    'reaction_type' => $allergy['reaction_type'] ?? 'unknown',
+                    'message' => "⛔ ห้ามใช้! คุณแพ้ยา {$allergy['drug_name']}"
+                ];
+                continue 2; // Skip to next product
+            }
+            
+            // Match by name
+            if (mb_strpos($productName, $allergyName) !== false || 
+                mb_strpos($genericName, $allergyName) !== false ||
+                mb_strpos($allergyName, $productName) !== false ||
+                mb_strpos($allergyName, $genericName) !== false) {
+                $interactions[] = [
+                    'type' => 'allergy',
+                    'severity' => 'high',
+                    'product' => $product['name'],
+                    'product_id' => $productId,
+                    'allergy' => $allergy['drug_name'],
+                    'reaction_type' => $allergy['reaction_type'] ?? 'unknown',
+                    'message' => "⛔ ห้ามใช้! คุณแพ้ยา {$allergy['drug_name']}"
+                ];
+                continue 2; // Skip to next product
+            }
+        }
+        
+        // Also check text-based allergies
+        if (!empty($allergies)) {
+            $allergiesLower = mb_strtolower($allergies, 'UTF-8');
             if (mb_strpos($allergiesLower, $productName) !== false || 
                 mb_strpos($allergiesLower, $genericName) !== false ||
                 mb_strpos($productName, $allergiesLower) !== false) {
@@ -1140,24 +1615,55 @@ function checkDrugInteractionsSimple($products, $userContext) {
                     'type' => 'allergy',
                     'severity' => 'high',
                     'product' => $product['name'],
-                    'message' => "⛔ คุณแพ้ยานี้! ห้ามใช้ {$product['name']}"
+                    'product_id' => $productId,
+                    'allergy' => $allergies,
+                    'message' => "⛔ ห้ามใช้! คุณแพ้ยานี้"
                 ];
+                continue; // Skip to next product
             }
         }
         
-        // Check interactions
-        foreach ($interactionDb as $med => $interactsWith) {
-            if (mb_strpos($currentMedsLower, $med) !== false) {
-                foreach ($interactsWith as $interactDrug) {
-                    if (mb_strpos($productName, $interactDrug) !== false || 
-                        mb_strpos($genericName, $interactDrug) !== false) {
-                        $interactions[] = [
-                            'type' => 'interaction',
-                            'severity' => 'medium',
-                            'product' => $product['name'],
-                            'interacts_with' => $med,
-                            'message' => "⚠️ {$product['name']} อาจตีกับยา {$med} ที่คุณทานอยู่"
-                        ];
+        // Check interactions with current medications - Requirements 7.1, 7.2
+        foreach ($currentMedsList as $med) {
+            $medName = mb_strtolower($med['medication_name'], 'UTF-8');
+            
+            // Check against interaction database
+            foreach ($interactionDb as $drug => $interactsWith) {
+                if (mb_strpos($medName, $drug) !== false) {
+                    foreach ($interactsWith as $interactDrug) {
+                        if (mb_strpos($productName, $interactDrug) !== false || 
+                            mb_strpos($genericName, $interactDrug) !== false) {
+                            $interactions[] = [
+                                'type' => 'interaction',
+                                'severity' => 'medium',
+                                'product' => $product['name'],
+                                'product_id' => $productId,
+                                'interacts_with' => $med['medication_name'],
+                                'message' => "⚠️ {$product['name']} อาจตีกับยา {$med['medication_name']} ที่คุณทานอยู่"
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Also check text-based current medications
+        if (!empty($currentMeds)) {
+            $currentMedsLower = mb_strtolower($currentMeds, 'UTF-8');
+            foreach ($interactionDb as $drug => $interactsWith) {
+                if (mb_strpos($currentMedsLower, $drug) !== false) {
+                    foreach ($interactsWith as $interactDrug) {
+                        if (mb_strpos($productName, $interactDrug) !== false || 
+                            mb_strpos($genericName, $interactDrug) !== false) {
+                            $interactions[] = [
+                                'type' => 'interaction',
+                                'severity' => 'medium',
+                                'product' => $product['name'],
+                                'product_id' => $productId,
+                                'interacts_with' => $drug,
+                                'message' => "⚠️ {$product['name']} อาจตีกับยา {$drug} ที่คุณทานอยู่"
+                            ];
+                        }
                     }
                 }
             }
@@ -1165,6 +1671,83 @@ function checkDrugInteractionsSimple($products, $userContext) {
     }
     
     return $interactions;
+}
+
+/**
+ * Filter out allergic medications from product recommendations
+ * Requirements: 7.3 - Filter out allergic medications from recommendations
+ * 
+ * @param array $products Array of recommended products
+ * @param array $userContext User context including allergies
+ * @return array Filtered array of products (without allergic medications)
+ */
+function filterAllergicMedications($products, $userContext) {
+    if (empty($products)) return $products;
+    
+    // Get allergies from detailed list and text field
+    $allergiesList = $userContext['drug_allergies_list'] ?? [];
+    $allergiesText = $userContext['drug_allergies'] ?? $userContext['health_allergies'] ?? '';
+    
+    if (empty($allergiesList) && empty($allergiesText)) {
+        return $products;
+    }
+    
+    // Build allergy names array for matching
+    $allergyNames = [];
+    $allergyIds = [];
+    foreach ($allergiesList as $allergy) {
+        $allergyNames[] = mb_strtolower($allergy['drug_name'], 'UTF-8');
+        if (!empty($allergy['drug_id'])) {
+            $allergyIds[] = $allergy['drug_id'];
+        }
+    }
+    
+    $allergiesTextLower = mb_strtolower($allergiesText, 'UTF-8');
+    
+    // Filter products
+    $filteredProducts = [];
+    foreach ($products as $product) {
+        $productId = $product['id'] ?? null;
+        $productName = mb_strtolower($product['name'] ?? '', 'UTF-8');
+        $genericName = mb_strtolower($product['generic_name'] ?? '', 'UTF-8');
+        
+        $isAllergic = false;
+        
+        // Check by ID
+        if ($productId && in_array($productId, $allergyIds)) {
+            $isAllergic = true;
+        }
+        
+        // Check by name against allergy list
+        if (!$isAllergic) {
+            foreach ($allergyNames as $allergyName) {
+                if (mb_strpos($productName, $allergyName) !== false || 
+                    mb_strpos($genericName, $allergyName) !== false ||
+                    mb_strpos($allergyName, $productName) !== false ||
+                    mb_strpos($allergyName, $genericName) !== false) {
+                    $isAllergic = true;
+                    break;
+                }
+            }
+        }
+        
+        // Check against text-based allergies
+        if (!$isAllergic && !empty($allergiesTextLower)) {
+            if (mb_strpos($allergiesTextLower, $productName) !== false || 
+                mb_strpos($allergiesTextLower, $genericName) !== false ||
+                mb_strpos($productName, $allergiesTextLower) !== false) {
+                $isAllergic = true;
+            }
+        }
+        
+        if (!$isAllergic) {
+            $filteredProducts[] = $product;
+        } else {
+            error_log("filterAllergicMedications: Filtered out allergic product: " . ($product['name'] ?? 'unknown'));
+        }
+    }
+    
+    return $filteredProducts;
 }
 
 /**
@@ -1284,7 +1867,13 @@ function extractProductKeywords($products) {
 // ============================================================================
 
 /**
- * Get conversation history for user
+ * Get conversation history for user with session_id support
+ * Requirements: 6.1, 6.2, 6.3, 9.5 - Load previous conversation history with user isolation and session state
+ * 
+ * User Isolation (Requirement 6.3):
+ * - History is strictly filtered by user_id derived from line_user_id
+ * - Each user can only access their own conversation history
+ * - No cross-user data leakage is possible
  */
 function getConversationHistory($db, $lineUserId) {
     if (!$lineUserId) {
@@ -1292,7 +1881,7 @@ function getConversationHistory($db, $lineUserId) {
     }
     
     try {
-        // Get user's internal ID
+        // Get user's internal ID - this ensures user isolation (Requirement 6.3)
         $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ? LIMIT 1");
         $stmt->execute([$lineUserId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1301,31 +1890,66 @@ function getConversationHistory($db, $lineUserId) {
             return ['success' => true, 'messages' => []];
         }
         
-        // Get recent conversation history (last 50 messages)
+        $userId = $user['id'];
+        
+        // Ensure session_id column exists in ai_conversation_history table
+        ensureConversationHistorySessionColumn($db);
+        
+        // Get recent conversation history (last 50 messages) with session_id
+        // User isolation: WHERE user_id = ? ensures only this user's messages are returned
         $stmt = $db->prepare("
-            SELECT role, content, created_at 
+            SELECT role, content, session_id, created_at 
             FROM ai_conversation_history 
             WHERE user_id = ? 
             ORDER BY created_at DESC 
             LIMIT 50
         ");
-        $stmt->execute([$user['id']]);
+        $stmt->execute([$userId]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Reverse to get chronological order
         $messages = array_reverse($messages);
         
-        // Format for frontend
+        // Format for frontend with session_id included (Requirement 6.1)
         $formatted = [];
         foreach ($messages as $msg) {
             $formatted[] = [
                 'type' => $msg['role'] === 'user' ? 'user' : 'ai',
                 'content' => $msg['content'],
+                'session_id' => $msg['session_id'],
                 'timestamp' => $msg['created_at']
             ];
         }
         
-        return ['success' => true, 'messages' => $formatted];
+        // Get active triage session state for session continuity (Requirement 9.5)
+        $sessionId = null;
+        $currentState = 'greeting';
+        $triageData = [];
+        
+        $stmt = $db->prepare("
+            SELECT id, current_state, triage_data 
+            FROM triage_sessions 
+            WHERE user_id = ? AND status = 'active'
+            ORDER BY updated_at DESC 
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($session) {
+            $sessionId = $session['id'];
+            $currentState = $session['current_state'] ?? 'greeting';
+            $triageData = json_decode($session['triage_data'] ?? '{}', true) ?: [];
+        }
+        
+        return [
+            'success' => true, 
+            'messages' => $formatted,
+            'session_id' => $sessionId,
+            'current_state' => $currentState,
+            'triage_data' => $triageData,
+            'user_id' => $userId // Include for verification
+        ];
         
     } catch (Exception $e) {
         error_log("getConversationHistory error: " . $e->getMessage());
@@ -1334,9 +1958,29 @@ function getConversationHistory($db, $lineUserId) {
 }
 
 /**
- * Save conversation message
+ * Ensure ai_conversation_history table has session_id column
+ * Requirement 6.1 - Add session_id to history records
  */
-function saveConversationMessage($db, $lineUserId, $role, $content) {
+function ensureConversationHistorySessionColumn($db) {
+    try {
+        $db->query("SELECT session_id FROM ai_conversation_history LIMIT 1");
+    } catch (Exception $e) {
+        // Add session_id column if it doesn't exist
+        try {
+            $db->exec("ALTER TABLE ai_conversation_history ADD COLUMN session_id VARCHAR(50) NULL AFTER line_account_id");
+            $db->exec("CREATE INDEX idx_session_id ON ai_conversation_history (session_id)");
+        } catch (Exception $alterError) {
+            // Column might already exist or table doesn't exist yet
+            error_log("ensureConversationHistorySessionColumn: " . $alterError->getMessage());
+        }
+    }
+}
+
+/**
+ * Save conversation message with session_id support
+ * Requirement 6.1 - Save message to ai_conversation_history with user_id, role, and session_id
+ */
+function saveConversationMessage($db, $lineUserId, $role, $content, $sessionId = null) {
     if (!$lineUserId) return false;
     
     try {
@@ -1351,27 +1995,32 @@ function saveConversationMessage($db, $lineUserId, $role, $content) {
         try {
             $db->query("SELECT 1 FROM ai_conversation_history LIMIT 1");
         } catch (Exception $e) {
-            // Create table
+            // Create table with session_id column
             $db->exec("
                 CREATE TABLE IF NOT EXISTS ai_conversation_history (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     user_id INT NOT NULL,
                     line_account_id INT NULL,
+                    session_id VARCHAR(50) NULL,
                     role ENUM('user', 'assistant') NOT NULL,
                     content TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_user_id (user_id),
+                    INDEX idx_session_id (session_id),
                     INDEX idx_created_at (created_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ");
         }
         
-        // Insert message
+        // Ensure session_id column exists
+        ensureConversationHistorySessionColumn($db);
+        
+        // Insert message with session_id (Requirement 6.1)
         $stmt = $db->prepare("
-            INSERT INTO ai_conversation_history (user_id, line_account_id, role, content) 
-            VALUES (?, ?, ?, ?)
+            INSERT INTO ai_conversation_history (user_id, line_account_id, session_id, role, content) 
+            VALUES (?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$user['id'], $user['line_account_id'], $role, $content]);
+        $stmt->execute([$user['id'], $user['line_account_id'], $sessionId, $role, $content]);
         
         // Clean up old messages (keep last 100 per user)
         $stmt = $db->prepare("
@@ -1396,11 +2045,120 @@ function saveConversationMessage($db, $lineUserId, $role, $content) {
 }
 
 /**
- * Clear conversation history for user
+ * Clear conversation history for specific user only
+ * Requirement 6.3 - Delete conversation history for that user only from database
+ * 
+ * User Isolation:
+ * - Only deletes messages belonging to the specified user
+ * - Other users' histories remain completely unchanged
+ * - Uses user_id derived from line_user_id for strict isolation
  */
 function clearConversationHistory($db, $lineUserId) {
     if (!$lineUserId) {
         return ['success' => false, 'error' => 'No user ID'];
+    }
+    
+    try {
+        // Get user's internal ID - this ensures user isolation (Requirement 6.3)
+        $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ? LIMIT 1");
+        $stmt->execute([$lineUserId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            return ['success' => true, 'message' => 'No history to clear'];
+        }
+        
+        $userId = $user['id'];
+        
+        // Count messages before deletion for verification
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM ai_conversation_history WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $beforeCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+        
+        // Delete all messages for this specific user only (Requirement 6.3)
+        // The WHERE user_id = ? clause ensures only this user's messages are deleted
+        $stmt = $db->prepare("DELETE FROM ai_conversation_history WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $deletedCount = $stmt->rowCount();
+        
+        // Also clear any active triage sessions for this user
+        $stmt = $db->prepare("
+            UPDATE triage_sessions 
+            SET status = 'cancelled', updated_at = NOW() 
+            WHERE user_id = ? AND status = 'active'
+        ");
+        $stmt->execute([$userId]);
+        
+        return [
+            'success' => true, 
+            'message' => 'History cleared',
+            'deleted_count' => $deletedCount,
+            'user_id' => $userId
+        ];
+        
+    } catch (Exception $e) {
+        error_log("clearConversationHistory error: " . $e->getMessage());
+        return ['success' => false, 'error' => $e->getMessage()];
+    }
+}
+
+
+// ============================================================================
+// SESSION MANAGEMENT FUNCTIONS
+// ============================================================================
+
+/**
+ * Get conversation history for context (last N messages) with session_id
+ * Used to provide context to AI for session continuity
+ * Requirement 6.5 - Include last 10 conversation messages as context
+ */
+function getConversationHistoryForContext($db, $lineUserId, $limit = 10) {
+    if (!$lineUserId) {
+        return ['success' => false, 'messages' => []];
+    }
+    
+    try {
+        // Get user's internal ID - ensures user isolation
+        $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ? LIMIT 1");
+        $stmt->execute([$lineUserId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            return ['success' => true, 'messages' => []];
+        }
+        
+        // Ensure session_id column exists
+        ensureConversationHistorySessionColumn($db);
+        
+        // Get recent conversation history (last N messages) with session_id
+        // User isolation: WHERE user_id = ? ensures only this user's messages
+        $stmt = $db->prepare("
+            SELECT role, content, session_id, created_at 
+            FROM ai_conversation_history 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        ");
+        $stmt->execute([$user['id'], $limit]);
+        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Reverse to get chronological order
+        $messages = array_reverse($messages);
+        
+        return ['success' => true, 'messages' => $messages];
+        
+    } catch (Exception $e) {
+        error_log("getConversationHistoryForContext error: " . $e->getMessage());
+        return ['success' => false, 'messages' => []];
+    }
+}
+
+/**
+ * Get or create triage session for session continuity
+ */
+function getOrCreateTriageSession($db, $lineUserId, $sessionId = null, $lineAccountId = null) {
+    if (!$lineUserId) {
+        return null;
     }
     
     try {
@@ -1410,17 +2168,156 @@ function clearConversationHistory($db, $lineUserId) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$user) {
-            return ['success' => true, 'message' => 'No history to clear'];
+            return null;
         }
         
-        // Delete all messages for user
-        $stmt = $db->prepare("DELETE FROM ai_conversation_history WHERE user_id = ?");
-        $stmt->execute([$user['id']]);
+        $userId = $user['id'];
         
-        return ['success' => true, 'message' => 'History cleared'];
+        // Ensure triage_sessions table exists
+        ensureTriageSessionsTable($db);
+        
+        // If session_id provided, try to load it
+        if ($sessionId) {
+            $stmt = $db->prepare("
+                SELECT * FROM triage_sessions 
+                WHERE id = ? AND user_id = ? AND status = 'active'
+                LIMIT 1
+            ");
+            $stmt->execute([$sessionId, $userId]);
+            $session = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($session) {
+                return $session;
+            }
+        }
+        
+        // Try to find existing active session for user
+        $stmt = $db->prepare("
+            SELECT * FROM triage_sessions 
+            WHERE user_id = ? AND status = 'active'
+            ORDER BY updated_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($session) {
+            return $session;
+        }
+        
+        // Create new session
+        $stmt = $db->prepare("
+            INSERT INTO triage_sessions (user_id, line_account_id, current_state, triage_data, status)
+            VALUES (?, ?, 'greeting', '{}', 'active')
+        ");
+        $stmt->execute([$userId, $lineAccountId]);
+        
+        $newSessionId = $db->lastInsertId();
+        
+        // Return the new session
+        $stmt = $db->prepare("SELECT * FROM triage_sessions WHERE id = ?");
+        $stmt->execute([$newSessionId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
         
     } catch (Exception $e) {
-        error_log("clearConversationHistory error: " . $e->getMessage());
-        return ['success' => false, 'error' => $e->getMessage()];
+        error_log("getOrCreateTriageSession error: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Update triage session state
+ */
+function updateTriageSessionState($db, $sessionId, $state, $triageData = null) {
+    if (!$sessionId) {
+        return false;
+    }
+    
+    try {
+        if ($triageData !== null) {
+            $stmt = $db->prepare("
+                UPDATE triage_sessions 
+                SET current_state = ?, triage_data = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$state, json_encode($triageData), $sessionId]);
+        } else {
+            $stmt = $db->prepare("
+                UPDATE triage_sessions 
+                SET current_state = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$state, $sessionId]);
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("updateTriageSessionState error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Ensure triage_sessions table exists
+ */
+function ensureTriageSessionsTable($db) {
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS triage_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                line_account_id INT NULL,
+                current_state VARCHAR(50) DEFAULT 'greeting',
+                triage_data JSON,
+                status ENUM('active', 'completed', 'escalated', 'cancelled') DEFAULT 'active',
+                priority ENUM('normal', 'urgent') DEFAULT 'normal',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP NULL,
+                INDEX idx_user_id (user_id),
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (Exception $e) {
+        // Table might already exist, ignore error
+        error_log("ensureTriageSessionsTable: " . $e->getMessage());
+    }
+}
+
+/**
+ * Save conversation message with session_id
+ */
+function saveConversationMessageWithSession($db, $lineUserId, $role, $content, $sessionId = null) {
+    if (!$lineUserId) return false;
+    
+    try {
+        // Get user's internal ID
+        $stmt = $db->prepare("SELECT id, line_account_id FROM users WHERE line_user_id = ? LIMIT 1");
+        $stmt->execute([$lineUserId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) return false;
+        
+        // Check if table has session_id column, add if not
+        try {
+            $db->query("SELECT session_id FROM ai_conversation_history LIMIT 1");
+        } catch (Exception $e) {
+            // Add session_id column
+            $db->exec("ALTER TABLE ai_conversation_history ADD COLUMN session_id VARCHAR(50) NULL AFTER line_account_id");
+            $db->exec("CREATE INDEX idx_session_id ON ai_conversation_history (session_id)");
+        }
+        
+        // Insert message with session_id
+        $stmt = $db->prepare("
+            INSERT INTO ai_conversation_history (user_id, line_account_id, session_id, role, content) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$user['id'], $user['line_account_id'], $sessionId, $role, $content]);
+        
+        return true;
+        
+    } catch (Exception $e) {
+        error_log("saveConversationMessageWithSession error: " . $e->getMessage());
+        return false;
     }
 }

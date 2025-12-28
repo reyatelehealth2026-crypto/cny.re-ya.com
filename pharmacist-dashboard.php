@@ -60,7 +60,9 @@ try {
         LEFT JOIN triage_sessions ts ON pn.triage_session_id = ts.id
         WHERE pn.status = 'pending' 
         AND (pn.line_account_id = ? OR pn.line_account_id IS NULL)
-        ORDER BY pn.priority DESC, pn.created_at DESC
+        ORDER BY 
+            CASE WHEN pn.priority = 'urgent' THEN 0 ELSE 1 END,
+            pn.created_at DESC
         LIMIT 20
     ");
     $stmt->execute([$currentBotId]);
@@ -199,6 +201,17 @@ require_once __DIR__ . '/includes/header.php';
                         $triageData = json_decode($notif['triage_data'] ?? '{}', true);
                         $notifData = json_decode($notif['notification_data'] ?? '{}', true);
                         $isUrgent = $notif['priority'] === 'urgent';
+                        
+                        // Get symptoms from notification_data or triage_data
+                        $symptoms = $notifData['symptoms'] ?? $triageData['symptoms'] ?? [];
+                        if (is_string($symptoms)) $symptoms = [$symptoms];
+                        
+                        // Get severity from notification_data or triage_data
+                        $severity = $notifData['severity'] ?? $triageData['severity'] ?? null;
+                        $severityLevel = $notifData['severity_level'] ?? null;
+                        
+                        // Get notification type
+                        $notifType = $notif['type'] ?? 'triage_alert';
                     ?>
                     <div class="notification-card p-4 <?= $isUrgent ? 'priority-urgent bg-red-50' : 'priority-normal' ?>" 
                          data-id="<?= $notif['id'] ?>">
@@ -215,20 +228,47 @@ require_once __DIR__ . '/includes/header.php';
                                         🚨 เร่งด่วน
                                     </span>
                                     <?php endif; ?>
+                                    <?php if ($notifType === 'escalation'): ?>
+                                    <span class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                                        👨‍⚕️ ขอปรึกษา
+                                    </span>
+                                    <?php elseif ($notifType === 'emergency_alert'): ?>
+                                    <span class="px-2 py-0.5 bg-red-600 text-white text-xs rounded-full">
+                                        🚨 ฉุกเฉิน
+                                    </span>
+                                    <?php endif; ?>
                                 </div>
                                 
-                                <?php if (!empty($triageData['symptoms'])): ?>
-                                <p class="text-sm text-gray-600 mb-2">
+                                <?php if (!empty($symptoms)): ?>
+                                <p class="text-sm text-gray-600 mb-1">
                                     <i class="fas fa-stethoscope text-blue-500 mr-1"></i>
-                                    อาการ: <?= htmlspecialchars(implode(', ', $triageData['symptoms'])) ?>
+                                    อาการ: <?= htmlspecialchars(is_array($symptoms) ? implode(', ', $symptoms) : $symptoms) ?>
+                                </p>
+                                <?php endif; ?>
+                                
+                                <?php if ($severity !== null): ?>
+                                <p class="text-sm mb-1">
+                                    <i class="fas fa-chart-bar text-orange-500 mr-1"></i>
+                                    ความรุนแรง: 
+                                    <span class="font-medium <?= $severity >= 7 ? 'text-red-600' : ($severity >= 4 ? 'text-yellow-600' : 'text-green-600') ?>">
+                                        <?= $severity ?>/10
+                                    </span>
+                                    <?php if ($severityLevel): ?>
+                                    <span class="text-xs ml-1 px-1.5 py-0.5 rounded <?= $severityLevel === 'critical' ? 'bg-red-100 text-red-700' : ($severityLevel === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600') ?>">
+                                        <?= $severityLevel ?>
+                                    </span>
+                                    <?php endif; ?>
                                 </p>
                                 <?php endif; ?>
                                 
                                 <?php if (!empty($notifData['red_flags'])): ?>
-                                <div class="text-sm text-red-600 mb-2">
-                                    <?php foreach ($notifData['red_flags'] as $flag): ?>
-                                    <p><i class="fas fa-exclamation-triangle mr-1"></i><?= htmlspecialchars($flag['message'] ?? '') ?></p>
+                                <div class="text-sm text-red-600 mb-1">
+                                    <?php foreach (array_slice($notifData['red_flags'], 0, 2) as $flag): ?>
+                                    <p><i class="fas fa-exclamation-triangle mr-1"></i><?= htmlspecialchars(is_array($flag) ? ($flag['message'] ?? '') : $flag) ?></p>
                                     <?php endforeach; ?>
+                                    <?php if (count($notifData['red_flags']) > 2): ?>
+                                    <p class="text-xs text-red-400">+<?= count($notifData['red_flags']) - 2 ?> รายการเพิ่มเติม</p>
+                                    <?php endif; ?>
                                 </div>
                                 <?php endif; ?>
                                 
@@ -513,7 +553,25 @@ function toggleDrug(id, name, price) {
 }
 
 function buildDetailHTML(data) {
+    // Merge triage_data and notification_data for complete information
     const triage = data.triage_data || {};
+    const notifData = data.notification_data || {};
+    
+    // Use notification_data as primary source, fallback to triage_data
+    const symptoms = notifData.symptoms || triage.symptoms || [];
+    const duration = notifData.duration || triage.duration || '';
+    const severity = notifData.severity || triage.severity || null;
+    const severityLevel = notifData.severity_level || '';
+    const associatedSymptoms = notifData.associated_symptoms || triage.associated_symptoms || [];
+    const allergies = notifData.allergies || triage.allergies || [];
+    const medicalHistory = notifData.medical_history || triage.medical_history || [];
+    const currentMedications = notifData.current_medications || triage.current_medications || [];
+    const recommendations = notifData.recommendations || triage.recommendations || [];
+    const interactions = notifData.interactions || triage.interactions || [];
+    const redFlags = notifData.red_flags || triage.red_flags || [];
+    const aiAssessment = notifData.ai_assessment || '';
+    const recommendedAction = notifData.recommended_action || '';
+    
     let html = `
         <div class="space-y-4">
             <div class="flex items-center gap-4 pb-4 border-b">
@@ -521,107 +579,156 @@ function buildDetailHTML(data) {
                 <div>
                     <h4 class="font-bold text-lg">${data.display_name || 'ไม่ระบุชื่อ'}</h4>
                     <p class="text-gray-500">${data.phone || '-'}</p>
+                    ${data.type === 'escalation' ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">ขอปรึกษาเภสัชกร</span>' : ''}
+                    ${data.type === 'emergency_alert' ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">🚨 ฉุกเฉิน</span>' : ''}
                 </div>
             </div>
     `;
     
-    if (triage.symptoms && triage.symptoms.length > 0) {
+    // Red Flags (show first if present)
+    if (redFlags && redFlags.length > 0) {
+        html += `
+            <div class="bg-red-50 p-3 rounded-lg border border-red-200">
+                <h5 class="font-semibold text-red-700 mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>⚠️ Red Flags</h5>
+                <ul class="text-red-600 text-sm space-y-1">
+        `;
+        redFlags.forEach(flag => {
+            const flagMsg = typeof flag === 'object' ? (flag.message || flag.symptom || '') : flag;
+            html += `<li>• ${flagMsg}</li>`;
+        });
+        html += `</ul></div>`;
+    }
+    
+    // Symptoms
+    if (symptoms && (Array.isArray(symptoms) ? symptoms.length > 0 : symptoms)) {
+        const symptomsText = Array.isArray(symptoms) ? symptoms.join(', ') : symptoms;
         html += `
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2"><i class="fas fa-stethoscope text-blue-500 mr-2"></i>อาการ</h5>
-                <p class="text-gray-600">${triage.symptoms.join(', ')}</p>
+                <p class="text-gray-600">${symptomsText}</p>
             </div>
         `;
     }
     
-    if (triage.duration) {
+    // Duration
+    if (duration) {
         html += `
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2"><i class="fas fa-clock text-green-500 mr-2"></i>ระยะเวลา</h5>
-                <p class="text-gray-600">${triage.duration}</p>
+                <p class="text-gray-600">${duration}</p>
             </div>
         `;
     }
     
-    if (triage.severity) {
-        const severityColor = triage.severity >= 7 ? 'red' : (triage.severity >= 4 ? 'yellow' : 'green');
+    // Severity
+    if (severity) {
+        const severityColor = severity >= 7 ? 'red' : (severity >= 4 ? 'yellow' : 'green');
         html += `
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2"><i class="fas fa-chart-bar text-orange-500 mr-2"></i>ความรุนแรง</h5>
                 <div class="flex items-center gap-2">
                     <div class="flex-1 bg-gray-200 rounded-full h-3">
-                        <div class="bg-${severityColor}-500 h-3 rounded-full" style="width: ${triage.severity * 10}%"></div>
+                        <div class="bg-${severityColor}-500 h-3 rounded-full" style="width: ${severity * 10}%"></div>
                     </div>
-                    <span class="font-bold text-${severityColor}-600">${triage.severity}/10</span>
+                    <span class="font-bold text-${severityColor}-600">${severity}/10</span>
+                    ${severityLevel ? `<span class="text-xs px-2 py-0.5 rounded ${severityLevel === 'critical' ? 'bg-red-100 text-red-700' : (severityLevel === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600')}">${severityLevel}</span>` : ''}
                 </div>
             </div>
         `;
     }
     
-    if (triage.associated_symptoms && triage.associated_symptoms.length > 0) {
+    // Associated Symptoms
+    if (associatedSymptoms && (Array.isArray(associatedSymptoms) ? associatedSymptoms.length > 0 : associatedSymptoms)) {
+        const assocText = Array.isArray(associatedSymptoms) ? associatedSymptoms.join(', ') : associatedSymptoms;
         html += `
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2"><i class="fas fa-plus-circle text-purple-500 mr-2"></i>อาการร่วม</h5>
-                <p class="text-gray-600">${triage.associated_symptoms.join(', ')}</p>
+                <p class="text-gray-600">${assocText}</p>
             </div>
         `;
     }
     
-    if (triage.allergies && triage.allergies.length > 0) {
+    // AI Assessment
+    if (aiAssessment) {
+        html += `
+            <div class="bg-purple-50 p-3 rounded-lg">
+                <h5 class="font-semibold text-purple-700 mb-2"><i class="fas fa-robot mr-2"></i>การประเมินของ AI</h5>
+                <p class="text-purple-600">${aiAssessment}</p>
+                ${recommendedAction ? `<p class="text-xs text-purple-500 mt-1">แนะนำ: ${recommendedAction}</p>` : ''}
+            </div>
+        `;
+    }
+    
+    // Allergies
+    if (allergies && (Array.isArray(allergies) ? allergies.length > 0 : allergies)) {
+        const allergiesText = Array.isArray(allergies) ? allergies.join(', ') : allergies;
         html += `
             <div class="bg-red-50 p-3 rounded-lg">
                 <h5 class="font-semibold text-red-700 mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>แพ้ยา</h5>
-                <p class="text-red-600 font-medium">${triage.allergies.join(', ')}</p>
+                <p class="text-red-600 font-medium">${allergiesText}</p>
             </div>
         `;
     }
     
-    if (triage.medical_history && triage.medical_history.length > 0) {
+    // Medical History
+    if (medicalHistory && (Array.isArray(medicalHistory) ? medicalHistory.length > 0 : medicalHistory)) {
+        const historyText = Array.isArray(medicalHistory) ? medicalHistory.join(', ') : medicalHistory;
         html += `
             <div class="bg-yellow-50 p-3 rounded-lg">
                 <h5 class="font-semibold text-yellow-700 mb-2"><i class="fas fa-notes-medical mr-2"></i>โรคประจำตัว</h5>
-                <p class="text-yellow-600">${triage.medical_history.join(', ')}</p>
+                <p class="text-yellow-600">${historyText}</p>
             </div>
         `;
     }
     
-    if (triage.current_medications && triage.current_medications.length > 0) {
+    // Current Medications
+    if (currentMedications && (Array.isArray(currentMedications) ? currentMedications.length > 0 : currentMedications)) {
+        const medsText = Array.isArray(currentMedications) ? currentMedications.join(', ') : currentMedications;
         html += `
             <div class="bg-blue-50 p-3 rounded-lg">
                 <h5 class="font-semibold text-blue-700 mb-2"><i class="fas fa-pills mr-2"></i>ยาที่ทานอยู่</h5>
-                <p class="text-blue-600">${triage.current_medications.join(', ')}</p>
+                <p class="text-blue-600">${medsText}</p>
             </div>
         `;
     }
     
-    if (triage.recommendations && triage.recommendations.length > 0) {
+    // AI Recommendations
+    if (recommendations && recommendations.length > 0) {
         html += `
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2"><i class="fas fa-robot text-purple-500 mr-2"></i>AI แนะนำ</h5>
                 <ul class="space-y-2">
         `;
-        triage.recommendations.forEach(drug => {
+        recommendations.forEach(drug => {
             html += `<li class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                <span>${drug.name}</span>
-                <span class="text-green-600 font-medium">฿${drug.price}</span>
+                <span>${drug.name || drug}</span>
+                ${drug.price ? `<span class="text-green-600 font-medium">฿${drug.price}</span>` : ''}
             </li>`;
         });
         html += `</ul></div>`;
     }
     
-    if (triage.interactions && triage.interactions.length > 0) {
+    // Drug Interactions
+    if (interactions && interactions.length > 0) {
         html += `
             <div class="bg-orange-50 p-3 rounded-lg">
                 <h5 class="font-semibold text-orange-700 mb-2"><i class="fas fa-exclamation-circle mr-2"></i>ข้อควรระวัง</h5>
                 <ul class="text-orange-600 text-sm space-y-1">
         `;
-        triage.interactions.forEach(i => {
-            html += `<li>• ${i.message}</li>`;
+        interactions.forEach(i => {
+            html += `<li>• ${i.message || i}</li>`;
         });
         html += `</ul></div>`;
     }
     
     html += '</div>';
+    
+    // Store merged triage data for drug selection
+    currentTriageData = {
+        symptoms, duration, severity, severityLevel, associatedSymptoms,
+        allergies, medicalHistory, currentMedications, recommendations, interactions
+    };
+    
     return html;
 }
 
