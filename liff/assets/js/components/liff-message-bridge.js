@@ -35,10 +35,17 @@ class LiffMessageBridge {
      * @returns {boolean}
      */
     isLiffSendAvailable() {
-        return typeof liff !== 'undefined' && 
-               liff.isInClient && 
-               liff.isInClient() && 
-               typeof liff.sendMessages === 'function';
+        const liffExists = typeof liff !== 'undefined';
+        const isInClient = liffExists && liff.isInClient && liff.isInClient();
+        const hasSendMessages = liffExists && typeof liff.sendMessages === 'function';
+        
+        console.log('🔍 LIFF availability check:', {
+            liffExists,
+            isInClient,
+            hasSendMessages
+        });
+        
+        return liffExists && isInClient && hasSendMessages;
     }
 
     /**
@@ -111,19 +118,24 @@ class LiffMessageBridge {
      */
     async sendViaLiff(message, action, data) {
         try {
+            console.log('📤 Attempting liff.sendMessages with:', message);
+            
             await liff.sendMessages([{
                 type: 'text',
                 text: message
             }]);
             
-            console.log('✅ LIFF message sent:', message);
+            console.log('✅ LIFF message sent successfully:', message);
+            console.log('✅ Bot should receive this and reply with Flex Message');
             return { success: true, method: 'liff' };
             
         } catch (error) {
-            console.error('LIFF sendMessages failed:', error);
+            console.error('❌ LIFF sendMessages failed:', error);
+            console.error('❌ Error code:', error.code);
+            console.error('❌ Error message:', error.message);
             
             // Fallback to API on LIFF error
-            console.log('Falling back to API...');
+            console.log('🔄 Falling back to API...');
             return await this.sendViaApi(action, data, message);
         }
     }
@@ -259,10 +271,17 @@ class LiffMessageBridge {
      * @param {object} orderData - Additional order data
      */
     async sendOrderPlaced(orderId, orderData = {}) {
-        return this.sendActionMessage('order_placed', {
+        console.log('📦 sendOrderPlaced called:', orderId, orderData);
+        console.log('📦 isInClient:', typeof liff !== 'undefined' && liff.isInClient ? liff.isInClient() : 'N/A');
+        console.log('📦 liff.sendMessages available:', typeof liff !== 'undefined' && typeof liff.sendMessages === 'function');
+        
+        const result = await this.sendActionMessage('order_placed', {
             orderId,
             ...orderData
         });
+        
+        console.log('📦 sendOrderPlaced result:', result);
+        return result;
     }
 
     /**

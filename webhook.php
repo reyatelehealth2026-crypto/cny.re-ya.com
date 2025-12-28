@@ -1008,6 +1008,13 @@
                 $liffHandler = new LiffMessageHandler($db, $line, $lineAccountId);
                 $liffAction = $liffHandler->detectLiffAction($messageText);
                 
+                // Log all incoming messages for debugging
+                devLog($db, 'debug', 'webhook', 'Checking for LIFF action', [
+                    'message' => mb_substr($messageText, 0, 100),
+                    'detected_action' => $liffAction,
+                    'user_id' => $userId
+                ], $userId);
+                
                 if ($liffAction) {
                     devLog($db, 'info', 'webhook', 'LIFF action detected', [
                         'action' => $liffAction,
@@ -1018,6 +1025,11 @@
                     $liffReply = $liffHandler->processMessage($messageText, $user['id'], $userId);
                     
                     if ($liffReply) {
+                        devLog($db, 'info', 'webhook', 'Sending LIFF reply', [
+                            'action' => $liffAction,
+                            'reply_type' => $liffReply['type'] ?? 'unknown'
+                        ], $userId);
+                        
                         $line->replyMessage($replyToken, [$liffReply]);
                         saveOutgoingMessage($db, $user['id'], json_encode($liffReply), 'liff', 'flex');
                         return; // LIFF message handled

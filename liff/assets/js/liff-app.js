@@ -3269,19 +3269,27 @@ class LiffApp {
 
                 // Send LIFF message via LiffMessageBridge (with API fallback)
                 console.log('🛒 Checking liffMessageBridge:', !!window.liffMessageBridge);
+                console.log('🛒 isInClient:', typeof liff !== 'undefined' && liff.isInClient ? liff.isInClient() : 'N/A');
+                
                 if (window.liffMessageBridge) {
                     try {
-                        console.log('🛒 Calling sendOrderPlaced...');
-                        await window.liffMessageBridge.sendOrderPlaced(result.order_number, {
+                        console.log('🛒 Calling sendOrderPlaced with order:', result.order_number);
+                        const msgResult = await window.liffMessageBridge.sendOrderPlaced(result.order_number, {
                             total: cart.total,
                             items: cart.items.length
                         });
-                        console.log('🛒 sendOrderPlaced completed');
+                        console.log('🛒 sendOrderPlaced result:', msgResult);
+                        
+                        if (msgResult.success) {
+                            console.log('🛒 ✅ Order notification sent via:', msgResult.method);
+                        } else {
+                            console.warn('🛒 ⚠️ Order notification failed:', msgResult.error);
+                        }
                     } catch (e) {
-                        console.warn('Failed to send order message:', e);
+                        console.warn('🛒 ❌ Failed to send order message:', e);
                     }
                 } else {
-                    console.warn('🛒 liffMessageBridge not available');
+                    console.warn('🛒 ⚠️ liffMessageBridge not available');
                 }
 
                 // Show success and navigate to order confirmation
