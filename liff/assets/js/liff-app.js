@@ -6403,7 +6403,6 @@ class LiffApp {
                     <button class="back-btn" onclick="window.router.back()">
                         <i class="fas fa-arrow-left"></i>
                     </button>
-                    <h1 class="page-title">ข้อมูลสุขภาพ</h1>
                     <div class="header-spacer"></div>
                 </div>
                 <div id="health-profile-container" class="page-content">
@@ -7348,6 +7347,7 @@ class LiffApp {
 
                     <!-- Health Info -->
                     <div class="form-section">
+                        <h3 class="form-section-title">ข้อมูลสุขภาพ (ถ้ามี)</h3>
                         
                         <div class="form-row">
                             <div class="form-group">
