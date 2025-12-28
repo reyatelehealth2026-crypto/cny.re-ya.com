@@ -100,34 +100,7 @@ class PharmacyAIAdapter
             return ['success' => false, 'error' => 'AI is not enabled'];
         }
         
-        $messageLower = mb_strtolower(trim($message));
-        
-        // ===== คำสั่งเข้าโหมด Triage (ซักประวัติ) =====
-        $triageCommands = [
-            'ซักประวัติ', 'เริ่มซักประวัติ', 'ประเมินอาการ', 'เริ่มประเมิน',
-            'triage', 'start triage', 'assessment',
-            'ปรึกษาอาการ', 'มีอาการ', 'ไม่สบาย'
-        ];
-        
-        $useTriage = false;
-        foreach ($triageCommands as $cmd) {
-            if (mb_strpos($messageLower, $cmd) !== false) {
-                $useTriage = true;
-                break;
-            }
-        }
-        
-        // ถ้าเข้าโหมด Triage
-        if ($useTriage && $this->userId) {
-            return $this->processWithTriage($message);
-        }
-        
-        // ตรวจสอบว่ามี active triage session หรือไม่
-        if ($this->userId && $this->hasActiveTriageSession()) {
-            return $this->processWithTriage($message);
-        }
-        
-        // ===== โหมด AI Chat ปกติ =====
+        // ===== ใช้ Gemini AI สำหรับทุกข้อความ (มี conversation history) =====
         $redFlags = $this->redFlagDetector->detect($message);
         
         if ($this->redFlagDetector->isCritical($redFlags)) {
@@ -292,7 +265,10 @@ class PharmacyAIAdapter
    - ราคา
 5. ถ้าอาการรุนแรง แนะนำพบแพทย์
 6. ใช้ emoji บ้างให้ดูเป็นมิตร 😊💊🩺
-7. ถ้าลูกค้าแพ้ยาใด ห้ามแนะนำยานั้นเด็ดขาด
+7. ถ้าลูกค้าแพ้ยาใด ห้ามแนะนำยานี้เด็ดขาด
+8. **สำคัญมาก**: จำบริบทการสนทนาก่อนหน้า ถ้าลูกค้าตอบคำถามที่คุณถามไป ให้ตอบต่อเนื่องจากบริบทนั้น ห้ามทักทายใหม่หรือถามซ้ำ
+9. ถ้าลูกค้าบอกอาการ ให้ถามข้อมูลเพิ่มเติมทีละข้อ เช่น ระยะเวลา ความรุนแรง อาการร่วม แล้วค่อยแนะนำยา
+10. ห้ามพูดว่า "สวัสดีค่ะ" หรือทักทายใหม่ ถ้าเป็นการสนทนาต่อเนื่อง
 
 ## ตัวอย่างการตอบ:
 ถาม: "ปวดหัวมาก"
