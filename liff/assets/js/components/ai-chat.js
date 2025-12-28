@@ -1322,12 +1322,19 @@ class AIChat {
                         ${hasDiscount ? `<span class="ai-chat-product-original-price">฿${this.formatPrice(product.price)}</span>` : ''}
                     </div>
                 </div>
-                <button class="ai-chat-product-add-btn" 
-                        onclick="window.aiChat?.addProductToCart(${product.id}, '${this.escapeHtml(product.name)}', ${isRx})"
-                        ${isRx ? 'data-rx="true"' : ''}>
-                    <i class="fas fa-cart-plus"></i>
-                    ${isRx ? 'ปรึกษาก่อนซื้อ' : 'เพิ่มลงตะกร้า'}
-                </button>
+                <div class="ai-chat-product-actions">
+                    <button class="ai-chat-product-detail-btn" 
+                            onclick="window.router?.navigate('/product/${product.id}')">
+                        <i class="fas fa-info-circle"></i>
+                        ดูรายละเอียด
+                    </button>
+                    <button class="ai-chat-product-add-btn" 
+                            onclick="window.aiChat?.addProductToCart(${product.id}, '${this.escapeHtml(product.name)}', ${isRx})"
+                            ${isRx ? 'data-rx="true"' : ''}>
+                        <i class="fas fa-cart-plus"></i>
+                        ${isRx ? 'ปรึกษาก่อนซื้อ' : 'เพิ่มลงตะกร้า'}
+                    </button>
+                </div>
             </div>
         `;
     }

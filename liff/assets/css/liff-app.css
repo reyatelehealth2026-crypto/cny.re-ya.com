@@ -9801,15 +9801,52 @@ img[loading="lazy"] {
     color: var(--primary);
 }
 
-.ai-chat-product-add-btn {
+/* AI Chat Product Actions Container */
+.ai-chat-product-actions {
+    display: flex;
+    gap: var(--space-2);
     width: 100%;
+}
+
+.ai-chat-product-detail-btn {
+    flex: 1;
+    padding: var(--space-2);
+    background: var(--bg-gray);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all var(--transition-fast);
+}
+
+.ai-chat-product-detail-btn:active {
+    background: var(--border);
+}
+
+.ai-chat-product-detail-btn i {
+    font-size: 12px;
+}
+
+.ai-chat-product-add-btn {
+    flex: 1;
     padding: var(--space-2);
     background: var(--primary);
     border: none;
+    border-radius: var(--radius-md);
     color: white;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
     min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 
 .ai-chat-product-add-btn:active {
