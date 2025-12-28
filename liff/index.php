@@ -226,6 +226,17 @@ $currentPage = $pages[$page] ?? $pages['home'];
             LIFF_TO_ACCOUNT: <?= json_encode($liffToAccountMap) ?>
         };
         console.log('APP_CONFIG loaded:', window.APP_CONFIG);
+        
+        // Define debugLog function for script loading debug
+        window.debugLog = function(msg, type) {
+            if (type === 'error') {
+                console.error('🔴', msg);
+            } else if (type === 'success') {
+                console.log('🟢', msg);
+            } else {
+                console.log('🔵', msg);
+            }
+        };
     </script>
 
     <!-- App Scripts -->
