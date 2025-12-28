@@ -123,18 +123,12 @@ try {
     // Check for emergency symptoms first (enhanced detection)
     $emergencyCheck = checkEmergencySymptoms($message, $userContext);
     
-    // Check if triage mode should be activated
-    $shouldUseTriage = $useTriage || shouldActivateTriage($message, $state);
-    
-    // Process message based on mode
-    if ($shouldUseTriage && $aiChatModulesLoaded) {
-        // Use TriageEngine for step-by-step assessment
-        $result = processTriageMessage($db, $message, $internalUserId, $triageData);
-    } elseif ($useGemini && $aiChatModulesLoaded) {
-        // Use Gemini AI with function calling
+    // Always use Gemini AI for conversation history support
+    if ($aiChatModulesLoaded) {
+        // Use Gemini AI with function calling and conversation history
         $result = processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
     } else {
-        // Use enhanced rule-based processing
+        // Fallback to rule-based processing if AI modules not loaded
         $result = processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
     }
     
@@ -952,23 +946,29 @@ function processWithGeminiAI($db, $message, $state, $triageData, $lineAccountId,
     global $aiChatModulesLoaded;
     
     if (!$aiChatModulesLoaded) {
-        // Fallback to rule-based processing
+        error_log("processWithGeminiAI: AI modules not loaded, falling back to rule-based");
         return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
     }
     
     try {
         $adapter = new \Modules\AIChat\Adapters\PharmacyAIAdapter($db, $lineAccountId);
         
-        if ($userContext['id'] ?? null) {
-            $adapter->setUserId($userContext['id']);
+        $internalUserId = $userContext['id'] ?? null;
+        if ($internalUserId) {
+            $adapter->setUserId($internalUserId);
+            error_log("processWithGeminiAI: Set userId to {$internalUserId}");
+        } else {
+            error_log("processWithGeminiAI: No internal userId found");
         }
         
         if (!$adapter->isEnabled()) {
-            // Fallback if Gemini not configured
+            error_log("processWithGeminiAI: Gemini not enabled (no API key?), falling back to rule-based");
             return processPharmacyMessage($db, $message, $state, $triageData, $lineAccountId, $userContext, $businessContext);
         }
         
+        error_log("processWithGeminiAI: Calling Gemini AI with message: " . substr($message, 0, 50));
         $result = $adapter->processMessage($message);
+        error_log("processWithGeminiAI: Got response: " . substr($result['response'] ?? 'no response', 0, 100));
         
         return [
             'response' => $result['response'] ?? 'ขออภัยค่ะ ไม่สามารถประมวลผลได้',
