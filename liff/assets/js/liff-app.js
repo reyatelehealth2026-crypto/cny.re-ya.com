@@ -6398,13 +6398,7 @@ class LiffApp {
      */
     renderHealthProfilePage() {
         return `
-            <div class="page-with-header">
-                <div class="page-header">
-                    <button class="back-btn" onclick="window.router.back()">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <div class="header-spacer"></div>
-                </div>
+            <div class="page-no-header">
                 <div id="health-profile-container" class="page-content">
                     <!-- Health profile content will be loaded here -->
                 </div>
