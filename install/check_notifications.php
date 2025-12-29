@@ -16,6 +16,29 @@ try {
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     echo "<p>Total sessions: <strong>{$result['total']}</strong></p>";
     
+    // Check date range
+    $stmt = $db->query("SELECT MIN(created_at) as min_date, MAX(created_at) as max_date FROM triage_sessions");
+    $dateRange = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo "<p>Date range: {$dateRange['min_date']} to {$dateRange['max_date']}</p>";
+    
+    // Test the exact query from triage-analytics
+    $startDate = date('Y-m-d', strtotime('-30 days'));
+    $endDate = date('Y-m-d');
+    echo "<p>Query date range: {$startDate} to {$endDate}</p>";
+    
+    $stmt = $db->prepare("
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+            SUM(CASE WHEN status IS NULL THEN 1 ELSE 0 END) as null_status
+        FROM triage_sessions 
+        WHERE DATE(created_at) BETWEEN ? AND ?
+    ");
+    $stmt->execute([$startDate, $endDate]);
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo "<p>Query result: total={$stats['total']}, completed={$stats['completed']}, active={$stats['active']}, null_status={$stats['null_status']}</p>";
+    
     $stmt = $db->query("SELECT id, user_id, line_account_id, current_state, status, created_at FROM triage_sessions ORDER BY created_at DESC LIMIT 5");
     $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo "<pre>" . print_r($sessions, true) . "</pre>";
@@ -30,19 +53,23 @@ try {
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     echo "<p>Pending notifications: <strong>{$result['pending']}</strong></p>";
     
-    $stmt = $db->query("SELECT id, user_id, triage_session_id, type, title, priority, status, created_at FROM pharmacist_notifications ORDER BY created_at DESC LIMIT 5");
+    // Test exact query from pharmacist-dashboard
+    echo "<h3>Test Pharmacist Dashboard Query</h3>";
+    $stmt = $db->query("
+        SELECT pn.*, u.display_name, u.picture_url, u.phone,
+               ts.current_state, ts.triage_data
+        FROM pharmacist_notifications pn
+        LEFT JOIN users u ON pn.user_id = u.id
+        LEFT JOIN triage_sessions ts ON pn.triage_session_id = ts.id
+        WHERE pn.status = 'pending'
+        ORDER BY 
+            CASE WHEN pn.priority = 'urgent' THEN 0 ELSE 1 END,
+            pn.created_at DESC
+        LIMIT 5
+    ");
     $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo "<p>Found " . count($notifications) . " notifications</p>";
     echo "<pre>" . print_r($notifications, true) . "</pre>";
-    
-    // Check table structure
-    echo "<h3>Table Structure - pharmacist_notifications</h3>";
-    $stmt = $db->query("DESCRIBE pharmacist_notifications");
-    $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo "<table border='1' cellpadding='5'><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th></tr>";
-    foreach ($columns as $col) {
-        echo "<tr><td>{$col['Field']}</td><td>{$col['Type']}</td><td>{$col['Null']}</td><td>{$col['Key']}</td><td>{$col['Default']}</td></tr>";
-    }
-    echo "</table>";
     
 } catch (Exception $e) {
     echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
