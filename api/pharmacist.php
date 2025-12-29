@@ -322,12 +322,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
             
         case 'get_drugs':
-            // Get ALL items from business_items - no limit, no line_account_id filter
+            // Get ALL items from business_items - no limit, no is_active filter for pharmacist
             try {
                 $stmt = $db->query("
                     SELECT id, name, price, generic_name, description, usage_instructions, sku
                     FROM business_items 
-                    WHERE is_active = 1 
                     ORDER BY name
                 ");
                 $drugs = $stmt->fetchAll(PDO::FETCH_ASSOC);
