@@ -11,6 +11,17 @@ $db = Database::getInstance()->getConnection();
 $pageTitle = 'Triage Analytics';
 $currentBotId = $_SESSION['current_bot_id'] ?? null;
 
+// Debug: Check all sessions in database
+$debugInfo = [];
+try {
+    $stmt = $db->query("SELECT id, user_id, line_account_id, current_state, status, created_at FROM triage_sessions ORDER BY created_at DESC LIMIT 10");
+    $debugInfo['all_sessions'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $debugInfo['current_bot_id'] = $currentBotId;
+} catch (Exception $e) {
+    $debugInfo['error'] = $e->getMessage();
+}
+error_log("Triage Analytics Debug: " . json_encode($debugInfo));
+
 // Date range
 $startDate = $_GET['start'] ?? date('Y-m-01');
 $endDate = $_GET['end'] ?? date('Y-m-d');
