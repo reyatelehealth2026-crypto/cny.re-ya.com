@@ -449,135 +449,274 @@ class PharmacistNotifier
     }
     
     /**
-     * สร้าง Flex Message อนุมัติยา - พร้อมรายละเอียดครบถ้วน
+     * สร้าง Flex Message อนุมัติยา - รูปแบบทางการเหมือนซองยา
      */
     private function buildApprovalFlex(array $triageData, array $approvedDrugs, ?string $pharmacistName = null, ?string $pharmacistLicense = null, ?string $note = null): array
     {
         $drugContents = [];
+        $nonDrugContents = [];
         $total = 0;
         
         foreach ($approvedDrugs as $drug) {
-            $price = $drug['price'] ?? 0;
-            $total += $price;
+            $price = (float)($drug['price'] ?? 0);
+            $quantity = (int)($drug['quantity'] ?? 1);
+            $itemTotal = $price * $quantity;
+            $total += $itemTotal;
+            $isNonDrug = !empty($drug['isNonDrug']);
             
-            // Drug name and price
-            $drugContents[] = [
-                'type' => 'box',
-                'layout' => 'horizontal',
-                'margin' => 'md',
-                'contents' => [
-                    [
-                        'type' => 'text',
-                        'text' => '💊 ' . ($drug['name'] ?? 'ยา'),
-                        'size' => 'sm',
-                        'weight' => 'bold',
-                        'flex' => 3,
-                        'wrap' => true
-                    ],
-                    [
-                        'type' => 'text',
-                        'text' => "฿{$price}",
-                        'size' => 'sm',
-                        'align' => 'end',
-                        'flex' => 1
-                    ]
-                ]
-            ];
-            
-            // Drug details
-            $details = [];
-            
-            if (!empty($drug['indication'])) {
-                $details[] = "📋 {$drug['indication']}";
-            }
-            
-            $dosageInfo = '';
-            if (!empty($drug['dosage'])) {
-                $dosageInfo = "ทาน {$drug['dosage']} เม็ด";
-            }
-            if (!empty($drug['timing'])) {
-                $dosageInfo .= " ({$drug['timing']})";
-            }
-            if ($dosageInfo) {
-                $details[] = "⏰ {$dosageInfo}";
-            }
-            
-            if (!empty($drug['instructions'])) {
-                $details[] = "📝 {$drug['instructions']}";
-            }
-            
-            if (!empty($drug['warning'])) {
-                $details[] = "⚠️ {$drug['warning']}";
-            }
-            
-            if (!empty($details)) {
-                $drugContents[] = [
+            if ($isNonDrug) {
+                // Non-drug item
+                $nonDrugContents[] = [
                     'type' => 'box',
-                    'layout' => 'vertical',
-                    'margin' => 'sm',
-                    'paddingStart' => '20px',
-                    'contents' => array_map(function($detail) {
-                        return [
-                            'type' => 'text',
-                            'text' => $detail,
-                            'size' => 'xs',
-                            'color' => '#666666',
-                            'wrap' => true
-                        ];
-                    }, $details)
-                ];
-            }
-        }
-        
-        // Pharmacist info section
-        $pharmacistSection = [];
-        if ($pharmacistName || $pharmacistLicense) {
-            $pharmacistSection = [
-                [
-                    'type' => 'separator',
-                    'margin' => 'lg'
-                ],
-                [
-                    'type' => 'box',
-                    'layout' => 'vertical',
+                    'layout' => 'horizontal',
                     'margin' => 'md',
                     'contents' => [
                         [
                             'type' => 'text',
-                            'text' => '👨‍⚕️ ออกโดย: ' . ($pharmacistName ?: '-'),
-                            'size' => 'xs',
-                            'color' => '#666666'
+                            'text' => ($drug['name'] ?? 'สินค้า') . ($quantity > 1 ? " x{$quantity}" : ''),
+                            'size' => 'sm',
+                            'flex' => 3,
+                            'wrap' => true
                         ],
                         [
                             'type' => 'text',
-                            'text' => '📜 ใบอนุญาตเลขที่: ' . ($pharmacistLicense ?: '-'),
-                            'size' => 'xs',
-                            'color' => '#666666'
+                            'text' => number_format($itemTotal, 2),
+                            'size' => 'sm',
+                            'align' => 'end',
+                            'flex' => 1
                         ]
+                    ]
+                ];
+                
+                // Non-drug details
+                $details = [];
+                if (!empty($drug['indication'])) {
+                    $details[] = $drug['indication'];
+                }
+                if (!empty($drug['warning'])) {
+                    $details[] = "หมายเหตุ: {$drug['warning']}";
+                }
+                
+                if (!empty($details)) {
+                    $nonDrugContents[] = [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'margin' => 'sm',
+                        'paddingStart' => '12px',
+                        'contents' => array_map(function($detail) {
+                            return [
+                                'type' => 'text',
+                                'text' => $detail,
+                                'size' => 'xs',
+                                'color' => '#666666',
+                                'wrap' => true
+                            ];
+                        }, $details)
+                    ];
+                }
+            } else {
+                // Drug item - formal style like medicine label
+                $drugName = $drug['name'] ?? 'ยา';
+                $genericName = $drug['genericName'] ?? '';
+                
+                $drugContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'margin' => 'md',
+                    'contents' => [
+                        [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'flex' => 3,
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => $drugName . ($quantity > 1 ? " x{$quantity}" : ''),
+                                    'size' => 'sm',
+                                    'weight' => 'bold',
+                                    'wrap' => true
+                                ],
+                                $genericName ? [
+                                    'type' => 'text',
+                                    'text' => $genericName,
+                                    'size' => 'xs',
+                                    'color' => '#0891b2',
+                                    'wrap' => true
+                                ] : ['type' => 'filler']
+                            ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => number_format($itemTotal, 2),
+                            'size' => 'sm',
+                            'align' => 'end',
+                            'flex' => 1
+                        ]
+                    ]
+                ];
+                
+                // Drug details - formal style
+                $details = [];
+                
+                if (!empty($drug['indication'])) {
+                    $details[] = ['label' => 'ข้อบ่งใช้', 'value' => $drug['indication']];
+                }
+                
+                $dosageInfo = '';
+                if (!empty($drug['dosage'])) {
+                    $unit = $drug['unit'] ?? 'เม็ด';
+                    $dosageInfo = "รับประทานครั้งละ {$drug['dosage']} {$unit}";
+                }
+                if (!empty($drug['timing'])) {
+                    $dosageInfo .= " ({$drug['timing']})";
+                }
+                if ($dosageInfo) {
+                    $details[] = ['label' => 'วิธีใช้', 'value' => $dosageInfo];
+                }
+                
+                if (!empty($drug['instructions'])) {
+                    $details[] = ['label' => 'คำแนะนำ', 'value' => $drug['instructions']];
+                }
+                
+                if (!empty($drug['warning'])) {
+                    $details[] = ['label' => 'คำเตือน', 'value' => $drug['warning']];
+                }
+                
+                if (!empty($details)) {
+                    $drugContents[] = [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'margin' => 'sm',
+                        'paddingStart' => '12px',
+                        'backgroundColor' => '#f8fafc',
+                        'cornerRadius' => '4px',
+                        'paddingAll' => '8px',
+                        'contents' => array_map(function($detail) {
+                            return [
+                                'type' => 'text',
+                                'text' => $detail['label'] . ': ' . $detail['value'],
+                                'size' => 'xs',
+                                'color' => '#374151',
+                                'wrap' => true
+                            ];
+                        }, $details)
+                    ];
+                }
+            }
+        }
+        
+        // Build body contents
+        $bodyContents = [];
+        
+        // Drug section
+        if (!empty($drugContents)) {
+            $bodyContents[] = [
+                'type' => 'text',
+                'text' => 'รายการยา',
+                'weight' => 'bold',
+                'size' => 'md',
+                'color' => '#059669'
+            ];
+            $bodyContents[] = [
+                'type' => 'separator',
+                'margin' => 'sm'
+            ];
+            $bodyContents = array_merge($bodyContents, $drugContents);
+        }
+        
+        // Non-drug section
+        if (!empty($nonDrugContents)) {
+            if (!empty($drugContents)) {
+                $bodyContents[] = [
+                    'type' => 'separator',
+                    'margin' => 'lg'
+                ];
+            }
+            $bodyContents[] = [
+                'type' => 'text',
+                'text' => 'สินค้าอื่นๆ (ไม่ใช่ยา)',
+                'weight' => 'bold',
+                'size' => 'md',
+                'color' => '#d97706',
+                'margin' => 'md'
+            ];
+            $bodyContents[] = [
+                'type' => 'separator',
+                'margin' => 'sm'
+            ];
+            $bodyContents = array_merge($bodyContents, $nonDrugContents);
+        }
+        
+        // Total section
+        $bodyContents[] = [
+            'type' => 'separator',
+            'margin' => 'lg'
+        ];
+        $bodyContents[] = [
+            'type' => 'box',
+            'layout' => 'horizontal',
+            'margin' => 'md',
+            'contents' => [
+                [
+                    'type' => 'text',
+                    'text' => 'รวม',
+                    'weight' => 'bold',
+                    'flex' => 3
+                ],
+                [
+                    'type' => 'text',
+                    'text' => number_format($total, 2),
+                    'weight' => 'bold',
+                    'color' => '#059669',
+                    'align' => 'end',
+                    'flex' => 1
+                ]
+            ]
+        ];
+        
+        // Pharmacist info section
+        if ($pharmacistName || $pharmacistLicense) {
+            $bodyContents[] = [
+                'type' => 'separator',
+                'margin' => 'lg'
+            ];
+            $bodyContents[] = [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'margin' => 'md',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'ออกโดย: ' . ($pharmacistName ?: '-'),
+                        'size' => 'xs',
+                        'color' => '#666666'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => 'ใบอนุญาตเลขที่: ' . ($pharmacistLicense ?: '-'),
+                        'size' => 'xs',
+                        'color' => '#666666'
                     ]
                 ]
             ];
         }
         
         // Note section
-        $noteSection = [];
         if ($note) {
-            $noteSection = [
-                [
-                    'type' => 'box',
-                    'layout' => 'vertical',
-                    'margin' => 'md',
-                    'backgroundColor' => '#FEF3C7',
-                    'cornerRadius' => '8px',
-                    'paddingAll' => '10px',
-                    'contents' => [
-                        [
-                            'type' => 'text',
-                            'text' => '📌 ' . $note,
-                            'size' => 'xs',
-                            'color' => '#92400E',
-                            'wrap' => true
-                        ]
+            $bodyContents[] = [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'margin' => 'md',
+                'backgroundColor' => '#FEF3C7',
+                'cornerRadius' => '4px',
+                'paddingAll' => '10px',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'หมายเหตุ: ' . $note,
+                        'size' => 'xs',
+                        'color' => '#92400E',
+                        'wrap' => true
                     ]
                 ]
             ];
@@ -585,7 +724,7 @@ class PharmacistNotifier
         
         return [
             'type' => 'flex',
-            'altText' => '✅ เภสัชกรอนุมัติยาแล้ว',
+            'altText' => 'เภสัชกรอนุมัติยาแล้ว',
             'contents' => [
                 'type' => 'bubble',
                 'size' => 'mega',
@@ -595,7 +734,7 @@ class PharmacistNotifier
                     'contents' => [
                         [
                             'type' => 'text',
-                            'text' => '✅ เภสัชกรอนุมัติยาแล้ว',
+                            'text' => 'เภสัชกรอนุมัติยาแล้ว',
                             'color' => '#FFFFFF',
                             'weight' => 'bold',
                             'size' => 'lg'
@@ -607,50 +746,7 @@ class PharmacistNotifier
                 'body' => [
                     'type' => 'box',
                     'layout' => 'vertical',
-                    'contents' => array_merge(
-                        [
-                            [
-                                'type' => 'text',
-                                'text' => '💊 ยาที่แนะนำ',
-                                'weight' => 'bold',
-                                'size' => 'md'
-                            ],
-                            [
-                                'type' => 'separator',
-                                'margin' => 'md'
-                            ]
-                        ],
-                        $drugContents,
-                        [
-                            [
-                                'type' => 'separator',
-                                'margin' => 'lg'
-                            ],
-                            [
-                                'type' => 'box',
-                                'layout' => 'horizontal',
-                                'margin' => 'md',
-                                'contents' => [
-                                    [
-                                        'type' => 'text',
-                                        'text' => 'รวม',
-                                        'weight' => 'bold',
-                                        'flex' => 3
-                                    ],
-                                    [
-                                        'type' => 'text',
-                                        'text' => "฿{$total}",
-                                        'weight' => 'bold',
-                                        'color' => '#059669',
-                                        'align' => 'end',
-                                        'flex' => 1
-                                    ]
-                                ]
-                            ]
-                        ],
-                        $pharmacistSection,
-                        $noteSection
-                    ),
+                    'contents' => $bodyContents,
                     'paddingAll' => '20px'
                 ],
                 'footer' => [
@@ -661,8 +757,8 @@ class PharmacistNotifier
                             'type' => 'button',
                             'action' => [
                                 'type' => 'uri',
-                                'label' => '🛒 สั่งซื้อเลย',
-                                'uri' => $this->getCheckoutUrl()
+                                'label' => 'ดูตะกร้าสินค้า',
+                                'uri' => $this->getCheckoutUrl() . '#/cart'
                             ],
                             'style' => 'primary',
                             'color' => '#059669'
@@ -671,7 +767,7 @@ class PharmacistNotifier
                             'type' => 'button',
                             'action' => [
                                 'type' => 'message',
-                                'label' => '💬 สอบถามเพิ่มเติม',
+                                'label' => 'สอบถามเพิ่มเติม',
                                 'text' => 'สอบถามเพิ่มเติม'
                             ],
                             'style' => 'secondary',
