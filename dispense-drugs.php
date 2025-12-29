@@ -279,10 +279,11 @@ document.getElementById('drugSearch').addEventListener('input', function(e) {
     searchTimeout = setTimeout(() => {
         console.log('Searching for:', query, 'in', allDrugs.length, 'drugs');
         const results = allDrugs.filter(drug => {
-            const nameMatch = drug.name && drug.name.toLowerCase().includes(query);
-            const genericMatch = drug.generic_name && drug.generic_name.toLowerCase().includes(query);
-            const skuMatch = drug.sku && drug.sku.toLowerCase().includes(query);
-            return nameMatch || genericMatch || skuMatch;
+            // Trim whitespace from drug names before comparing
+            const name = (drug.name || '').trim().toLowerCase();
+            const genericName = (drug.generic_name || '').trim().toLowerCase();
+            const sku = (drug.sku || '').trim().toLowerCase();
+            return name.includes(query) || genericName.includes(query) || sku.includes(query);
         }).slice(0, 15);
         
         console.log('Found', results.length, 'results');
@@ -299,14 +300,18 @@ function showSearchResults(drugs) {
         return;
     }
     
-    container.innerHTML = drugs.map(drug => `
-        <div class="drug-item" onclick="selectDrug(${drug.id}, '${escapeHtml(drug.name)}', ${drug.price || 0})">
-            <div class="font-medium">${drug.name}</div>
+    container.innerHTML = drugs.map(drug => {
+        const name = (drug.name || '').trim();
+        const genericName = (drug.generic_name || '').trim();
+        return `
+        <div class="drug-item" onclick="selectDrug(${drug.id}, '${escapeHtml(name)}', ${drug.price || 0})">
+            <div class="font-medium">${name}</div>
             <div class="text-sm text-gray-500">
-                ${drug.generic_name ? drug.generic_name + ' • ' : ''}฿${drug.price || 0}
+                ${genericName ? genericName + ' • ' : ''}฿${drug.price || 0}
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.classList.add('show');
 }
