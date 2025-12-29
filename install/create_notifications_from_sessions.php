@@ -17,9 +17,14 @@ try {
     // Add missing columns if they don't exist
     $alterQueries = [
         "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'triage_alert'",
+        "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255)",
+        "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS message TEXT",
         "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS notification_data JSON",
         "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS triage_session_id INT NULL",
         "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS priority ENUM('normal', 'urgent') DEFAULT 'normal'",
+        "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS status ENUM('pending', 'handled', 'dismissed') DEFAULT 'pending'",
+        "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS user_id INT NULL",
+        "ALTER TABLE pharmacist_notifications ADD COLUMN IF NOT EXISTS line_account_id INT NULL",
     ];
     
     foreach ($alterQueries as $query) {
