@@ -17,13 +17,15 @@ try {
     $stmt = $db->query("SELECT id, user_id, line_account_id, current_state, status, created_at FROM triage_sessions ORDER BY created_at DESC LIMIT 10");
     $debugInfo['all_sessions'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $debugInfo['current_bot_id'] = $currentBotId;
+    $debugInfo['start_date'] = $startDate ?? 'not set';
+    $debugInfo['end_date'] = $endDate ?? 'not set';
 } catch (Exception $e) {
     $debugInfo['error'] = $e->getMessage();
 }
 error_log("Triage Analytics Debug: " . json_encode($debugInfo));
 
-// Date range
-$startDate = $_GET['start'] ?? date('Y-m-01');
+// Date range - default to last 30 days
+$startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
 $endDate = $_GET['end'] ?? date('Y-m-d');
 
 // Get statistics
@@ -41,7 +43,7 @@ $dailyStats = [];
 $completionRate = 0;
 
 try {
-    // Total sessions
+    // Total sessions - temporarily remove line_account_id filter for debugging
     $stmt = $db->prepare("
         SELECT 
             COUNT(*) as total,
@@ -51,9 +53,8 @@ try {
             SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) as urgent
         FROM triage_sessions 
         WHERE DATE(created_at) BETWEEN ? AND ?
-        AND (line_account_id = ? OR line_account_id IS NULL)
     ");
-    $stmt->execute([$startDate, $endDate, $currentBotId]);
+    $stmt->execute([$startDate, $endDate]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
     $stats['total_sessions'] = $result['total'] ?? 0;
