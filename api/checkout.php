@@ -394,16 +394,19 @@ function handleGetCart() {
     
     $debugInfo['raw_cart_count'] = count($allItems);
     
-    // Filter out items where product doesn't exist or is inactive
+    // Filter out items where product doesn't exist (deleted)
+    // Note: We allow inactive products in cart since pharmacist may dispense them
     $items = [];
     $filteredOut = [];
     foreach ($allItems as $item) {
-        if ($item['name'] && $item['is_active']) {
+        if ($item['name']) {
+            // Product exists - include it even if inactive
             $items[] = $item;
         } else {
+            // Product was deleted
             $filteredOut[] = [
                 'product_id' => $item['product_id'],
-                'reason' => !$item['name'] ? 'product_deleted' : 'product_inactive'
+                'reason' => 'product_deleted'
             ];
         }
     }
