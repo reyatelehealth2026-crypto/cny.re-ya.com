@@ -58,6 +58,13 @@ try {
     $stmt->execute([$startDate, $endDate]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
+    // Debug log
+    error_log("Triage Query Result: " . json_encode([
+        'startDate' => $startDate,
+        'endDate' => $endDate,
+        'result' => $result
+    ]));
+    
     $stats['total_sessions'] = $result['total'] ?? 0;
     $stats['completed'] = $result['completed'] ?? 0;
     $stats['escalated'] = $result['escalated'] ?? 0;
@@ -118,10 +125,20 @@ try {
     
 } catch (Exception $e) {
     // Tables might not exist
+    error_log("Triage Analytics Error: " . $e->getMessage());
 }
 
 require_once __DIR__ . '/includes/header.php';
 ?>
+
+<!-- Debug Info -->
+<div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 mx-4">
+    <strong>Debug:</strong> 
+    Start: <?= htmlspecialchars($startDate) ?> | 
+    End: <?= htmlspecialchars($endDate) ?> | 
+    Total: <?= $stats['total_sessions'] ?> | 
+    In Progress: <?= $stats['in_progress'] ?? 0 ?>
+</div>
 
 <style>
 .stat-card { transition: all 0.3s; }
