@@ -206,7 +206,10 @@ try {
         // Create or update pharmacist notification when triage has symptoms
         // This ensures all triage sessions appear in pharmacist dashboard
         if (!empty($mergedTriageData['symptoms']) || $newState !== 'greeting') {
-            ensureTriageNotification($db, $sessionId, $internalUserId, $lineAccountId, $userContext, $mergedTriageData, $newState);
+            error_log("ensureTriageNotification: sessionId={$sessionId}, userId={$internalUserId}, lineAccountId={$lineAccountId}, state={$newState}");
+            error_log("ensureTriageNotification: triageData=" . json_encode($mergedTriageData));
+            $notifResult = ensureTriageNotification($db, $sessionId, $internalUserId, $lineAccountId, $userContext, $mergedTriageData, $newState);
+            error_log("ensureTriageNotification: result=" . ($notifResult ? 'true' : 'false'));
         }
     }
     
