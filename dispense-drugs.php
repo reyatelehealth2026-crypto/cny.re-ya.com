@@ -268,18 +268,22 @@ document.getElementById('drugSearch').addEventListener('input', function(e) {
         return;
     }
     
-    if (!drugsLoaded) {
-        document.getElementById('searchResults').innerHTML = '<div class="p-4 text-gray-400 text-center">กำลังโหลดรายการยา...</div>';
+    if (!drugsLoaded || allDrugs.length === 0) {
+        document.getElementById('searchResults').innerHTML = '<div class="p-4 text-gray-400 text-center">กำลังโหลดรายการยา... (' + allDrugs.length + ' loaded)</div>';
         document.getElementById('searchResults').classList.add('show');
         return;
     }
     
     searchTimeout = setTimeout(() => {
-        const results = allDrugs.filter(drug => 
-            drug.name.toLowerCase().includes(query) || 
-            (drug.generic_name && drug.generic_name.toLowerCase().includes(query))
-        ).slice(0, 15);
+        console.log('Searching for:', query, 'in', allDrugs.length, 'drugs');
+        const results = allDrugs.filter(drug => {
+            const nameMatch = drug.name && drug.name.toLowerCase().includes(query);
+            const genericMatch = drug.generic_name && drug.generic_name.toLowerCase().includes(query);
+            const skuMatch = drug.sku && drug.sku.toLowerCase().includes(query);
+            return nameMatch || genericMatch || skuMatch;
+        }).slice(0, 15);
         
+        console.log('Found', results.length, 'results');
         showSearchResults(results);
     }, 150);
 });
