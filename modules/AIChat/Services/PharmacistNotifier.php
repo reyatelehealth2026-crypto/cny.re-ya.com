@@ -757,7 +757,7 @@ class PharmacistNotifier
                             'type' => 'button',
                             'action' => [
                                 'type' => 'uri',
-                                'label' => 'ดูตะกร้าสินค้า',
+                                'label' => 'ดูรายการและชำระเงิน',
                                 'uri' => $this->getCheckoutUrl() . '#/cart'
                             ],
                             'style' => 'primary',

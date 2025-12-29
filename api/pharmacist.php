@@ -287,13 +287,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($addToCart) {
                     try {
                         foreach ($drugs as $drug) {
-                            $itemId = (int)($drug['id'] ?? 0);
+                            $productId = (int)($drug['id'] ?? 0);
                             $quantity = (int)($drug['quantity'] ?? 1);
-                            if ($itemId <= 0) continue;
+                            if ($productId <= 0) continue;
                             
-                            // Check if item already in cart
-                            $stmt = $db->prepare("SELECT id, quantity FROM cart WHERE user_id = ? AND item_id = ?");
-                            $stmt->execute([$userId, $itemId]);
+                            // Check if item already in cart (use product_id column)
+                            $stmt = $db->prepare("SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?");
+                            $stmt->execute([$userId, $productId]);
                             $existing = $stmt->fetch(PDO::FETCH_ASSOC);
                             
                             if ($existing) {
@@ -302,8 +302,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt->execute([$quantity, $existing['id']]);
                             } else {
                                 // Insert new cart item
-                                $stmt = $db->prepare("INSERT INTO cart (user_id, item_id, quantity, created_at) VALUES (?, ?, ?, NOW())");
-                                $stmt->execute([$userId, $itemId, $quantity]);
+                                $stmt = $db->prepare("INSERT INTO cart (user_id, product_id, quantity, created_at) VALUES (?, ?, ?, NOW())");
+                                $stmt->execute([$userId, $productId, $quantity]);
                             }
                         }
                         error_log("Added " . count($drugs) . " items to cart for user $userId");
