@@ -11,6 +11,9 @@
 
 namespace Modules\AIChat\Services;
 
+// Auto-load Core Database
+require_once __DIR__ . '/../../Core/Database.php';
+
 use Modules\Core\Database;
 
 class PharmacistNotifier
