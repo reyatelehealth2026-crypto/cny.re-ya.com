@@ -48,6 +48,7 @@ $completionRate = 0;
 
 try {
     // Total sessions - count all statuses including NULL and 'active'
+    // Note: priority column doesn't exist, use current_state = 'emergency' for urgent cases
     $stmt = $db->prepare("
         SELECT 
             COUNT(*) as total,
@@ -55,7 +56,7 @@ try {
             SUM(CASE WHEN status = 'escalated' OR current_state = 'emergency' THEN 1 ELSE 0 END) as escalated,
             SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
             SUM(CASE WHEN status IS NULL OR status = 'active' OR status = '' THEN 1 ELSE 0 END) as in_progress,
-            SUM(CASE WHEN priority = 'urgent' OR current_state = 'emergency' THEN 1 ELSE 0 END) as urgent
+            SUM(CASE WHEN current_state = 'emergency' THEN 1 ELSE 0 END) as urgent
         FROM triage_sessions 
         WHERE DATE(created_at) BETWEEN ? AND ?
     ");
