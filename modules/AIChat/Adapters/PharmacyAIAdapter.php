@@ -628,6 +628,31 @@ PROMPT;
             
             $assessmentId = $this->db->lastInsertId();
             
+            // Also update triage_sessions.triage_data if session exists
+            if ($this->sessionId) {
+                $triageData = [
+                    'symptoms' => $data['symptoms'] ?? '',
+                    'duration' => $data['duration'] ?? '',
+                    'severity' => intval($data['severity'] ?? 5),
+                    'severity_level' => $data['severity_level'] ?? 'low',
+                    'associated_symptoms' => $data['associated_symptoms'] ?? '',
+                    'allergies' => $data['allergies'] ?? '',
+                    'medical_conditions' => $data['medical_conditions'] ?? '',
+                    'current_medications' => $data['current_medications'] ?? '',
+                    'ai_assessment' => $data['ai_assessment'] ?? '',
+                    'recommended_action' => $data['recommended_action'] ?? 'self_care',
+                    'assessment_id' => $assessmentId
+                ];
+                
+                $stmt = $this->db->prepare("
+                    UPDATE triage_sessions 
+                    SET triage_data = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([json_encode($triageData, JSON_UNESCAPED_UNICODE), $this->sessionId]);
+                error_log("saveTriageAssessment: Updated triage_sessions #{$this->sessionId} with triage_data");
+            }
+            
             // Notify pharmacist if severity is high or critical
             $severityLevel = $data['severity_level'] ?? 'low';
             $notified = false;
