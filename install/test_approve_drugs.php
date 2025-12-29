@@ -59,6 +59,12 @@ echo "<h3>Simulating approve_drugs...</h3>";
 $lineAccountId = $user['line_account_id'];
 
 // Add to cart (use cart_items table for LIFF compatibility)
+// Get user's line_user_id
+$stmt = $db->prepare("SELECT line_user_id FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$userLineId = $stmt->fetchColumn() ?: '';
+echo "<p>User LINE ID: {$userLineId}</p>";
+
 foreach ($testDrugs as $drug) {
     $productId = (int)($drug['id'] ?? 0);
     $quantity = (int)($drug['quantity'] ?? 1);
@@ -78,8 +84,9 @@ foreach ($testDrugs as $drug) {
         $stmt->execute([$quantity, $existing['id']]);
         echo "<p style='color:green'>Updated cart_items item {$existing['id']}, added {$quantity}</p>";
     } else {
-        $stmt = $db->prepare("INSERT INTO cart_items (user_id, product_id, quantity, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())");
-        $stmt->execute([$userId, $productId, $quantity]);
+        // Include line_user_id as it's NOT NULL in the table
+        $stmt = $db->prepare("INSERT INTO cart_items (user_id, line_user_id, product_id, quantity, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())");
+        $stmt->execute([$userId, $userLineId, $productId, $quantity]);
         echo "<p style='color:green'>Inserted new cart_items item, ID: " . $db->lastInsertId() . "</p>";
     }
 }

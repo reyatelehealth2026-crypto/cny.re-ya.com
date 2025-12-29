@@ -304,6 +304,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($addToCart) {
                     $cartAdded = 0;
                     try {
+                        // Get user's line_user_id for cart_items table
+                        $stmt = $db->prepare("SELECT line_user_id FROM users WHERE id = ?");
+                        $stmt->execute([$userId]);
+                        $userLineId = $stmt->fetchColumn() ?: '';
+                        
                         foreach ($drugs as $drug) {
                             $productId = (int)($drug['id'] ?? 0);
                             $quantity = (int)($drug['quantity'] ?? 1);
@@ -324,9 +329,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt->execute([$quantity, $existing['id']]);
                                 error_log("approve_drugs: Updated cart_items item {$existing['id']}");
                             } else {
-                                // Insert new cart item
-                                $stmt = $db->prepare("INSERT INTO cart_items (user_id, product_id, quantity, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())");
-                                $stmt->execute([$userId, $productId, $quantity]);
+                                // Insert new cart item (include line_user_id as it's NOT NULL)
+                                $stmt = $db->prepare("INSERT INTO cart_items (user_id, line_user_id, product_id, quantity, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())");
+                                $stmt->execute([$userId, $userLineId, $productId, $quantity]);
                                 error_log("approve_drugs: Inserted cart_items item, lastInsertId=" . $db->lastInsertId());
                             }
                             $cartAdded++;
