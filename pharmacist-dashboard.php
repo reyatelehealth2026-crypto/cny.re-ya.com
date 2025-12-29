@@ -547,6 +547,7 @@ function toggleDrug(id, name, price) {
     } else {
         selectedDrugs.push({ id, name, price });
     }
+    console.log('Selected drugs:', selectedDrugs);
 }
 
 function buildDetailHTML(data) {
@@ -760,7 +761,12 @@ function viewSession(id) {
 }
 
 function approveAndSend() {
-    if (!currentNotificationId || !currentUserId) return;
+    console.log('approveAndSend called', { currentNotificationId, currentUserId, selectedDrugs });
+    
+    if (!currentNotificationId || !currentUserId) {
+        alert('ไม่พบข้อมูล notification');
+        return;
+    }
     
     if (selectedDrugs.length === 0) {
         alert('กรุณาเลือกยาที่จะแนะนำ');
@@ -782,15 +788,29 @@ function approveAndSend() {
             note: note
         })
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ อนุมัติเรียบร้อย! ส่งแจ้งเตือนให้ลูกค้าแล้ว');
-            closeModal();
-            refreshData();
-        } else {
-            alert('เกิดข้อผิดพลาด: ' + (data.error || 'Unknown error'));
+    .then(r => {
+        console.log('Response status:', r.status);
+        return r.text();
+    })
+    .then(text => {
+        console.log('Response text:', text);
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                alert('✅ อนุมัติเรียบร้อย! ' + (data.message || ''));
+                closeModal();
+                refreshData();
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('JSON parse error:', e);
+            alert('เกิดข้อผิดพลาด: Response ไม่ถูกต้อง');
         }
+    })
+    .catch(err => {
+        console.error('Fetch error:', err);
+        alert('เกิดข้อผิดพลาด: ' + err.message);
     });
 }
 
