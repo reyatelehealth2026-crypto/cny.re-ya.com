@@ -791,11 +791,24 @@ class AIChat {
         const recentMessages = this.messages.slice(-limit);
         
         // Format messages for API context
-        return recentMessages.map(msg => ({
-            role: msg.type === 'user' ? 'user' : 'assistant',
-            content: msg.content,
-            timestamp: msg.timestamp ? msg.timestamp.toISOString() : null
-        }));
+        return recentMessages.map(msg => {
+            let timestamp = null;
+            if (msg.timestamp) {
+                // Handle both Date objects and string timestamps
+                if (msg.timestamp instanceof Date) {
+                    timestamp = msg.timestamp.toISOString();
+                } else if (typeof msg.timestamp === 'string') {
+                    timestamp = msg.timestamp;
+                } else if (typeof msg.timestamp === 'number') {
+                    timestamp = new Date(msg.timestamp).toISOString();
+                }
+            }
+            return {
+                role: msg.type === 'user' ? 'user' : 'assistant',
+                content: msg.content,
+                timestamp: timestamp
+            };
+        });
     }
     
     /**
