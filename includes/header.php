@@ -11,6 +11,55 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_check.php';
 
+/**
+ * Get current user's role for menu access control
+ * Maps database roles to menu system roles
+ * @return string Role: owner, admin, pharmacist, staff, marketing, tech
+ */
+function getCurrentUserRole() {
+    global $currentUser;
+    
+    if (!isset($currentUser['role'])) {
+        return 'staff'; // Default role
+    }
+    
+    $dbRole = $currentUser['role'];
+    
+    // Map database roles to menu system roles
+    switch ($dbRole) {
+        case 'super_admin':
+            return 'owner';
+        case 'admin':
+            return 'admin';
+        case 'pharmacist':
+            return 'pharmacist';
+        case 'marketing':
+            return 'marketing';
+        case 'tech':
+            return 'tech';
+        case 'staff':
+        default:
+            return 'staff';
+    }
+}
+
+/**
+ * Check if current user has access to a menu item
+ * @param array $menuItem Menu item with optional 'roles' key
+ * @return bool True if user can access the menu item
+ */
+function hasMenuAccess($menuItem) {
+    // If no roles specified, everyone can access
+    if (!isset($menuItem['roles']) || empty($menuItem['roles'])) {
+        return true;
+    }
+    
+    $userRole = getCurrentUserRole();
+    
+    // Check if user's role is in the allowed roles array
+    return in_array($userRole, $menuItem['roles']);
+}
+
 // Helper function to generate clean URLs (without .php)
 function cleanUrl($url) {
     // Remove .php extension for clean URLs
@@ -30,9 +79,11 @@ if (isUser()) {
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $currentPath = $_SERVER['PHP_SELF'];
 
-// Detect folder
+// Detect folder (shop or inventory)
 $isShop = strpos($currentPath, '/shop/') !== false;
-$baseUrl = $isShop ? '../' : '';
+$isInventory = strpos($currentPath, '/inventory/') !== false;
+$isSubfolder = $isShop || $isInventory;
+$baseUrl = $isSubfolder ? '../' : '';
 
 
 // Handle bot switching
@@ -107,31 +158,84 @@ try {
 
 // ==================== Quick Access - User Customizable ====================
 // Available quick access menus (using clean URLs without .php)
+// Each item includes 'roles' for role-based access control (matching main menu structure)
+// Note: Items without 'roles' key are accessible to all staff (per Requirements 9.1, 9.2, 9.3)
 $quickAccessMenus = [
-    'messages' => ['icon' => 'fa-comments', 'label' => 'แชท', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages, 'color' => 'green'],
-    'orders' => ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow', 'color' => 'orange'],
-    'products' => ['icon' => 'fa-box-open', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products', 'color' => 'blue'],
-    'broadcast' => ['icon' => 'fa-paper-plane', 'label' => 'บรอดแคสต์', 'url' => '/broadcast-catalog-v2', 'page' => 'broadcast-catalog-v2', 'color' => 'purple'],
-    'users' => ['icon' => 'fa-users', 'label' => 'ลูกค้า', 'url' => '/users', 'page' => 'users', 'color' => 'cyan'],
-    'auto-reply' => ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply', 'color' => 'pink'],
-    'analytics' => ['icon' => 'fa-chart-pie', 'label' => 'สถิติ', 'url' => '/analytics', 'page' => 'analytics', 'color' => 'indigo'],
-    'rich-menu' => ['icon' => 'fa-th-large', 'label' => 'Rich Menu', 'url' => '/rich-menu', 'page' => 'rich-menu', 'color' => 'teal'],
+    // ==================== Clinical Station - Unified Care Chat ====================
+    'messages' => ['icon' => 'fa-inbox', 'label' => 'แชท', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages, 'color' => 'green', 'roles' => ['pharmacist', 'staff']],
+    'video-call' => ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro', 'color' => 'red', 'roles' => ['pharmacist', 'staff']],
+    'auto-reply' => ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply', 'color' => 'pink', 'roles' => ['pharmacist', 'staff']],
+    
+    // ==================== Clinical Station - Roster & Shifts (all staff) ====================
+    'pharmacist-dashboard' => ['icon' => 'fa-user-md', 'label' => 'Dashboard เภสัชกร', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard', 'color' => 'emerald'],
+    'pharmacists' => ['icon' => 'fa-users', 'label' => 'จัดการเภสัชกร', 'url' => '/pharmacists', 'page' => 'pharmacists', 'color' => 'teal'],
     'appointments' => ['icon' => 'fa-calendar-check', 'label' => 'นัดหมาย', 'url' => '/appointments-admin', 'page' => 'appointments-admin', 'color' => 'amber'],
-    'pharmacist' => ['icon' => 'fa-user-md', 'label' => 'เภสัชกร', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard', 'color' => 'emerald'],
-    'sync' => ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard', 'color' => 'sky'],
-    'ai-settings' => ['icon' => 'fa-brain', 'label' => 'AI Settings', 'url' => '/ai-settings', 'page' => 'ai-settings', 'color' => 'violet'],
-    'ai-chat' => ['icon' => 'fa-comments', 'label' => 'AI แชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings', 'color' => 'fuchsia'],
-    'ai-studio' => ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio', 'color' => 'rose'],
-    'members' => ['icon' => 'fa-id-card', 'label' => 'สมาชิก', 'url' => '/members', 'page' => 'members', 'color' => 'rose'],
-    'rewards' => ['icon' => 'fa-gift', 'label' => 'รางวัล', 'url' => '/admin-rewards', 'page' => 'admin-rewards', 'color' => 'fuchsia'],
+    
+    // ==================== Clinical Station - Medical Copilot AI ====================
+    'ai-chat' => ['icon' => 'fa-comments', 'label' => 'AI ตอบแชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings', 'color' => 'fuchsia', 'roles' => ['pharmacist']],
+    'ai-studio' => ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio', 'color' => 'rose', 'roles' => ['pharmacist']],
+    'ai-pharmacy' => ['icon' => 'fa-cog', 'label' => 'ตั้งค่า AI เภสัช', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings', 'color' => 'purple', 'roles' => ['pharmacist']],
+    
+    // ==================== Insights & Overview ====================
+    'executive' => ['icon' => 'fa-chart-line', 'label' => 'แดชบอร์ดผู้บริหาร', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard', 'color' => 'indigo', 'roles' => ['owner', 'admin']],
+    'triage' => ['icon' => 'fa-stethoscope', 'label' => 'สถิติการรักษา', 'url' => '/triage-analytics', 'page' => 'triage-analytics', 'color' => 'emerald', 'roles' => ['pharmacist', 'owner']],
+    'drug-interactions' => ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions', 'color' => 'red', 'roles' => ['pharmacist', 'owner']],
+    'activity-logs' => ['icon' => 'fa-history', 'label' => 'ประวัติการใช้งาน', 'url' => '/activity-logs', 'page' => 'activity-logs', 'color' => 'slate', 'roles' => ['owner']],
+    
+    // ==================== Patient & Journey - EHR ====================
+    'users' => ['icon' => 'fa-users', 'label' => 'รายชื่อลูกค้า', 'url' => '/users', 'page' => 'users', 'color' => 'cyan', 'roles' => ['pharmacist']],
+    'user-tags' => ['icon' => 'fa-tags', 'label' => 'แท็กลูกค้า', 'url' => '/user-tags', 'page' => 'user-tags', 'color' => 'sky', 'roles' => ['pharmacist']],
+    
+    // ==================== Patient & Journey - Membership (all staff) ====================
+    'members' => ['icon' => 'fa-id-card', 'label' => 'จัดการสมาชิก', 'url' => '/members', 'page' => 'members', 'color' => 'rose'],
+    'rewards' => ['icon' => 'fa-gift', 'label' => 'รางวัลแลกแต้ม', 'url' => '/admin-rewards', 'page' => 'admin-rewards', 'color' => 'fuchsia'],
     'points-settings' => ['icon' => 'fa-coins', 'label' => 'ตั้งค่าแต้ม', 'url' => '/admin-points-settings', 'page' => 'admin-points-settings', 'color' => 'yellow'],
-    'categories' => ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories', 'color' => 'lime'],
-    'templates' => ['icon' => 'fa-file-alt', 'label' => 'Templates', 'url' => '/templates', 'page' => 'templates', 'color' => 'slate'],
-    'scheduled-reports' => ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports', 'color' => 'amber'],
-    'executive' => ['icon' => 'fa-chart-line', 'label' => 'Executive', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard', 'color' => 'indigo'],
-    'video-call' => ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro', 'color' => 'red'],
-    'triage' => ['icon' => 'fa-stethoscope', 'label' => 'Triage', 'url' => '/triage-analytics', 'page' => 'triage-analytics', 'color' => 'emerald'],
-    'drug' => ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions', 'color' => 'red'],
+    
+    // ==================== Patient & Journey - Care Journey ====================
+    'broadcast' => ['icon' => 'fa-paper-plane', 'label' => 'บรอดแคสต์', 'url' => '/broadcast', 'page' => 'broadcast', 'color' => 'purple', 'roles' => ['admin', 'marketing']],
+    'broadcast-catalog' => ['icon' => 'fa-layer-group', 'label' => 'แคตตาล็อก', 'url' => '/broadcast-catalog-v2', 'page' => 'broadcast-catalog-v2', 'color' => 'violet', 'roles' => ['admin', 'marketing']],
+    'drip-campaigns' => ['icon' => 'fa-water', 'label' => 'Drip Campaign', 'url' => '/drip-campaigns', 'page' => 'drip-campaigns', 'color' => 'blue', 'roles' => ['admin', 'marketing']],
+    'templates' => ['icon' => 'fa-file-alt', 'label' => 'Templates', 'url' => '/templates', 'page' => 'templates', 'color' => 'slate', 'roles' => ['admin', 'marketing']],
+    
+    // ==================== Patient & Journey - Digital Front Door ====================
+    'rich-menu' => ['icon' => 'fa-th-large', 'label' => 'Rich Menu', 'url' => '/rich-menu', 'page' => 'rich-menu', 'color' => 'teal', 'roles' => ['admin', 'marketing']],
+    'dynamic-rich-menu' => ['icon' => 'fa-random', 'label' => 'Dynamic Rich Menu', 'url' => '/dynamic-rich-menu', 'page' => 'dynamic-rich-menu', 'color' => 'cyan', 'roles' => ['admin', 'marketing']],
+    'liff-settings' => ['icon' => 'fa-mobile-screen', 'label' => 'ตั้งค่า LIFF', 'url' => '/liff-settings', 'page' => 'liff-settings', 'color' => 'lime', 'roles' => ['admin', 'marketing']],
+    
+    // ==================== Supply & Revenue - Billing & Orders ====================
+    'orders' => ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow', 'color' => 'orange', 'roles' => ['admin', 'staff']],
+    'promotions' => ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions', 'color' => 'amber', 'roles' => ['admin', 'staff']],
+    
+    // ==================== Supply & Revenue - Inventory ====================
+    'products' => ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products', 'color' => 'blue', 'roles' => ['admin', 'pharmacist']],
+    'categories' => ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories', 'color' => 'lime', 'roles' => ['admin', 'pharmacist']],
+    'stock-adjustment' => ['icon' => 'fa-sliders-h', 'label' => 'ปรับสต็อก', 'url' => '/inventory/stock-adjustment', 'page' => 'stock-adjustment', 'color' => 'indigo', 'roles' => ['admin', 'pharmacist']],
+    'stock-movements' => ['icon' => 'fa-exchange-alt', 'label' => 'ประวัติเคลื่อนไหว', 'url' => '/inventory/stock-movements', 'page' => 'stock-movements', 'color' => 'sky', 'roles' => ['admin', 'pharmacist']],
+    'low-stock' => ['icon' => 'fa-exclamation-triangle', 'label' => 'สินค้าใกล้หมด', 'url' => '/inventory/low-stock', 'page' => 'low-stock', 'color' => 'red', 'roles' => ['admin', 'pharmacist']],
+    'product-units' => ['icon' => 'fa-balance-scale', 'label' => 'หน่วยสินค้า', 'url' => '/inventory/product-units', 'page' => 'product-units', 'color' => 'emerald', 'roles' => ['admin', 'pharmacist']],
+    'sync' => ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard', 'color' => 'sky', 'roles' => ['admin', 'owner']],
+    
+    // ==================== Supply & Revenue - Procurement ====================
+    'purchase-orders' => ['icon' => 'fa-file-invoice', 'label' => 'ใบสั่งซื้อ (PO)', 'url' => '/inventory/purchase-orders', 'page' => 'purchase-orders', 'color' => 'violet', 'roles' => ['admin', 'owner']],
+    'goods-receive' => ['icon' => 'fa-truck-loading', 'label' => 'รับสินค้า (GR)', 'url' => '/inventory/goods-receive', 'page' => 'goods-receive', 'color' => 'teal', 'roles' => ['admin', 'owner']],
+    'suppliers' => ['icon' => 'fa-truck', 'label' => 'Suppliers', 'url' => '/inventory/suppliers', 'page' => 'suppliers', 'color' => 'slate', 'roles' => ['admin', 'owner']],
+    
+    // ==================== Facility Setup - Facility Profile ====================
+    'shop-settings' => ['icon' => 'fa-store', 'label' => 'ข้อมูลสถานพยาบาล', 'url' => '/shop/settings', 'page' => 'settings', 'color' => 'emerald', 'roles' => ['admin', 'owner']],
+    
+    // ==================== Facility Setup - Staff & Roles ====================
+    'admin-users' => ['icon' => 'fa-users-cog', 'label' => 'บุคลากร & สิทธิ์', 'url' => '/admin-users2', 'page' => 'admin-users2', 'color' => 'indigo', 'roles' => ['owner', 'admin']],
+    
+    // ==================== Facility Setup - Integrations ====================
+    'line-accounts' => ['icon' => 'fa-layer-group', 'label' => 'บัญชี LINE', 'url' => '/line-accounts', 'page' => 'line-accounts', 'color' => 'green', 'roles' => ['owner', 'admin', 'tech']],
+    'telegram' => ['icon' => 'fab fa-telegram', 'label' => 'Telegram', 'url' => '/telegram', 'page' => 'telegram', 'color' => 'blue', 'roles' => ['owner', 'admin', 'tech']],
+    'ai-settings' => ['icon' => 'fa-key', 'label' => 'ตั้งค่า API Key', 'url' => '/ai-settings', 'page' => 'ai-settings', 'color' => 'violet', 'roles' => ['owner', 'admin', 'tech']],
+    
+    // ==================== Facility Setup - Consent & PDPA ====================
+    'consent-management' => ['icon' => 'fa-shield-alt', 'label' => 'Consent & PDPA', 'url' => '/consent-management', 'page' => 'consent-management', 'color' => 'rose', 'roles' => ['owner', 'admin']],
+    
+    // ==================== Facility Setup - Reports ====================
+    'scheduled-reports' => ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports', 'color' => 'amber', 'roles' => ['owner', 'admin']],
 ];
 
 // Get user's quick access preferences
@@ -150,11 +254,15 @@ if ($adminUserId) {
     }
 }
 
-// Build quick access items from user preferences
+// Build quick access items from user preferences (filtered by role access)
 $quickAccessItems = [];
 foreach ($userQuickAccess as $key) {
     if (isset($quickAccessMenus[$key])) {
-        $quickAccessItems[] = $quickAccessMenus[$key];
+        $menuItem = $quickAccessMenus[$key];
+        // Only add if user has access based on roles
+        if (hasMenuAccess($menuItem)) {
+            $quickAccessItems[] = $menuItem;
+        }
     }
 }
 
@@ -170,137 +278,106 @@ $menuSections = [
         'title' => '',
         'items' => [
             ['icon' => 'fa-th-large', 'label' => 'Dashboard', 'url' => '/admin/', 'page' => 'index'],
-            ['icon' => 'fa-chart-line', 'label' => '📊 Executive', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard'],
         ]
     ],
-    'messaging' => [
-        'title' => 'แชท & ลูกค้า',
-        'icon' => 'fa-comments',
+    
+    // ==================== กลุ่ม 1: Insights & Overview ====================
+    'insights' => [
+        'title' => '📊 Insights & Overview',
+        'icon' => 'fa-chart-line',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-inbox', 'label' => 'กล่องข้อความ', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages],
-            ['icon' => 'fa-users', 'label' => 'รายชื่อลูกค้า', 'url' => '/users', 'page' => 'users'],
-            ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply'],
-            ['icon' => 'fa-tags', 'label' => 'แท็กลูกค้า', 'url' => '/user-tags', 'page' => 'user-tags'],
-            ['icon' => 'fa-filter', 'label' => 'กลุ่มลูกค้า', 'url' => '/customer-segments', 'page' => 'customer-segments'],
+            ['icon' => 'fa-chart-line', 'label' => 'แดชบอร์ดผู้บริหาร', 'url' => '/executive-dashboard', 'page' => 'executive-dashboard', 'roles' => ['owner', 'admin']],
+            ['icon' => 'fa-stethoscope', 'label' => 'สถิติการรักษา', 'url' => '/triage-analytics', 'page' => 'triage-analytics', 'roles' => ['pharmacist', 'owner']],
+            ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions', 'roles' => ['pharmacist', 'owner']],
+            ['icon' => 'fa-history', 'label' => 'ประวัติการใช้งาน', 'url' => '/activity-logs', 'page' => 'activity-logs', 'roles' => ['owner']],
         ]
     ],
-    'broadcast' => [
-        'title' => 'บรอดแคสต์',
-        'icon' => 'fa-bullhorn',
-        'collapsible' => true,
-        'items' => [
-            ['icon' => 'fa-paper-plane', 'label' => 'ส่งข้อความ', 'url' => '/broadcast', 'page' => 'broadcast'],
-            ['icon' => 'fa-layer-group', 'label' => 'แคตตาล็อก', 'url' => '/broadcast-catalog-v2', 'page' => 'broadcast-catalog-v2'],
-            ['icon' => 'fa-chart-bar', 'label' => 'สถิติ', 'url' => '/broadcast-stats', 'page' => 'broadcast-stats'],
-            ['icon' => 'fa-paper-plane', 'label' => 'Drip Campaign', 'url' => '/drip-campaigns', 'page' => 'drip-campaigns'],
-        ]
-    ],
-    'shop' => [
-        'title' => 'ร้านค้า',
-        'icon' => 'fa-store',
-        'collapsible' => true,
-        'items' => array_filter([
-            ['icon' => 'fa-tachometer-alt', 'label' => 'ภาพรวม', 'url' => '/shop', 'page' => 'index', 'folder' => 'shop'],
-            ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow'],
-            $pendingSlips > 0 ? ['icon' => 'fa-file-invoice', 'label' => 'รอตรวจสลิป', 'url' => '/shop/orders?pending_slip=1', 'page' => '', 'badge' => $pendingSlips, 'badgeColor' => 'orange'] : null,
-            ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions'],
-            ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard'],
-            ['icon' => 'fa-cog', 'label' => 'ตั้งค่าร้าน', 'url' => '/shop/settings', 'page' => 'settings'],
-            ['icon' => 'fa-mobile-alt', 'label' => 'ตั้งค่า LIFF Shop', 'url' => '/shop/liff-shop-settings', 'page' => 'liff-shop-settings'],
-        ])
-    ],
-    'inventory' => [
-        'title' => '📦 คลังสินค้า',
-        'icon' => 'fa-warehouse',
-        'collapsible' => true,
-        'items' => [
-            ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products'],
-            ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories'],
-            ['icon' => 'fa-truck', 'label' => 'Suppliers', 'url' => '/inventory/suppliers', 'page' => 'suppliers'],
-            ['icon' => 'fa-file-invoice', 'label' => 'ใบสั่งซื้อ (PO)', 'url' => '/inventory/purchase-orders', 'page' => 'purchase-orders'],
-            ['icon' => 'fa-truck-loading', 'label' => 'รับสินค้า (GR)', 'url' => '/inventory/goods-receive', 'page' => 'goods-receive'],
-            ['icon' => 'fa-sliders-h', 'label' => 'ปรับสต็อก', 'url' => '/inventory/stock-adjustment', 'page' => 'stock-adjustment'],
-            ['icon' => 'fa-exchange-alt', 'label' => 'ประวัติเคลื่อนไหว', 'url' => '/inventory/stock-movements', 'page' => 'stock-movements'],
-            ['icon' => 'fa-exclamation-triangle', 'label' => 'สินค้าใกล้หมด', 'url' => '/inventory/low-stock', 'page' => 'low-stock'],
-            ['icon' => 'fa-balance-scale', 'label' => 'หน่วยสินค้า', 'url' => '/inventory/product-units', 'page' => 'product-units'],
-            ['icon' => 'fa-chart-bar', 'label' => 'รายงาน', 'url' => '/inventory/reports', 'page' => 'reports'],
-        ]
-    ],
-    'membership' => [
-        'title' => 'สมาชิก & แต้ม',
-        'icon' => 'fa-id-card',
-        'collapsible' => true,
-        'items' => [
-            ['icon' => 'fa-users', 'label' => 'จัดการสมาชิก', 'url' => '/members', 'page' => 'members'],
-            ['icon' => 'fa-gift', 'label' => 'รางวัลแลกแต้ม', 'url' => '/admin-rewards', 'page' => 'admin-rewards'],
-            ['icon' => 'fa-coins', 'label' => 'ตั้งค่าแต้ม', 'url' => '/admin-points-settings', 'page' => 'admin-points-settings'],
-            ['icon' => 'fa-calendar-check', 'label' => 'นัดหมาย', 'url' => '/appointments-admin', 'page' => 'appointments-admin'],
-        ]
-    ],
-    'pharmacy' => [
-        'title' => '🏥 เภสัชกร & AI',
+    
+    // ==================== กลุ่ม 2: Clinical Station ====================
+    'clinical' => [
+        'title' => '🏥 Clinical Station',
         'icon' => 'fa-user-md',
         'collapsible' => true,
         'items' => [
+            // Unified Care Chat
+            ['icon' => 'fa-inbox', 'label' => 'กล่องข้อความ', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages, 'roles' => ['pharmacist', 'staff']],
+            ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro', 'roles' => ['pharmacist', 'staff']],
+            ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply', 'roles' => ['pharmacist', 'staff']],
+            // Roster & Shifts
             ['icon' => 'fa-user-md', 'label' => 'Dashboard เภสัชกร', 'url' => '/pharmacist-dashboard', 'page' => 'pharmacist-dashboard'],
             ['icon' => 'fa-users', 'label' => 'จัดการเภสัชกร', 'url' => '/pharmacists', 'page' => 'pharmacists'],
-            ['icon' => 'fa-stethoscope', 'label' => 'Triage Analytics', 'url' => '/triage-analytics', 'page' => 'triage-analytics'],
-            ['icon' => 'fa-pills', 'label' => 'ยาตีกัน', 'url' => '/drug-interactions', 'page' => 'drug-interactions'],
-            ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call-pro', 'page' => 'video-call-pro'],
-            ['icon' => 'fa-cog', 'label' => 'ตั้งค่า AI เภสัช', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings'],
+            // Medical Copilot AI
+            ['icon' => 'fa-comments', 'label' => 'AI ตอบแชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings', 'roles' => ['pharmacist']],
+            ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio', 'roles' => ['pharmacist']],
+            ['icon' => 'fa-cog', 'label' => 'ตั้งค่า AI เภสัช', 'url' => '/ai-pharmacy-settings', 'page' => 'ai-pharmacy-settings', 'roles' => ['pharmacist']],
         ]
     ],
-    'ai' => [
-        'title' => '🤖 AI Tools',
-        'icon' => 'fa-robot',
+    
+    // ==================== กลุ่ม 3: Patient & Journey ====================
+    'patient' => [
+        'title' => '👤 Patient & Journey',
+        'icon' => 'fa-users',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-comments', 'label' => 'AI ตอบแชท', 'url' => '/ai-chat-settings', 'page' => 'ai-chat-settings'],
-            ['icon' => 'fa-wand-magic-sparkles', 'label' => 'AI Studio', 'url' => '/ai-studio', 'page' => 'ai-studio'],
-            ['icon' => 'fa-image', 'label' => 'AI สร้างรูป', 'url' => '/ai-image', 'page' => 'ai-image'],
-            ['icon' => 'fa-key', 'label' => 'ตั้งค่า API Key', 'url' => '/ai-settings', 'page' => 'ai-settings'],
+            // EHR (Health Records)
+            ['icon' => 'fa-users', 'label' => 'รายชื่อลูกค้า', 'url' => '/users', 'page' => 'users', 'roles' => ['pharmacist']],
+            ['icon' => 'fa-tags', 'label' => 'แท็กลูกค้า', 'url' => '/user-tags', 'page' => 'user-tags', 'roles' => ['pharmacist']],
+            // Membership
+            ['icon' => 'fa-id-card', 'label' => 'จัดการสมาชิก', 'url' => '/members', 'page' => 'members'],
+            ['icon' => 'fa-gift', 'label' => 'รางวัลแลกแต้ม', 'url' => '/admin-rewards', 'page' => 'admin-rewards'],
+            ['icon' => 'fa-coins', 'label' => 'ตั้งค่าแต้ม', 'url' => '/admin-points-settings', 'page' => 'admin-points-settings'],
+            // Care Journey
+            ['icon' => 'fa-paper-plane', 'label' => 'บรอดแคสต์', 'url' => '/broadcast', 'page' => 'broadcast', 'roles' => ['admin', 'marketing']],
+            ['icon' => 'fa-layer-group', 'label' => 'แคตตาล็อก', 'url' => '/broadcast-catalog-v2', 'page' => 'broadcast-catalog-v2', 'roles' => ['admin', 'marketing']],
+            ['icon' => 'fa-water', 'label' => 'Drip Campaign', 'url' => '/drip-campaigns', 'page' => 'drip-campaigns', 'roles' => ['admin', 'marketing']],
+            // Digital Front Door
+            ['icon' => 'fa-th-large', 'label' => 'Rich Menu', 'url' => '/rich-menu', 'page' => 'rich-menu', 'roles' => ['admin', 'marketing']],
+            ['icon' => 'fa-random', 'label' => 'Dynamic Rich Menu', 'url' => '/dynamic-rich-menu', 'page' => 'dynamic-rich-menu', 'roles' => ['admin', 'marketing']],
+            ['icon' => 'fa-mobile-screen', 'label' => 'ตั้งค่า LIFF', 'url' => '/liff-settings', 'page' => 'liff-settings', 'roles' => ['admin', 'marketing']],
         ]
     ],
-    'tools' => [
-        'title' => 'เครื่องมือ LINE',
-        'icon' => 'fa-tools',
+    
+    // ==================== กลุ่ม 4: Supply & Revenue ====================
+    'supply' => [
+        'title' => '📦 Supply & Revenue',
+        'icon' => 'fa-warehouse',
         'collapsible' => true,
         'items' => [
-            ['icon' => 'fa-th-large', 'label' => 'Rich Menu', 'url' => '/rich-menu', 'page' => 'rich-menu'],
-            ['icon' => 'fa-random', 'label' => 'Dynamic Rich Menu', 'url' => '/dynamic-rich-menu', 'page' => 'dynamic-rich-menu'],
-            ['icon' => 'fa-puzzle-piece', 'label' => 'Flex Builder', 'url' => '/flex-builder', 'page' => 'flex-builder'],
-            ['icon' => 'fa-hand-wave', 'label' => 'ข้อความต้อนรับ', 'url' => '/welcome-settings', 'page' => 'welcome-settings'],
-            ['icon' => 'fa-clock', 'label' => 'ตั้งเวลาส่ง', 'url' => '/scheduled', 'page' => 'scheduled'],
-            ['icon' => 'fa-users-rectangle', 'label' => 'กลุ่ม LINE', 'url' => '/line-groups', 'page' => 'line-groups'],
+            // Billing & Orders
+            ['icon' => 'fa-receipt', 'label' => 'ออเดอร์', 'url' => '/shop/orders', 'page' => 'orders', 'badge' => $pendingOrders, 'badgeColor' => 'yellow', 'roles' => ['admin', 'staff']],
+            ['icon' => 'fa-star', 'label' => 'โปรโมชั่น', 'url' => '/shop/promotions', 'page' => 'promotions', 'roles' => ['admin', 'staff']],
+            // Inventory
+            ['icon' => 'fa-box', 'label' => 'สินค้า', 'url' => '/shop/products', 'page' => 'products', 'roles' => ['admin', 'pharmacist']],
+            ['icon' => 'fa-folder', 'label' => 'หมวดหมู่', 'url' => '/shop/categories', 'page' => 'categories', 'roles' => ['admin', 'pharmacist']],
+            ['icon' => 'fa-sliders-h', 'label' => 'ปรับสต็อก', 'url' => '/inventory/stock-adjustment', 'page' => 'stock-adjustment', 'roles' => ['admin', 'pharmacist']],
+            ['icon' => 'fa-exchange-alt', 'label' => 'ประวัติเคลื่อนไหว', 'url' => '/inventory/stock-movements', 'page' => 'stock-movements', 'roles' => ['admin', 'pharmacist']],
+            ['icon' => 'fa-exclamation-triangle', 'label' => 'สินค้าใกล้หมด', 'url' => '/inventory/low-stock', 'page' => 'low-stock', 'roles' => ['admin', 'pharmacist']],
+            ['icon' => 'fa-balance-scale', 'label' => 'หน่วยสินค้า', 'url' => '/inventory/product-units', 'page' => 'product-units', 'roles' => ['admin', 'pharmacist']],
+            // Procurement
+            ['icon' => 'fa-file-invoice', 'label' => 'ใบสั่งซื้อ (PO)', 'url' => '/inventory/purchase-orders', 'page' => 'purchase-orders', 'roles' => ['admin', 'owner']],
+            ['icon' => 'fa-truck-loading', 'label' => 'รับสินค้า (GR)', 'url' => '/inventory/goods-receive', 'page' => 'goods-receive', 'roles' => ['admin', 'owner']],
+            ['icon' => 'fa-truck', 'label' => 'Suppliers', 'url' => '/inventory/suppliers', 'page' => 'suppliers', 'roles' => ['admin', 'owner']],
         ]
     ],
-    'analytics' => [
-        'title' => 'รายงาน & สถิติ',
-        'icon' => 'fa-chart-pie',
-        'collapsible' => true,
-        'items' => [
-            ['icon' => 'fa-chart-bar', 'label' => 'สถิติทั่วไป', 'url' => '/analytics', 'page' => 'analytics'],
-            ['icon' => 'fa-chart-line', 'label' => 'วิเคราะห์ขั้นสูง', 'url' => '/advanced-analytics', 'page' => 'advanced-analytics'],
-            ['icon' => 'fa-chart-pie', 'label' => 'CRM Analytics', 'url' => '/crm-analytics', 'page' => 'crm-analytics'],
-            ['icon' => 'fa-calendar-alt', 'label' => 'รายงานอัตโนมัติ', 'url' => '/scheduled-reports', 'page' => 'scheduled-reports'],
-            ['icon' => 'fa-link', 'label' => 'ติดตามลิงก์', 'url' => '/link-tracking', 'page' => 'link-tracking'],
-        ]
-    ],
-    'settings' => [
-        'title' => 'ตั้งค่าระบบ',
+    
+    // ==================== กลุ่ม 5: Facility Setup ====================
+    'facility' => [
+        'title' => '⚙️ Facility Setup',
         'icon' => 'fa-cog',
         'collapsible' => true,
-        'items' => array_filter([
-            isSuperAdmin() ? ['icon' => 'fa-layer-group', 'label' => 'บัญชี LINE', 'url' => '/line-accounts', 'page' => 'line-accounts'] : null,
-            ['icon' => 'fa-mobile-screen', 'label' => 'ตั้งค่า LIFF', 'url' => '/liff-settings', 'page' => 'liff-settings'],
-            ['icon' => 'fa-shield-alt', 'label' => 'Consent/PDPA', 'url' => '/consent-management', 'page' => 'consent-management'],
-            ['icon' => 'fa-history', 'label' => 'Activity Logs', 'url' => '/activity-logs', 'page' => 'activity-logs'],
-            ['icon' => 'fa-bell', 'label' => 'การแจ้งเตือน', 'url' => '/notification-settings', 'page' => 'notification-settings'],
-            ['icon' => 'fab fa-telegram', 'label' => 'Telegram', 'url' => '/telegram', 'page' => 'telegram'],
-            isSuperAdmin() ? ['icon' => 'fa-users-cog', 'label' => 'ผู้ใช้ระบบ', 'url' => '/admin-users', 'page' => 'admin-users'] : null,
-            ['icon' => 'fa-question-circle', 'label' => 'ช่วยเหลือ', 'url' => '/help', 'page' => 'help'],
-        ])
+        'items' => [
+            // Facility Profile
+            ['icon' => 'fa-store', 'label' => 'ข้อมูลสถานพยาบาล', 'url' => '/shop/settings', 'page' => 'settings', 'roles' => ['admin', 'owner']],
+            // Staff & Roles
+            ['icon' => 'fa-users-cog', 'label' => 'บุคลากร & สิทธิ์', 'url' => '/admin-users2', 'page' => 'admin-users2', 'roles' => ['owner', 'admin']],
+            // Integrations
+            ['icon' => 'fa-layer-group', 'label' => 'บัญชี LINE', 'url' => '/line-accounts', 'page' => 'line-accounts', 'roles' => ['owner', 'admin', 'tech']],
+            ['icon' => 'fab fa-telegram', 'label' => 'Telegram', 'url' => '/telegram', 'page' => 'telegram', 'roles' => ['owner', 'admin', 'tech']],
+            ['icon' => 'fa-key', 'label' => 'ตั้งค่า API Key', 'url' => '/ai-settings', 'page' => 'ai-settings', 'roles' => ['owner', 'admin', 'tech']],
+            // Consent & PDPA
+            ['icon' => 'fa-shield-alt', 'label' => 'Consent & PDPA', 'url' => '/consent-management', 'page' => 'consent-management', 'roles' => ['owner', 'admin']],
+        ]
     ],
 ];
 ?>
@@ -1012,6 +1089,13 @@ $menuSections = [
                 
                 <?php if (!empty($section['highlight'])): ?>
                 <!-- Quick Access Section -->
+                <?php 
+                // Filter quick access items by role
+                $accessibleQuickItems = array_filter($section['items'], function($item) {
+                    return hasMenuAccess($item);
+                });
+                ?>
+                <?php if (!empty($accessibleQuickItems)): ?>
                 <div class="quick-access-section">
                     <div class="flex items-center justify-between mb-2">
                         <div class="menu-section-title mb-0"><?= $section['title'] ?></div>
@@ -1022,9 +1106,14 @@ $menuSections = [
                         <?php endif; ?>
                     </div>
                     <div class="grid grid-cols-4 gap-1">
-                        <?php foreach ($section['items'] as $item): 
+                        <?php foreach ($accessibleQuickItems as $item): 
                             $itemUrl = $baseUrl . $item['url'];
-                            if ($isShop && strpos($item['url'], 'shop/') === 0) {
+                            // Handle shop folder URLs
+                            if ($isShop && (strpos($item['url'], '/shop/') !== false || strpos($item['url'], 'shop/') === 0)) {
+                                $itemUrl = basename($item['url']);
+                            }
+                            // Handle inventory folder URLs
+                            if ($isInventory && (strpos($item['url'], '/inventory/') !== false || strpos($item['url'], 'inventory/') === 0)) {
                                 $itemUrl = basename($item['url']);
                             }
                         ?>
@@ -1040,21 +1129,38 @@ $menuSections = [
                         <?php endforeach; ?>
                     </div>
                 </div>
+                <?php endif; ?>
                 <?php else: ?>
                 <!-- Regular Menu Section -->
                 <?php 
-                // Check if any item in this section is active
+                // Filter menu items by role access (Requirements 7.1, 7.2)
+                $accessibleItems = array_filter($section['items'], function($item) {
+                    return hasMenuAccess($item);
+                });
+                
+                // Skip rendering this group if no accessible items (Requirements 7.2)
+                if (empty($accessibleItems)) continue;
+                
+                // Check if any accessible item in this section is active (Requirements 8.3)
                 $sectionHasActive = false;
-                foreach ($section['items'] as $item) {
+                foreach ($accessibleItems as $item) {
                     $checkActive = false;
-                    if (isset($item['folder'])) {
-                        $checkActive = $isShop && $item['folder'] === 'shop' && $currentPage === $item['page'];
+                    
+                    // Determine which folder this menu item belongs to based on URL
+                    $itemIsShopUrl = strpos($item['url'], '/shop/') !== false || strpos($item['url'], 'shop/') === 0;
+                    $itemIsInventoryUrl = strpos($item['url'], '/inventory/') !== false || strpos($item['url'], 'inventory/') === 0;
+                    
+                    if ($itemIsShopUrl) {
+                        // Shop folder items - active when in shop folder and page matches
+                        $checkActive = $isShop && $currentPage === $item['page'];
+                    } elseif ($itemIsInventoryUrl) {
+                        // Inventory folder items - active when in inventory folder and page matches
+                        $checkActive = $isInventory && $currentPage === $item['page'];
                     } else {
-                        $checkActive = !$isShop && $currentPage === $item['page'];
+                        // Root level items - active when not in any subfolder and page matches
+                        $checkActive = !$isSubfolder && $currentPage === $item['page'];
                     }
-                    if ($isShop && strpos($item['url'], 'shop/') === 0 && $currentPage === $item['page']) {
-                        $checkActive = true;
-                    }
+                    
                     if ($checkActive) { $sectionHasActive = true; break; }
                 }
                 $isCollapsible = !empty($section['collapsible']);
@@ -1074,21 +1180,30 @@ $menuSections = [
                     <?php endif; ?>
                     
                     <div id="<?= $sectionId ?>" class="menu-submenu <?= $isCollapsible ? ($sectionHasActive ? 'open' : '') : 'open' ?>">
-                        <?php foreach ($section['items'] as $item): 
+                        <?php foreach ($accessibleItems as $item): 
                             $itemUrl = $baseUrl . $item['url'];
                             $isActive = false;
                             
-                            // Check if active
-                            if (isset($item['folder'])) {
-                                $isActive = $isShop && $item['folder'] === 'shop' && $currentPage === $item['page'];
-                            } else {
-                                $isActive = !$isShop && $currentPage === $item['page'];
-                            }
+                            // Determine which folder this menu item belongs to based on URL
+                            $itemIsShopUrl = strpos($item['url'], '/shop/') !== false || strpos($item['url'], 'shop/') === 0;
+                            $itemIsInventoryUrl = strpos($item['url'], '/inventory/') !== false || strpos($item['url'], 'inventory/') === 0;
                             
-                            // Special case for shop items when in shop folder
-                            if ($isShop && strpos($item['url'], 'shop/') === 0) {
-                                $itemUrl = basename($item['url']);
-                                if ($currentPage === $item['page']) $isActive = true;
+                            // Check if active based on URL folder type
+                            if ($itemIsShopUrl) {
+                                // Shop folder items - active when in shop folder and page matches
+                                if ($isShop && $currentPage === $item['page']) {
+                                    $isActive = true;
+                                    $itemUrl = basename($item['url']); // Use relative URL when in shop folder
+                                }
+                            } elseif ($itemIsInventoryUrl) {
+                                // Inventory folder items - active when in inventory folder and page matches
+                                if ($isInventory && $currentPage === $item['page']) {
+                                    $isActive = true;
+                                    $itemUrl = basename($item['url']); // Use relative URL when in inventory folder
+                                }
+                            } else {
+                                // Root level items - active when not in any subfolder and page matches
+                                $isActive = !$isSubfolder && $currentPage === $item['page'];
                             }
                         ?>
                         <a href="<?= $itemUrl ?>" class="menu-item <?= $isActive ? 'active' : '' ?>">
@@ -1256,14 +1371,29 @@ function toggleSubmenu(id) {
 // Restore menu state on page load
 document.addEventListener('DOMContentLoaded', function() {
     const openMenus = JSON.parse(localStorage.getItem('openMenus') || '{}');
-    Object.keys(openMenus).forEach(id => {
-        const submenu = document.getElementById(id);
-        const parent = submenu?.previousElementSibling;
+    
+    // Get all submenus
+    document.querySelectorAll('.menu-submenu').forEach(submenu => {
+        const id = submenu.id;
+        const parent = submenu.previousElementSibling;
         const arrow = parent?.querySelector('.menu-arrow');
         
-        if (submenu && openMenus[id]) {
+        // Check if this submenu has an active item (Requirements 8.3)
+        const hasActiveItem = submenu.querySelector('.menu-item.active') !== null;
+        
+        if (hasActiveItem) {
+            // Always expand group with active item
             submenu.classList.add('open');
             if (arrow) arrow.classList.add('rotate');
+        } else if (openMenus[id] !== undefined) {
+            // Restore saved state for non-active groups
+            if (openMenus[id]) {
+                submenu.classList.add('open');
+                if (arrow) arrow.classList.add('rotate');
+            } else {
+                submenu.classList.remove('open');
+                if (arrow) arrow.classList.remove('rotate');
+            }
         }
     });
 });
