@@ -45,7 +45,9 @@ class LiffMessageBridge {
             hasSendMessages
         });
         
-        return liffExists && isInClient && hasSendMessages;
+        // liff.sendMessages() works in both LINE app AND external browser
+        // if user granted chat_message.write permission during login
+        return liffExists && hasSendMessages;
     }
 
     /**
@@ -122,6 +124,12 @@ class LiffMessageBridge {
         try {
             console.log('📤 Attempting liff.sendMessages with:', message);
             
+            // Check if LIFF is logged in
+            if (!liff.isLoggedIn()) {
+                console.log('📤 LIFF not logged in, trying login...');
+                await liff.login();
+            }
+            
             await liff.sendMessages([{
                 type: 'text',
                 text: message
@@ -136,9 +144,17 @@ class LiffMessageBridge {
             console.error('❌ Error code:', error.code);
             console.error('❌ Error message:', error.message);
             
-            // Fallback to API on LIFF error
-            console.log('🔄 Falling back to API...');
-            return await this.sendViaApi(action, data, message);
+            // Check if it's a permission error
+            if (error.code === 'FORBIDDEN' || error.message?.includes('permission')) {
+                console.log('🔄 Permission denied, showing manual instruction...');
+                this.showOpenInLineModal(message, action, data);
+                return { success: true, method: 'manual', message: 'User needs to send message in LINE' };
+            }
+            
+            // For other errors, show manual instruction
+            console.log('🔄 Falling back to manual instruction...');
+            this.showOpenInLineModal(message, action, data);
+            return { success: true, method: 'manual', message: 'Fallback to manual' };
         }
     }
 
