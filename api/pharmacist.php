@@ -7,8 +7,10 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
+$logger = ActivityLogger::getInstance($db);
 
 // Handle GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -230,6 +232,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("INSERT INTO messages (user_id, message_type, content, direction, sent_by) VALUES (?, 'text', ?, 'outgoing', 'pharmacist')");
                 $stmt->execute([$userId, $message]);
                 
+                // Log activity
+                $logger->logMessage(ActivityLogger::ACTION_SEND, 'เภสัชกรส่งข้อความถึงลูกค้า', [
+                    'user_id' => $userId,
+                    'entity_type' => 'message',
+                    'new_value' => ['message' => $message],
+                    'line_account_id' => $lineAccountId
+                ]);
+                
                 echo json_encode(['success' => $result, 'message' => $result ? 'Message sent' : 'Failed to send']);
             } catch (Exception $e) {
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -342,6 +352,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
+                // Log activity
+                $logger->logPharmacy(ActivityLogger::ACTION_APPROVE, 'อนุมัติยาให้ลูกค้า', [
+                    'user_id' => $userId,
+                    'entity_type' => 'triage_session',
+                    'entity_id' => $sessionId,
+                    'new_value' => [
+                        'drugs' => $drugs,
+                        'pharmacist_name' => $pharmacistName,
+                        'pharmacist_license' => $pharmacistLicense,
+                        'note' => $pharmacistNote,
+                        'add_to_cart' => $addToCart
+                    ],
+                    'line_account_id' => $lineAccountId
+                ]);
+                
                 echo json_encode([
                     'success' => true, 
                     'message' => 'Drugs approved' . ($lineSent ? ' and sent to customer' : ' (LINE notification pending)') . ($addToCart ? ' - items added to cart' : '')
@@ -383,6 +408,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Update triage session status
                 $stmt = $db->prepare("UPDATE triage_sessions SET status = 'cancelled' WHERE id = ?");
                 $stmt->execute([$sessionId]);
+                
+                // Log activity
+                $logger->logPharmacy(ActivityLogger::ACTION_REJECT, 'ปฏิเสธคำขอยา', [
+                    'user_id' => $userId,
+                    'entity_type' => 'triage_session',
+                    'entity_id' => $sessionId,
+                    'new_value' => ['reason' => $reason],
+                    'line_account_id' => $lineAccountId
+                ]);
                 
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {

@@ -4,6 +4,8 @@
  * จัดการการเข้าสู่ระบบและสิทธิ์ของผู้ดูแล
  */
 
+require_once __DIR__ . '/ActivityLogger.php';
+
 class AdminAuth
 {
     private $db;
@@ -160,8 +162,20 @@ class AdminAuth
         unset($user['password']);
         $_SESSION[$this->sessionKey] = $user;
         
-        // Log activity
+        // Log activity (both old and new logger)
         $this->logActivity($user['id'], null, 'login', 'User logged in');
+        
+        // Log to ActivityLogger
+        try {
+            $activityLogger = ActivityLogger::getInstance($this->db);
+            $activityLogger->logAuth(ActivityLogger::ACTION_LOGIN, 'เข้าสู่ระบบ', [
+                'admin_id' => $user['id'],
+                'admin_name' => $user['display_name'] ?? $user['username'],
+                'extra_data' => ['role' => $user['role']]
+            ]);
+        } catch (Exception $e) {
+            // Ignore logger errors
+        }
         
         return ['success' => true, 'user' => $user];
     }
@@ -172,7 +186,19 @@ class AdminAuth
     public function logout()
     {
         if ($this->isLoggedIn()) {
-            $this->logActivity($this->getCurrentUser()['id'], null, 'logout', 'User logged out');
+            $user = $this->getCurrentUser();
+            $this->logActivity($user['id'], null, 'logout', 'User logged out');
+            
+            // Log to ActivityLogger
+            try {
+                $activityLogger = ActivityLogger::getInstance($this->db);
+                $activityLogger->logAuth(ActivityLogger::ACTION_LOGOUT, 'ออกจากระบบ', [
+                    'admin_id' => $user['id'],
+                    'admin_name' => $user['display_name'] ?? $user['username']
+                ]);
+            } catch (Exception $e) {
+                // Ignore logger errors
+            }
         }
         unset($_SESSION[$this->sessionKey]);
         unset($_SESSION['current_bot_id']);

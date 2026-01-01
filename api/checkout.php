@@ -14,8 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config/config.php';
 require_once '../config/database.php';
+require_once '../classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
+$activityLogger = ActivityLogger::getInstance($db);
 
 // Get action
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
@@ -692,6 +694,21 @@ function handleCreateOrder($data) {
         } catch (Exception $e) {
             error_log("NotificationService error: " . $e->getMessage());
         }
+        
+        // Log activity
+        global $activityLogger;
+        $activityLogger->logOrder(ActivityLogger::ACTION_CREATE, 'สร้างคำสั่งซื้อใหม่', [
+            'user_id' => $userId,
+            'entity_type' => 'order',
+            'entity_id' => $orderId,
+            'new_value' => [
+                'order_number' => $orderNumber,
+                'total' => $total,
+                'items_count' => count($items),
+                'payment_method' => $paymentMethod
+            ],
+            'line_account_id' => $lineAccountId
+        ]);
         
         jsonResponse(true, 'Order created', [
             'order_id' => $orderId,

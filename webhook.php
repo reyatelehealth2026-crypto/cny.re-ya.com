@@ -28,6 +28,7 @@
 
     require_once 'config/config.php';
     require_once 'config/database.php';
+    require_once 'classes/ActivityLogger.php';
     require_once 'classes/LineAPI.php';
     require_once 'classes/LineAccountManager.php';
     require_once 'classes/OpenAI.php';

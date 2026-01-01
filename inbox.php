@@ -15,9 +15,11 @@ if (file_exists(__DIR__ . '/config/config.php')) {
 require_once 'config/database.php';
 require_once 'classes/LineAPI.php';
 require_once 'classes/LineAccountManager.php';
+require_once 'classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
 $currentBotId = $_SESSION['current_bot_id'] ?? 1;
+$activityLogger = ActivityLogger::getInstance($db);
 
 // AJAX Handlers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -80,6 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     }
                     $msgId = $db->lastInsertId();
                     $method = $result['method'] ?? 'push';
+                    
+                    // Log activity
+                    $activityLogger->logMessage(ActivityLogger::ACTION_SEND, 'ส่งข้อความถึงลูกค้า', [
+                        'user_id' => $userId,
+                        'entity_type' => 'message',
+                        'entity_id' => $msgId,
+                        'new_value' => ['message' => mb_substr($message, 0, 100)],
+                        'line_account_id' => $user['line_account_id']
+                    ]);
+                    
                     echo json_encode([
                         'success' => true, 
                         'message_id' => $msgId, 
@@ -141,13 +153,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $note = trim($_POST['note'] ?? '');
                 $stmt = $db->prepare("INSERT INTO user_notes (user_id, note, created_at) VALUES (?, ?, NOW())");
                 $stmt->execute([$userId, $note]);
-                echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+                $noteId = $db->lastInsertId();
+                
+                // Log activity
+                $activityLogger->logData(ActivityLogger::ACTION_CREATE, 'เพิ่มโน้ตลูกค้า', [
+                    'user_id' => $userId,
+                    'entity_type' => 'user_note',
+                    'entity_id' => $noteId,
+                    'new_value' => ['note' => mb_substr($note, 0, 100)]
+                ]);
+                
+                echo json_encode(['success' => true, 'id' => $noteId]);
                 break;
             
             case 'delete_note':
                 $noteId = intval($_POST['note_id'] ?? 0);
                 $stmt = $db->prepare("DELETE FROM user_notes WHERE id = ?");
                 $stmt->execute([$noteId]);
+                
+                // Log activity
+                $activityLogger->logData(ActivityLogger::ACTION_DELETE, 'ลบโน้ตลูกค้า', [
+                    'entity_type' => 'user_note',
+                    'entity_id' => $noteId
+                ]);
+                
                 echo json_encode(['success' => true]);
                 break;
             
@@ -158,6 +187,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $currentMedications = trim($_POST['current_medications'] ?? '');
                 $stmt = $db->prepare("UPDATE users SET medical_conditions = ?, drug_allergies = ?, current_medications = ? WHERE id = ?");
                 $stmt->execute([$medicalConditions, $drugAllergies, $currentMedications, $userId]);
+                
+                // Log activity
+                $activityLogger->logData(ActivityLogger::ACTION_UPDATE, 'อัพเดทข้อมูลทางการแพทย์', [
+                    'user_id' => $userId,
+                    'entity_type' => 'user',
+                    'entity_id' => $userId,
+                    'new_value' => [
+                        'medical_conditions' => $medicalConditions,
+                        'drug_allergies' => $drugAllergies,
+                        'current_medications' => $currentMedications
+                    ]
+                ]);
+                
                 echo json_encode(['success' => true]);
                 break;
             
