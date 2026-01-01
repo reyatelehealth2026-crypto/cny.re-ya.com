@@ -278,9 +278,9 @@ $menuGroups = [
                 'title' => 'Dashboards',
                 'icon' => '📊',
                 'submenus' => [
-                    ['title' => 'ภาพรวมระบบ (Main Dashboard)', 'href' => '/admin/dashboard'],
+                    ['title' => 'ภาพรวมระบบ (Main Dashboard)', 'href' => '/shop/'],
                     ['title' => 'ผู้บริหาร (Executive Dashboard)', 'href' => '/executive-dashboard'],
-                    ['title' => 'ภาพรวมร้านค้า (Shop Overview)', 'href' => '/shop/overview'],
+                    ['title' => 'ภาพรวมร้านค้า (Shop Overview)', 'href' => '/shop/'],
                 ]
             ],
             [
