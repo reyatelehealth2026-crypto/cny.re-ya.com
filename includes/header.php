@@ -321,7 +321,7 @@ $menuGroups = [
                 'submenus' => [
                     ['title' => 'Dashboard เภสัชกร', 'href' => '/pharmacist-dashboard'],
                     ['title' => 'นัดหมาย (Appointments)', 'href' => '/appointments-admin'],
-                    ['title' => 'Video Call Pro', 'href' => '/video-call-pro'],
+                    ['title' => 'Video Call Pro', 'href' => '/pharmacist-video-calls'],
                 ]
             ],
             [
@@ -704,60 +704,73 @@ $menuGroups = [
             margin-right: 10px;
         }
         
-        /* Nested Menu Group */
+        /* Nested Menu Group - Level 2 */
         .nested-menu-group {
-            margin: 2px 0;
+            margin: 1px 0;
+            border-left: 2px solid #e2e8f0;
+            margin-left: 12px;
         }
         
         .nested-menu-parent {
             display: flex;
             align-items: center;
-            padding: 8px 12px;
-            margin: 2px 4px;
-            border-radius: 8px;
+            padding: 7px 10px;
+            margin: 1px 4px;
+            border-radius: 6px;
             color: #475569;
-            font-size: 12.5px;
+            font-size: 12px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.15s ease;
             user-select: none;
+            background: #f8fafc;
         }
         
         .nested-menu-parent:hover { 
-            background: #f1f5f9; 
-            color: #1e293b; 
+            background: #e0f2fe; 
+            color: #0369a1;
+            border-left: 2px solid #0ea5e9;
+            margin-left: 2px;
         }
         
         .nested-menu-icon {
-            width: 22px;
-            margin-right: 8px;
-            font-size: 14px;
+            width: 18px;
+            margin-right: 6px;
+            font-size: 12px;
             text-align: center;
         }
         
-        .nested-menu-label { flex: 1; }
+        .nested-menu-label { 
+            flex: 1; 
+            font-size: 11.5px;
+        }
         
         .nested-menu-note {
-            font-size: 10px;
+            font-size: 9px;
             color: #94a3b8;
-            margin-right: 8px;
+            margin-right: 6px;
             font-weight: 400;
+            background: #f1f5f9;
+            padding: 1px 4px;
+            border-radius: 3px;
         }
         
         .nested-arrow {
-            font-size: 9px;
+            font-size: 8px;
             color: #94a3b8;
             transition: transform 0.2s ease;
         }
         
         .nested-arrow.rotate { transform: rotate(90deg); }
         
-        /* Nested Submenu */
+        /* Nested Submenu - Level 3 (Final items) */
         .nested-submenu {
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.2s ease-out;
-            padding-left: 30px;
+            padding-left: 20px;
+            border-left: 2px solid #d1fae5;
+            margin-left: 8px;
         }
         
         .nested-submenu.open {
@@ -769,24 +782,40 @@ $menuGroups = [
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 7px 12px;
-            margin: 1px 4px;
-            border-radius: 6px;
+            padding: 6px 10px;
+            margin: 1px 2px;
+            border-radius: 4px;
             color: #64748b;
-            font-size: 12px;
+            font-size: 11px;
             text-decoration: none;
             transition: all 0.15s ease;
+            position: relative;
+        }
+        
+        .nested-menu-item::before {
+            content: '•';
+            color: #cbd5e1;
+            margin-right: 6px;
+            font-size: 8px;
         }
         
         .nested-menu-item:hover {
-            background: #f1f5f9;
-            color: #1e293b;
+            background: #ecfdf5;
+            color: #059669;
+        }
+        
+        .nested-menu-item:hover::before {
+            color: #059669;
         }
         
         .nested-menu-item.active {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
             font-weight: 500;
+        }
+        
+        .nested-menu-item.active::before {
+            color: white;
         }
         
         /* Quick Access Highlight */
@@ -1483,6 +1512,11 @@ function toggleBotDropdown() {
     document.getElementById('botDropdown').classList.toggle('open');
 }
 
+// Get current user ID for localStorage key prefix
+const currentUserId = '<?= $adminUserId ?? "guest" ?>';
+const menuStorageKey = `openMenus_${currentUserId}`;
+const nestedMenuStorageKey = `openNestedMenus_${currentUserId}`;
+
 function toggleSubmenu(id) {
     const submenu = document.getElementById(id);
     const parent = submenu.previousElementSibling;
@@ -1495,10 +1529,10 @@ function toggleSubmenu(id) {
         }
     }
     
-    // Save state to localStorage
-    const openMenus = JSON.parse(localStorage.getItem('openMenus') || '{}');
+    // Save state to localStorage (per user)
+    const openMenus = JSON.parse(localStorage.getItem(menuStorageKey) || '{}');
     openMenus[id] = submenu.classList.contains('open');
-    localStorage.setItem('openMenus', JSON.stringify(openMenus));
+    localStorage.setItem(menuStorageKey, JSON.stringify(openMenus));
 }
 
 function toggleNestedSubmenu(id) {
@@ -1513,16 +1547,16 @@ function toggleNestedSubmenu(id) {
         }
     }
     
-    // Save state to localStorage
-    const openNestedMenus = JSON.parse(localStorage.getItem('openNestedMenus') || '{}');
+    // Save state to localStorage (per user)
+    const openNestedMenus = JSON.parse(localStorage.getItem(nestedMenuStorageKey) || '{}');
     openNestedMenus[id] = submenu.classList.contains('open');
-    localStorage.setItem('openNestedMenus', JSON.stringify(openNestedMenus));
+    localStorage.setItem(nestedMenuStorageKey, JSON.stringify(openNestedMenus));
 }
 
 // Restore menu state on page load
 document.addEventListener('DOMContentLoaded', function() {
-    const openMenus = JSON.parse(localStorage.getItem('openMenus') || '{}');
-    const openNestedMenus = JSON.parse(localStorage.getItem('openNestedMenus') || '{}');
+    const openMenus = JSON.parse(localStorage.getItem(menuStorageKey) || '{}');
+    const openNestedMenus = JSON.parse(localStorage.getItem(nestedMenuStorageKey) || '{}');
     
     // Get all submenus
     document.querySelectorAll('.menu-submenu').forEach(submenu => {
