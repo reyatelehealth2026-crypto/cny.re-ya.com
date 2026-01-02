@@ -587,6 +587,15 @@ $menuGroups = [
         body { 
             font-family: 'Inter', 'Noto Sans Thai', sans-serif; 
             background: #f1f5f9;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* App Layout - Main Container */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
         }
         
         /* Scrollbar */
@@ -1675,7 +1684,7 @@ $menuGroups = [
 <body>
     <div id="mobileOverlay" class="mobile-overlay" onclick="toggleSidebar()"></div>
     
-    <div class="flex h-screen md:h-screen">
+    <div class="app-layout">
         <!-- Sidebar -->
         <aside id="sidebar" class="sidebar flex flex-col">
             <!-- Brand -->
