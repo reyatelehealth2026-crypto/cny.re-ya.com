@@ -609,12 +609,13 @@ $menuGroups = [
             width: var(--sidebar-width) !important;
             min-width: var(--sidebar-width) !important;
             max-width: var(--sidebar-width) !important;
-            flex-shrink: 0 !important;
+            flex: 0 0 var(--sidebar-width) !important;
             background: #1e1b4b;
             border-right: none;
             transition: transform 0.3s ease;
-            position: relative;
-            z-index: 40;
+            height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
         
         .sidebar-brand {
@@ -1307,12 +1308,13 @@ $menuGroups = [
         
         /* Main Content */
         .main-content {
-            flex: 1 1 0% !important;
+            flex: 1 1 auto !important;
             display: flex;
             flex-direction: column;
             min-width: 0;
-            overflow: hidden;
-            width: calc(100% - var(--sidebar-width));
+            overflow-x: hidden;
+            overflow-y: auto;
+            height: 100vh;
         }
         
         .top-header {
