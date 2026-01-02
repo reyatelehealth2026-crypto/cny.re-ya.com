@@ -281,21 +281,21 @@ $menuGroups = [
                 'title' => 'Dashboards',
                 'icon' => '📊',
                 'submenus' => [
-                    ['title' => 'ภาพรวมระบบ (Main Dashboard)', 'href' => '/shop/'],
-                    ['title' => 'ผู้บริหาร (Executive Dashboard)', 'href' => '/executive-dashboard'],
+                    ['title' => 'ภาพรวมระบบ', 'href' => '/shop/'],
+                    ['title' => 'Executive Dashboard', 'href' => '/executive-dashboard'],
                 ]
             ],
             [
                 'title' => 'Analytics Center',
                 'icon' => '📉',
-                'note' => 'รวมรายงานจากทุกส่วน',
+                'note' => 'รวมรายงาน',
                 'submenus' => [
                     ['title' => 'สถิติทั่วไป', 'href' => '/analytics'],
                     ['title' => 'วิเคราะห์ขั้นสูง', 'href' => '/advanced-analytics'],
                     ['title' => 'CRM Analytics', 'href' => '/crm-analytics'],
-                    ['title' => 'Triage Analytics (สถิติการคัดกรอง)', 'href' => '/triage-analytics'],
-                    ['title' => 'รายงานคลังสินค้า (Inventory Report)', 'href' => '/inventory/reports'],
-                    ['title' => 'รายงานยอดขาย & ออเดอร์', 'href' => '/shop/reports'],
+                    ['title' => 'Triage Analytics', 'href' => '/triage-analytics'],
+                    ['title' => 'รายงานคลังสินค้า', 'href' => '/inventory/reports'],
+                    ['title' => 'รายงานยอดขาย', 'href' => '/shop/reports'],
                     ['title' => 'สถิติ Broadcast', 'href' => '/broadcast-stats'],
                 ]
             ],
@@ -303,9 +303,9 @@ $menuGroups = [
                 'title' => 'Tracking & Logs',
                 'icon' => '🔗',
                 'submenus' => [
-                    ['title' => 'ติดตามลิงก์ (Link Tracking)', 'href' => '/link-tracking'],
+                    ['title' => 'ติดตามลิงก์', 'href' => '/link-tracking'],
                     ['title' => 'Activity Logs', 'href' => '/activity-logs'],
-                    ['title' => 'รายงานอัตโนมัติ (Scheduled Reports)', 'href' => '/scheduled-reports'],
+                    ['title' => 'รายงานอัตโนมัติ', 'href' => '/scheduled-reports'],
                 ]
             ],
         ]
@@ -320,7 +320,7 @@ $menuGroups = [
                 'icon' => '👩‍⚕️',
                 'submenus' => [
                     ['title' => 'Dashboard เภสัชกร', 'href' => '/pharmacist-dashboard'],
-                    ['title' => 'นัดหมาย (Appointments)', 'href' => '/appointments-admin'],
+                    ['title' => 'นัดหมาย', 'href' => '/appointments-admin'],
                     ['title' => 'Video Call Pro', 'href' => '/pharmacist-video-calls'],
                 ]
             ],
@@ -328,8 +328,8 @@ $menuGroups = [
                 'title' => 'Drug & Safety',
                 'icon' => '💊',
                 'submenus' => [
-                    ['title' => 'ตรวจสอบยาตีกัน (Drug Interactions)', 'href' => '/drug-interactions'],
-                    ['title' => 'ข้อมูลยา (Drug Info)', 'href' => '/drug-info'],
+                    ['title' => 'ตรวจสอบยาตีกัน', 'href' => '/drug-interactions'],
+                    ['title' => 'ข้อมูลยา', 'href' => '/drug-info'],
                 ]
             ],
             [
@@ -350,31 +350,31 @@ $menuGroups = [
                 'title' => 'Chat & CRM',
                 'icon' => '💬',
                 'submenus' => [
-                    ['title' => 'กล่องข้อความ (Inbox)', 'href' => '/inbox', 'badge' => $unreadMessages],
-                    ['title' => 'รายชื่อลูกค้า (Customers)', 'href' => '/users'],
-                    ['title' => 'แท็กลูกค้า (Tags)', 'href' => '/user-tags'],
-                    ['title' => 'กลุ่มเป้าหมาย (Segments)', 'href' => '/customer-segments'],
+                    ['title' => 'กล่องข้อความ', 'href' => '/inbox', 'badge' => $unreadMessages],
+                    ['title' => 'รายชื่อลูกค้า', 'href' => '/users'],
+                    ['title' => 'แท็กลูกค้า', 'href' => '/user-tags'],
+                    ['title' => 'กลุ่มเป้าหมาย', 'href' => '/customer-segments'],
                     ['title' => 'Consent / PDPA', 'href' => '/consent-management'],
                 ]
             ],
             [
                 'title' => 'Engagement',
                 'icon' => '📢',
-                'note' => 'รวม Broadcast',
+                'note' => 'Broadcast',
                 'submenus' => [
-                    ['title' => 'ส่งข้อความ (Broadcast)', 'href' => '/broadcast'],
-                    ['title' => 'Drip Campaign (ส่งตามสเต็ป)', 'href' => '/drip-campaigns'],
-                    ['title' => 'ข้อความต้อนรับ (Welcome Msg)', 'href' => '/welcome-settings'],
-                    ['title' => 'ตอบอัตโนมัติ (Auto-reply)', 'href' => '/auto-reply'],
+                    ['title' => 'ส่งข้อความ', 'href' => '/broadcast'],
+                    ['title' => 'Drip Campaign', 'href' => '/drip-campaigns'],
+                    ['title' => 'ข้อความต้อนรับ', 'href' => '/welcome-settings'],
+                    ['title' => 'ตอบอัตโนมัติ', 'href' => '/auto-reply'],
                 ]
             ],
             [
                 'title' => 'Loyalty Program',
                 'icon' => '💳',
                 'submenus' => [
-                    ['title' => 'จัดการสมาชิก (Members)', 'href' => '/members'],
-                    ['title' => 'ตั้งค่าแต้ม (Points)', 'href' => '/admin-points-settings'],
-                    ['title' => 'ของรางวัล (Rewards)', 'href' => '/admin-rewards'],
+                    ['title' => 'จัดการสมาชิก', 'href' => '/members'],
+                    ['title' => 'ตั้งค่าแต้ม', 'href' => '/admin-points-settings'],
+                    ['title' => 'ของรางวัล', 'href' => '/admin-rewards'],
                 ]
             ],
         ]
@@ -388,20 +388,20 @@ $menuGroups = [
                 'title' => 'Sales & Orders',
                 'icon' => '💰',
                 'submenus' => [
-                    ['title' => 'รายการออเดอร์ (All Orders)', 'href' => '/shop/orders', 'badge' => $pendingOrders],
-                    ['title' => 'รอตรวจสลิป (Pending Slip)', 'href' => '/shop/orders?pending=1', 'badge' => $pendingSlips],
-                    ['title' => 'โปรโมชั่น (Promotions)', 'href' => '/shop/promotions'],
+                    ['title' => 'รายการออเดอร์', 'href' => '/shop/orders', 'badge' => $pendingOrders],
+                    ['title' => 'รอตรวจสลิป', 'href' => '/shop/orders?pending=1', 'badge' => $pendingSlips],
+                    ['title' => 'โปรโมชั่น', 'href' => '/shop/promotions'],
                 ]
             ],
             [
                 'title' => 'Inventory Mgmt',
                 'icon' => '📦',
                 'submenus' => [
-                    ['title' => 'สินค้า (Products)', 'href' => '/shop/products'],
-                    ['title' => 'หมวดหมู่ (Categories)', 'href' => '/shop/categories'],
-                    ['title' => 'ปรับสต็อก (Stock Adjustment)', 'href' => '/inventory/stock-adjustment'],
-                    ['title' => 'สินค้าใกล้หมด (Low Stock)', 'href' => '/inventory/low-stock'],
-                    ['title' => 'ประวัติเคลื่อนไหว (Movements)', 'href' => '/inventory/stock-movements'],
+                    ['title' => 'สินค้า', 'href' => '/shop/products'],
+                    ['title' => 'หมวดหมู่', 'href' => '/shop/categories'],
+                    ['title' => 'ปรับสต็อก', 'href' => '/inventory/stock-adjustment'],
+                    ['title' => 'สินค้าใกล้หมด', 'href' => '/inventory/low-stock'],
+                    ['title' => 'ประวัติเคลื่อนไหว', 'href' => '/inventory/stock-movements'],
                 ]
             ],
             [
@@ -410,15 +410,15 @@ $menuGroups = [
                 'note' => 'จัดซื้อ',
                 'submenus' => [
                     ['title' => 'Suppliers', 'href' => '/inventory/suppliers'],
-                    ['title' => 'ใบสั่งซื้อ (PO)', 'href' => '/inventory/purchase-orders'],
-                    ['title' => 'รับสินค้า (GR)', 'href' => '/inventory/goods-receive'],
+                    ['title' => 'ใบสั่งซื้อ', 'href' => '/inventory/purchase-orders'],
+                    ['title' => 'รับสินค้า', 'href' => '/inventory/goods-receive'],
                 ]
             ],
             [
                 'title' => 'Configs',
                 'icon' => '⚙️',
                 'submenus' => [
-                    ['title' => 'หน่วยสินค้า (Units)', 'href' => '/inventory/product-units'],
+                    ['title' => 'หน่วยสินค้า', 'href' => '/inventory/product-units'],
                     ['title' => 'Sync สินค้า', 'href' => '/sync-dashboard'],
                 ]
             ],
@@ -433,33 +433,33 @@ $menuGroups = [
                 'title' => 'User Management',
                 'icon' => '👥',
                 'submenus' => [
-                    ['title' => 'ผู้ดูแลระบบ (Admin Users)', 'href' => '/admin-users'],
-                    ['title' => 'จัดการเภสัชกร (Pharmacists)', 'href' => '/pharmacists'],
+                    ['title' => 'ผู้ดูแลระบบ', 'href' => '/admin-users'],
+                    ['title' => 'จัดการเภสัชกร', 'href' => '/pharmacists'],
                 ]
             ],
             [
                 'title' => 'Connections',
                 'icon' => '🔌',
                 'submenus' => [
-                    ['title' => 'บัญชี LINE (LINE Accounts)', 'href' => '/line-accounts'],
+                    ['title' => 'บัญชี LINE', 'href' => '/line-accounts'],
                     ['title' => 'ตั้งค่า LIFF', 'href' => '/liff-settings'],
-                    ['title' => 'Telegram Notifications', 'href' => '/telegram'],
+                    ['title' => 'Telegram', 'href' => '/telegram'],
                 ]
             ],
             [
                 'title' => 'System Settings',
                 'icon' => '⚙️',
                 'submenus' => [
-                    ['title' => 'ตั้งค่าร้านค้า (Shop Settings)', 'href' => '/shop/settings'],
-                    ['title' => 'ตั้งค่า AI เภสัช (AI Pharm Settings)', 'href' => '/ai-pharmacy-settings'],
-                    ['title' => 'การแจ้งเตือน (Notifications)', 'href' => '/notification-settings'],
+                    ['title' => 'ตั้งค่าร้านค้า', 'href' => '/shop/settings'],
+                    ['title' => 'ตั้งค่า AI เภสัช', 'href' => '/ai-pharmacy-settings'],
+                    ['title' => 'การแจ้งเตือน', 'href' => '/notification-settings'],
                 ]
             ],
             [
                 'title' => 'Support',
                 'icon' => '❓',
                 'submenus' => [
-                    ['title' => 'คู่มือการใช้งาน (Help)', 'href' => '/help'],
+                    ['title' => 'คู่มือการใช้งาน', 'href' => '/help'],
                 ]
             ],
         ]
@@ -473,9 +473,9 @@ $menuGroups = [
                 'title' => 'AI Tools',
                 'icon' => '🤖',
                 'submenus' => [
-                    ['title' => 'AI Studio (สร้าง Prompt/Model)', 'href' => '/ai-studio'],
-                    ['title' => 'AI ตอบแชท (Chatbot Config)', 'href' => '/ai-chat-settings'],
-                    ['title' => 'AI สร้างรูป (Image Gen)', 'href' => '/ai-image'],
+                    ['title' => 'AI Studio', 'href' => '/ai-studio'],
+                    ['title' => 'AI ตอบแชท', 'href' => '/ai-chat-settings'],
+                    ['title' => 'AI สร้างรูป', 'href' => '/ai-image'],
                     ['title' => 'ตั้งค่า API Key', 'href' => '/ai-settings'],
                 ]
             ],
@@ -485,9 +485,9 @@ $menuGroups = [
                 'submenus' => [
                     ['title' => 'Rich Menu', 'href' => '/rich-menu'],
                     ['title' => 'Dynamic Rich Menu', 'href' => '/dynamic-rich-menu'],
-                    ['title' => 'Flex Message Builder', 'href' => '/flex-builder'],
-                    ['title' => 'ตั้งเวลาส่ง (Scheduled)', 'href' => '/scheduled'],
-                    ['title' => 'กลุ่ม LINE (Line Groups)', 'href' => '/line-groups'],
+                    ['title' => 'Flex Builder', 'href' => '/flex-builder'],
+                    ['title' => 'ตั้งเวลาส่ง', 'href' => '/scheduled'],
+                    ['title' => 'กลุ่ม LINE', 'href' => '/line-groups'],
                 ]
             ],
         ]
