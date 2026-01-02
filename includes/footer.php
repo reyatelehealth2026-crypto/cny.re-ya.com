@@ -1,6 +1,180 @@
             </div><!-- /.content-area -->
         </div><!-- /.main-content -->
-    </div><!-- /.flex -->
+    </div><!-- /.app-layout -->
+
+    <!-- AI Assistant Panel (Slide-in from right) -->
+    <div id="aiAssistantPanel" class="ai-panel">
+        <div class="ai-panel-content">
+            <div class="ai-panel-header">
+                <div class="ai-panel-title">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Assistant</span>
+                </div>
+                <button onclick="closeAiAssistant()" class="ai-panel-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="ai-panel-context">
+                <div class="ai-context-badge">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span id="aiCurrentPage">Dashboard</span>
+                </div>
+            </div>
+            
+            <div class="ai-panel-messages" id="aiPanelMessages">
+                <div class="ai-welcome">
+                    <div class="ai-welcome-icon">🤖</div>
+                    <h4>สวัสดีครับ!</h4>
+                    <p>ผมพร้อมช่วยเหลือคุณ ถามอะไรก็ได้เลย</p>
+                </div>
+                
+                <div class="ai-quick-questions">
+                    <div class="ai-quick-title">💡 คำถามแนะนำ</div>
+                    <button onclick="askAi('หน้านี้ใช้ทำอะไร?')">หน้านี้ใช้ทำอะไร?</button>
+                    <button onclick="askAi('แนะนำวิธีใช้งาน')">แนะนำวิธีใช้งาน</button>
+                    <button onclick="askAi('มีฟีเจอร์อะไรบ้าง?')">มีฟีเจอร์อะไรบ้าง?</button>
+                </div>
+            </div>
+            
+            <div class="ai-panel-input">
+                <input type="text" id="aiPanelInput" placeholder="พิมพ์คำถาม..." onkeypress="if(event.key==='Enter')sendAiQuestion()">
+                <button onclick="sendAiQuestion()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="aiPanelOverlay" class="ai-panel-overlay" onclick="closeAiAssistant()"></div>
+
+    <!-- AI Assistant Panel JavaScript -->
+    <script>
+    // AI Panel Functions
+    window.openAiAssistant = function() {
+        document.getElementById('aiAssistantPanel').classList.add('open');
+        document.getElementById('aiPanelOverlay').classList.add('open');
+        document.body.style.overflow = 'hidden';
+        // Update current page
+        const pageTitle = document.querySelector('.page-title')?.textContent || 'Dashboard';
+        document.getElementById('aiCurrentPage').textContent = pageTitle;
+    };
+    
+    window.closeAiAssistant = function() {
+        document.getElementById('aiAssistantPanel').classList.remove('open');
+        document.getElementById('aiPanelOverlay').classList.remove('open');
+        document.body.style.overflow = '';
+    };
+    
+    // Get current page context for AI
+    function getCurrentPageContext() {
+        const path = window.location.pathname;
+        const pageTitle = document.querySelector('.page-title')?.textContent || 'Dashboard';
+        return { path, pageTitle };
+    }
+    
+    // Add message to chat
+    function addAiMessage(content, isUser = false) {
+        const messagesContainer = document.getElementById('aiPanelMessages');
+        const welcomeEl = messagesContainer.querySelector('.ai-welcome');
+        if (welcomeEl) welcomeEl.style.display = 'none';
+        
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `ai-message ${isUser ? 'ai-message-user' : 'ai-message-bot'}`;
+        msgDiv.innerHTML = `<div class="ai-bubble">${content}</div>`;
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Show typing indicator
+    function showTypingIndicator() {
+        const messagesContainer = document.getElementById('aiPanelMessages');
+        const typingDiv = document.createElement('div');
+        typingDiv.id = 'aiTyping';
+        typingDiv.className = 'ai-message ai-message-bot';
+        typingDiv.innerHTML = '<div class="ai-bubble"><i class="fas fa-circle-notch fa-spin"></i> กำลังคิด...</div>';
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function removeTypingIndicator() {
+        const typing = document.getElementById('aiTyping');
+        if (typing) typing.remove();
+    }
+    
+    // Ask AI with quick question
+    window.askAi = function(question) {
+        addAiMessage(question, true);
+        callAiApi(question);
+    };
+    
+    // Send user input
+    window.sendAiQuestion = function() {
+        const input = document.getElementById('aiPanelInput');
+        const question = input.value.trim();
+        if (!question) return;
+        
+        input.value = '';
+        addAiMessage(question, true);
+        callAiApi(question);
+    };
+    
+    // Call AI API (using sidebar-assistant for context-aware responses)
+    async function callAiApi(question) {
+        showTypingIndicator();
+        
+        const context = getCurrentPageContext();
+        
+        try {
+            const response = await fetch('/api/sidebar-assistant.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: question,
+                    page: context.path,
+                    pageTitle: context.pageTitle
+                })
+            });
+            
+            removeTypingIndicator();
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.message) {
+                    // Format message with links
+                    let msg = data.message;
+                    msg = msg.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-purple-600 underline hover:text-purple-800">$1</a>');
+                    msg = msg.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+                    msg = msg.replace(/\n/g, '<br>');
+                    
+                    let sourceHtml = '';
+                    if (data.ai_source === 'gemini') {
+                        sourceHtml = '<div class="text-xs text-green-600 mt-2 flex items-center gap-1"><i class="fas fa-robot"></i> Gemini AI</div>';
+                    } else if (data.ai_source === 'knowledge') {
+                        sourceHtml = '<div class="text-xs text-blue-500 mt-2 flex items-center gap-1"><i class="fas fa-book"></i> Knowledge Base</div>';
+                    } else if (data.ai_source === 'fallback') {
+                        sourceHtml = '<div class="text-xs text-orange-500 mt-2 flex items-center gap-1"><i class="fas fa-info-circle"></i> คำตอบทั่วไป</div>';
+                    }
+                    
+                    addAiMessage(msg + sourceHtml);
+                } else {
+                    addAiMessage('❌ ' + (data.error || 'ขออภัย ไม่สามารถตอบได้ในขณะนี้'));
+                }
+            } else {
+                addAiMessage('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่');
+            }
+        } catch (error) {
+            removeTypingIndicator();
+            addAiMessage('❌ ไม่สามารถเชื่อมต่อ AI ได้');
+        }
+    }
+    
+    // Close panel with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAiAssistant();
+        }
+    });
+    </script>
 
     <!-- Lazy Load Script -->
     <script src="<?= $baseUrl ?? '' ?>assets/js/lazy-load.js"></script>
