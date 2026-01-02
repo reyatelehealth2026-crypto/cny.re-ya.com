@@ -759,113 +759,297 @@ $menuGroups = [
             font-size: 12px;
         }
         
-        /* AI Help Modal */
-        .ai-help-modal {
+        /* Sidebar Footer */
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .ai-assistant-btn {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+        
+        .ai-assistant-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+        
+        .ai-assistant-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+        }
+        
+        .ai-assistant-text {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .ai-assistant-title {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .ai-assistant-desc {
+            display: block;
+            font-size: 10px;
+            opacity: 0.8;
+        }
+        
+        .ai-assistant-arrow {
+            font-size: 10px;
+            opacity: 0.6;
+        }
+        
+        .sidebar-footer-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+        }
+        
+        /* AI Panel (Slide-in) */
+        .ai-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            max-width: 100vw;
+            height: 100vh;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+            z-index: 10000;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .ai-panel.open {
+            right: 0;
+        }
+        
+        .ai-panel-overlay {
             display: none;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.4);
             z-index: 9999;
-            align-items: center;
-            justify-content: center;
         }
         
-        .ai-help-modal.show {
+        .ai-panel-overlay.open {
+            display: block;
+        }
+        
+        .ai-panel-content {
             display: flex;
+            flex-direction: column;
+            height: 100%;
         }
         
-        .ai-help-content {
-            background: white;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 420px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        .ai-help-header {
+        .ai-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
             background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
             color: white;
-            padding: 20px;
-            border-radius: 16px 16px 0 0;
         }
         
-        .ai-help-header h3 {
+        .ai-panel-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 16px;
             font-weight: 600;
-            margin: 0 0 4px;
         }
         
-        .ai-help-header p {
-            font-size: 13px;
-            opacity: 0.9;
-            margin: 0;
-        }
-        
-        .ai-help-body {
-            padding: 20px;
-        }
-        
-        .ai-help-tips {
-            margin-bottom: 16px;
-        }
-        
-        .ai-help-tip {
-            display: flex;
-            align-items: flex-start;
-            padding: 10px 12px;
-            background: #f8fafc;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 13px;
-            color: #475569;
-            line-height: 1.5;
-        }
-        
-        .ai-help-suggested {
-            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-            border: 1px solid #d1fae5;
-            border-radius: 8px;
-            padding: 12px;
-        }
-        
-        .ai-help-suggested-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: #059669;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-        
-        .ai-help-suggested-text {
-            font-size: 13px;
-            color: #065f46;
-            line-height: 1.5;
-        }
-        
-        .ai-help-footer {
-            padding: 16px 20px;
-            border-top: 1px solid #e2e8f0;
-            text-align: right;
-        }
-        
-        .ai-help-close {
-            background: #7c3aed;
-            color: white;
+        .ai-panel-close {
+            background: rgba(255,255,255,0.2);
             border: none;
-            padding: 8px 20px;
+            width: 32px;
+            height: 32px;
             border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
+            color: white;
             cursor: pointer;
             transition: background 0.15s;
         }
         
-        .ai-help-close:hover {
+        .ai-panel-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .ai-panel-context {
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .ai-context-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .ai-context-badge i {
+            color: #7c3aed;
+        }
+        
+        .ai-panel-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .ai-welcome {
+            text-align: center;
+            padding: 30px 20px;
+        }
+        
+        .ai-welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .ai-welcome h4 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 8px;
+        }
+        
+        .ai-welcome p {
+            font-size: 14px;
+            color: #64748b;
+            margin: 0;
+        }
+        
+        .ai-quick-questions {
+            margin-top: 20px;
+        }
+        
+        .ai-quick-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+        
+        .ai-quick-questions button {
+            display: block;
+            width: 100%;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #475569;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .ai-quick-questions button:hover {
+            background: #e0e7ff;
+            border-color: #c7d2fe;
+            color: #4338ca;
+        }
+        
+        .ai-message {
+            margin-bottom: 16px;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .ai-message-user {
+            text-align: right;
+        }
+        
+        .ai-message-user .ai-bubble {
+            background: #7c3aed;
+            color: white;
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 16px 16px 4px 16px;
+            max-width: 85%;
+            font-size: 13px;
+        }
+        
+        .ai-message-bot .ai-bubble {
+            background: #f1f5f9;
+            color: #1e293b;
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 16px 16px 16px 4px;
+            max-width: 85%;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .ai-panel-input {
+            display: flex;
+            gap: 8px;
+            padding: 16px 20px;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+        }
+        
+        .ai-panel-input input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        
+        .ai-panel-input input:focus {
+            border-color: #7c3aed;
+        }
+        
+        .ai-panel-input button {
+            width: 44px;
+            height: 44px;
+            background: #7c3aed;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .ai-panel-input button:hover {
             background: #6d28d9;
         }
         
@@ -1394,6 +1578,44 @@ $menuGroups = [
             .sidebar > .p-4 {
                 flex-shrink: 0 !important;
             }
+            
+            /* AI Panel Mobile */
+            .ai-panel {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                right: -100vw !important;
+            }
+            
+            .ai-panel.open {
+                right: 0 !important;
+            }
+            
+            .ai-panel-header {
+                padding: 14px 16px !important;
+            }
+            
+            .ai-panel-context {
+                padding: 10px 16px !important;
+            }
+            
+            .ai-panel-messages {
+                padding: 16px !important;
+            }
+            
+            .ai-panel-input {
+                padding: 12px 16px !important;
+                padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+            }
+            
+            .ai-panel-input input {
+                padding: 10px 14px !important;
+                font-size: 16px !important; /* Prevent zoom on iOS */
+            }
+            
+            .ai-quick-questions button {
+                padding: 12px 14px !important;
+                font-size: 14px !important;
+            }
         }
         
         /* Extra small screens */
@@ -1537,17 +1759,10 @@ $menuGroups = [
                 <?php foreach ($menuGroups as $group): ?>
                 <div class="menu-section">
                     <!-- Group Header -->
-                    <div class="menu-parent-wrapper">
-                        <div class="menu-parent" onclick="toggleSubmenu('group_<?= $group['group_id'] ?>')">
-                            <span class="menu-parent-icon"><?= $group['group_icon'] ?></span>
-                            <span class="menu-parent-label"><?= $group['group_title'] ?></span>
-                            <i class="fas fa-chevron-down menu-arrow"></i>
-                        </div>
-                        <?php if (!empty($group['ai_help'])): ?>
-                        <button class="ai-help-btn" onclick="event.stopPropagation(); showAiHelp('<?= $group['group_id'] ?>')" title="AI ช่วยเหลือ">
-                            <i class="fas fa-robot"></i>
-                        </button>
-                        <?php endif; ?>
+                    <div class="menu-parent" onclick="toggleSubmenu('group_<?= $group['group_id'] ?>')">
+                        <span class="menu-parent-icon"><?= $group['group_icon'] ?></span>
+                        <span class="menu-parent-label"><?= $group['group_title'] ?></span>
+                        <i class="fas fa-chevron-down menu-arrow"></i>
                     </div>
                     
                     <!-- Group Menus -->
@@ -1586,58 +1801,186 @@ $menuGroups = [
             </nav>
             
             <!-- Sidebar Footer -->
-            <div class="p-4 border-t border-white/10">
-                <div class="flex items-center justify-between text-xs text-white/40">
+            <div class="sidebar-footer">
+                <!-- AI Assistant Button -->
+                <button onclick="openAiAssistant()" class="ai-assistant-btn">
+                    <div class="ai-assistant-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="ai-assistant-text">
+                        <span class="ai-assistant-title">AI Assistant</span>
+                        <span class="ai-assistant-desc">ถามอะไรก็ได้</span>
+                    </div>
+                    <i class="fas fa-chevron-right ai-assistant-arrow"></i>
+                </button>
+                
+                <div class="sidebar-footer-info">
                     <span>LINE CRM Pro v3.5</span>
                     <div class="flex items-center gap-2">
-                        <a href="<?= $baseUrl ?>video-call-pro.php" class="hover:text-green-500" title="Video Call"><i class="fas fa-video"></i></a>
-                        <a href="<?= $baseUrl ?>help.php" class="hover:text-gray-600" title="Help"><i class="fas fa-question-circle"></i></a>
+                        <a href="<?= $baseUrl ?>help.php" class="hover:text-white" title="Help"><i class="fas fa-question-circle"></i></a>
                     </div>
                 </div>
             </div>
         </aside>
         
-        <!-- AI Help Modal -->
-        <div id="aiHelpModal" class="ai-help-modal" onclick="if(event.target === this) closeAiHelp()">
-            <div class="ai-help-content">
-                <div class="ai-help-header">
-                    <h3 id="aiHelpTitle">AI ช่วยเหลือ</h3>
-                    <p id="aiHelpDesc">คำอธิบายกลุ่มเมนู</p>
+        <!-- AI Assistant Panel (Slide-in from right) -->
+        <div id="aiAssistantPanel" class="ai-panel">
+            <div class="ai-panel-content">
+                <div class="ai-panel-header">
+                    <div class="ai-panel-title">
+                        <i class="fas fa-robot"></i>
+                        <span>AI Assistant</span>
+                    </div>
+                    <button onclick="closeAiAssistant()" class="ai-panel-close">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div class="ai-help-body">
-                    <div class="ai-help-tips" id="aiHelpTips"></div>
-                    <div class="ai-help-suggested">
-                        <div class="ai-help-suggested-label">💡 แนะนำ</div>
-                        <div class="ai-help-suggested-text" id="aiHelpSuggested"></div>
+                
+                <div class="ai-panel-context">
+                    <div class="ai-context-badge">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span id="aiCurrentPage"><?= $pageTitle ?? 'Dashboard' ?></span>
                     </div>
                 </div>
-                <div class="ai-help-footer">
-                    <button class="ai-help-close" onclick="closeAiHelp()">เข้าใจแล้ว</button>
+                
+                <div class="ai-panel-messages" id="aiPanelMessages">
+                    <div class="ai-welcome">
+                        <div class="ai-welcome-icon">🤖</div>
+                        <h4>สวัสดีครับ!</h4>
+                        <p>ผมพร้อมช่วยเหลือคุณ ถามอะไรก็ได้เลย</p>
+                    </div>
+                    
+                    <div class="ai-quick-questions">
+                        <div class="ai-quick-title">💡 คำถามแนะนำ</div>
+                        <button onclick="askAi('หน้านี้ใช้ทำอะไร?')">หน้านี้ใช้ทำอะไร?</button>
+                        <button onclick="askAi('แนะนำวิธีใช้งาน')">แนะนำวิธีใช้งาน</button>
+                        <button onclick="askAi('มีฟีเจอร์อะไรบ้าง?')">มีฟีเจอร์อะไรบ้าง?</button>
+                    </div>
+                </div>
+                
+                <div class="ai-panel-input">
+                    <input type="text" id="aiPanelInput" placeholder="พิมพ์คำถาม..." onkeypress="if(event.key==='Enter')sendAiQuestion()">
+                    <button onclick="sendAiQuestion()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
                 </div>
             </div>
         </div>
+        <div id="aiPanelOverlay" class="ai-panel-overlay" onclick="closeAiAssistant()"></div>
+        </div>
         
-        <!-- AI Help Data -->
+        <!-- AI Assistant Panel JavaScript -->
         <script>
-        window.aiHelpData = <?= json_encode(array_column($menuGroups, 'ai_help', 'group_id'), JSON_UNESCAPED_UNICODE) ?>;
-        
-        window.showAiHelp = function(groupId) {
-            const data = window.aiHelpData[groupId];
-            if (!data) return;
-            
-            document.getElementById('aiHelpTitle').textContent = data.title;
-            document.getElementById('aiHelpDesc').textContent = data.description;
-            document.getElementById('aiHelpSuggested').textContent = data.suggested;
-            
-            const tipsHtml = data.tips.map(tip => `<div class="ai-help-tip">${tip}</div>`).join('');
-            document.getElementById('aiHelpTips').innerHTML = tipsHtml;
-            
-            document.getElementById('aiHelpModal').classList.add('show');
+        // AI Panel Functions
+        window.openAiAssistant = function() {
+            document.getElementById('aiAssistantPanel').classList.add('open');
+            document.getElementById('aiPanelOverlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
         };
         
-        window.closeAiHelp = function() {
-            document.getElementById('aiHelpModal').classList.remove('show');
+        window.closeAiAssistant = function() {
+            document.getElementById('aiAssistantPanel').classList.remove('open');
+            document.getElementById('aiPanelOverlay').classList.remove('open');
+            document.body.style.overflow = '';
         };
+        
+        // Get current page context for AI
+        function getCurrentPageContext() {
+            const path = window.location.pathname;
+            const pageTitle = document.querySelector('.page-title')?.textContent || 'Dashboard';
+            return { path, pageTitle };
+        }
+        
+        // Add message to chat
+        function addAiMessage(content, isUser = false) {
+            const messagesContainer = document.getElementById('aiPanelMessages');
+            const welcomeEl = messagesContainer.querySelector('.ai-welcome');
+            if (welcomeEl) welcomeEl.style.display = 'none';
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `ai-message ${isUser ? 'ai-message-user' : 'ai-message-bot'}`;
+            msgDiv.innerHTML = `<div class="ai-bubble">${content}</div>`;
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Show typing indicator
+        function showTypingIndicator() {
+            const messagesContainer = document.getElementById('aiPanelMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'aiTyping';
+            typingDiv.className = 'ai-message ai-message-bot';
+            typingDiv.innerHTML = '<div class="ai-bubble"><i class="fas fa-circle-notch fa-spin"></i> กำลังคิด...</div>';
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const typing = document.getElementById('aiTyping');
+            if (typing) typing.remove();
+        }
+        
+        // Ask AI with quick question
+        window.askAi = function(question) {
+            addAiMessage(question, true);
+            callAiApi(question);
+        };
+        
+        // Send user input
+        window.sendAiQuestion = function() {
+            const input = document.getElementById('aiPanelInput');
+            const question = input.value.trim();
+            if (!question) return;
+            
+            input.value = '';
+            addAiMessage(question, true);
+            callAiApi(question);
+        };
+        
+        // Call AI API
+        async function callAiApi(question) {
+            showTypingIndicator();
+            
+            const context = getCurrentPageContext();
+            const systemPrompt = `คุณเป็น AI Assistant สำหรับระบบ LINE CRM Pro ช่วยตอบคำถามเกี่ยวกับการใช้งานระบบ
+ผู้ใช้กำลังอยู่ที่หน้า: ${context.pageTitle} (${context.path})
+ตอบสั้นๆ กระชับ เป็นภาษาไทย ใช้ emoji เพื่อความเข้าใจง่าย`;
+            
+            try {
+                const response = await fetch('/api/ai-chat.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: question,
+                        system_prompt: systemPrompt,
+                        context: 'admin_help'
+                    })
+                });
+                
+                removeTypingIndicator();
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.message) {
+                        addAiMessage(data.message);
+                    } else {
+                        addAiMessage('❌ ' + (data.error || 'ขออภัย ไม่สามารถตอบได้ในขณะนี้'));
+                    }
+                } else {
+                    addAiMessage('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่');
+                }
+            } catch (error) {
+                removeTypingIndicator();
+                addAiMessage('❌ ไม่สามารถเชื่อมต่อ AI ได้ กรุณาตรวจสอบการตั้งค่า API Key');
+            }
+        }
+        
+        // Close panel with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAiAssistant();
+            }
+        });
         </script>
         
         <!-- Main Content -->
