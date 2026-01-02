@@ -341,7 +341,7 @@ $menuGroups = [
                 'submenus' => [
                     ['title' => 'Dashboard เภสัชกร', 'href' => '/pharmacist-dashboard'],
                     ['title' => 'นัดหมาย', 'href' => '/appointments-admin'],
-                    ['title' => 'Video Call Pro', 'href' => '/pharmacist-video-calls'],
+                    ['title' => 'Video Call Pro', 'href' => '/pharmacist-video-callsผ'],
                 ]
             ],
             [
@@ -1216,8 +1216,8 @@ $menuGroups = [
                 transform: translateX(-100%) !important;
                 display: flex !important;
                 flex-direction: column !important;
-                background: #fff !important;
-                border-right: 1px solid #e2e8f0 !important;
+                background: #1e1b4b !important;
+                border-right: none !important;
                 transition: transform 0.3s ease !important;
             }
             .sidebar.open { 
@@ -1237,6 +1237,32 @@ $menuGroups = [
             /* Ensure all submenus can expand fully on mobile */
             .menu-submenu.open {
                 max-height: none !important;
+            }
+            
+            .nested-submenu.open {
+                max-height: none !important;
+            }
+            
+            /* Menu items larger touch targets */
+            .menu-parent {
+                padding: 12px 14px !important;
+                min-height: 44px !important;
+            }
+            
+            .nested-menu-parent {
+                padding: 10px 14px 10px 38px !important;
+                min-height: 40px !important;
+            }
+            
+            .nested-menu-item {
+                padding: 10px 14px 10px 56px !important;
+                min-height: 40px !important;
+            }
+            
+            /* AI Help button mobile */
+            .ai-help-btn {
+                width: 36px !important;
+                height: 40px !important;
             }
             
             /* Dark overlay when sidebar open */
@@ -1570,6 +1596,49 @@ $menuGroups = [
                 </div>
             </div>
         </aside>
+        
+        <!-- AI Help Modal -->
+        <div id="aiHelpModal" class="ai-help-modal" onclick="if(event.target === this) closeAiHelp()">
+            <div class="ai-help-content">
+                <div class="ai-help-header">
+                    <h3 id="aiHelpTitle">AI ช่วยเหลือ</h3>
+                    <p id="aiHelpDesc">คำอธิบายกลุ่มเมนู</p>
+                </div>
+                <div class="ai-help-body">
+                    <div class="ai-help-tips" id="aiHelpTips"></div>
+                    <div class="ai-help-suggested">
+                        <div class="ai-help-suggested-label">💡 แนะนำ</div>
+                        <div class="ai-help-suggested-text" id="aiHelpSuggested"></div>
+                    </div>
+                </div>
+                <div class="ai-help-footer">
+                    <button class="ai-help-close" onclick="closeAiHelp()">เข้าใจแล้ว</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI Help Data -->
+        <script>
+        window.aiHelpData = <?= json_encode(array_column($menuGroups, 'ai_help', 'group_id'), JSON_UNESCAPED_UNICODE) ?>;
+        
+        window.showAiHelp = function(groupId) {
+            const data = window.aiHelpData[groupId];
+            if (!data) return;
+            
+            document.getElementById('aiHelpTitle').textContent = data.title;
+            document.getElementById('aiHelpDesc').textContent = data.description;
+            document.getElementById('aiHelpSuggested').textContent = data.suggested;
+            
+            const tipsHtml = data.tips.map(tip => `<div class="ai-help-tip">${tip}</div>`).join('');
+            document.getElementById('aiHelpTips').innerHTML = tipsHtml;
+            
+            document.getElementById('aiHelpModal').classList.add('show');
+        };
+        
+        window.closeAiHelp = function() {
+            document.getElementById('aiHelpModal').classList.remove('show');
+        };
+        </script>
         
         <!-- Main Content -->
         <div class="main-content">
