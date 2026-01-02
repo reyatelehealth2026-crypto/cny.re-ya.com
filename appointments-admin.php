@@ -56,8 +56,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     } elseif ($action === 'cancel' && $id) {
         $reason = trim($_POST['reason'] ?? '');
-        $stmt = $db->prepare("UPDATE appointments SET status = 'cancelled', cancelled_by = 'pharmacist', cancelled_reason = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$reason, $id]);
+        // Check if cancelled_by column exists
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM appointments LIKE 'cancelled_by'");
+            if ($stmt->rowCount() > 0) {
+                $stmt = $db->prepare("UPDATE appointments SET status = 'cancelled', cancelled_by = 'pharmacist', cancelled_reason = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$reason, $id]);
+            } else {
+                // Fallback: just update status and notes
+                $stmt = $db->prepare("UPDATE appointments SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\nยกเลิกโดยเภสัชกร: ', ?), updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$reason, $id]);
+            }
+        } catch (Exception $e) {
+            $stmt = $db->prepare("UPDATE appointments SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$id]);
+        }
         
         $message = 'ยกเลิกนัดหมายสำเร็จ!';
         $messageType = 'success';
