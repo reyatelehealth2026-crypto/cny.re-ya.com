@@ -597,12 +597,15 @@ $menuGroups = [
         
         /* Sidebar - Dark Purple Theme */
         .sidebar {
-            width: var(--sidebar-width);
-            min-width: var(--sidebar-width);
-            flex-shrink: 0;
+            width: var(--sidebar-width) !important;
+            min-width: var(--sidebar-width) !important;
+            max-width: var(--sidebar-width) !important;
+            flex-shrink: 0 !important;
             background: #1e1b4b;
             border-right: none;
             transition: transform 0.3s ease;
+            position: relative;
+            z-index: 40;
         }
         
         .sidebar-brand {
@@ -1295,12 +1298,12 @@ $menuGroups = [
         
         /* Main Content */
         .main-content {
-            flex: 1;
+            flex: 1 1 0% !important;
             display: flex;
             flex-direction: column;
             min-width: 0;
             overflow: hidden;
-            margin-left: 0;
+            width: calc(100% - var(--sidebar-width));
         }
         
         .top-header {
