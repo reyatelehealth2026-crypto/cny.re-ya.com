@@ -2,6 +2,12 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Custom error handler
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    echo "<br><b>ERROR:</b> [$errno] $errstr in $errfile on line $errline<br>";
+    return true;
+});
+
 echo "Step 1: PHP OK<br>";
 
 require_once 'config/config.php';
@@ -34,8 +40,16 @@ if (function_exists('isUser')) {
 }
 
 // Check currentUser
-echo "5.5: currentUser = " . print_r($currentUser ?? 'NOT SET', true) . "<br>";
+echo "5.5: currentUser role = " . ($currentUser['role'] ?? 'NOT SET') . "<br>";
 
 echo "<br>Step 6: Full header include...<br>";
-require_once 'includes/header.php';
-echo "Step 7: Header OK<br>";
+flush();
+ob_flush();
+
+try {
+    require_once 'includes/header.php';
+    echo "Step 7: Header OK<br>";
+} catch (Throwable $e) {
+    echo "<br><b>EXCEPTION:</b> " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine() . "<br>";
+    echo "<pre>" . $e->getTraceAsString() . "</pre>";
+}

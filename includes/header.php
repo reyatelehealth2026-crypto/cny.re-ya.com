@@ -272,6 +272,7 @@ foreach ($userQuickAccess as $key) {
 
 // Menu structure with nested submenus - Final Menu Structure V3
 // โครงสร้างเมนู 6 กลุ่มหลัก พร้อม submenus แบบ nested
+// DEBUG: Menu version 2026-01-02-v2
 $menuGroups = [
     [
         'group_id' => 'insights',
