@@ -1114,6 +1114,17 @@ $menuGroups = [
             transition: all 0.15s ease;
         }
         
+        .nested-menu-item.direct-link {
+            padding: 10px 14px 10px 40px;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+        
+        .nested-menu-item.direct-link .nested-menu-icon {
+            font-size: 14px;
+            min-width: 20px;
+        }
+        
         .nested-menu-item:hover {
             background: rgba(255,255,255,0.08);
             color: white;
@@ -1714,6 +1725,20 @@ $menuGroups = [
                     <!-- Group Menus -->
                     <div id="group_<?= $group['group_id'] ?>" class="menu-submenu">
                         <?php foreach ($group['menus'] as $menuIndex => $menu): ?>
+                        <?php if (isset($menu['href'])): ?>
+                            <!-- Direct link menu (no submenus) -->
+                            <?php 
+                                $menuUrl = $baseUrl . ltrim($menu['href'], '/');
+                                $isActive = strpos($currentPath, $menu['href']) !== false;
+                            ?>
+                            <a href="<?= $menuUrl ?>" class="nested-menu-item direct-link <?= $isActive ? 'active' : '' ?>">
+                                <span class="nested-menu-icon"><?= $menu['icon'] ?></span>
+                                <span><?= $menu['title'] ?></span>
+                                <?php if (!empty($menu['badge']) && $menu['badge'] > 0): ?>
+                                <span class="menu-badge"><?= $menu['badge'] > 99 ? '99+' : $menu['badge'] ?></span>
+                                <?php endif; ?>
+                            </a>
+                        <?php else: ?>
                         <div class="nested-menu-group">
                             <!-- Menu Title with Submenus -->
                             <div class="nested-menu-parent" onclick="toggleNestedSubmenu('submenu_<?= $group['group_id'] ?>_<?= $menuIndex ?>')">
@@ -1740,6 +1765,7 @@ $menuGroups = [
                                 <?php endforeach; ?>
                             </div>
                         </div>
+                        <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                 </div>
