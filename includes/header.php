@@ -272,220 +272,62 @@ foreach ($userQuickAccess as $key) {
 
 // Menu structure with nested submenus - Final Menu Structure V3
 // โครงสร้างเมนู 6 กลุ่มหลัก พร้อม submenus แบบ nested
-// DEBUG: Menu version 2026-01-02-v2
+// DEBUG: Menu version 2026-01-03-thai
 $menuGroups = [
     [
         'group_id' => 'insights',
-        'group_title' => '1. Insights & Overview',
-        'group_icon' => '📈',
-        'roles' => ['owner', 'admin'], // เฉพาะ owner และ admin
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Insights & Overview',
-            'description' => 'กลุ่มนี้รวมเครื่องมือดูภาพรวมและวิเคราะห์ข้อมูล',
-            'tips' => [
-                '📊 Dashboard - ดูภาพรวมยอดขาย ลูกค้า และสถานะร้าน',
-                '📉 Analytics - วิเคราะห์ข้อมูลเชิงลึก เทรนด์ และพฤติกรรมลูกค้า',
-                '🔗 Tracking - ติดตามประสิทธิภาพลิงก์และกิจกรรมในระบบ',
-            ],
-            'suggested' => 'เริ่มต้นที่ Dashboard เพื่อดูภาพรวม แล้วใช้ Analytics วิเคราะห์เจาะลึก'
-        ],
+        'group_title' => 'ภาพรวมและสถิติ',
+        'group_icon' => '📊',
+        'roles' => ['owner', 'admin'],
         'menus' => [
-            [
-                'title' => 'Dashboards',
-                'icon' => '📊',
-                'href' => '/dashboard'
-            ],
-            [
-                'title' => 'Analytics Center',
-                'icon' => '📉',
-                'href' => '/analytics'
-            ],
-            [
-                'title' => 'Activity Logs',
-                'icon' => '🔗',
-                'href' => '/activity-logs'
-            ],
+            ['title' => 'หน้าภาพรวม', 'icon' => '🏠', 'href' => '/dashboard'],
+            ['title' => 'วิเคราะห์ข้อมูล', 'icon' => '📈', 'href' => '/analytics'],
+            ['title' => 'ประวัติการใช้งาน', 'icon' => '📋', 'href' => '/activity-logs'],
         ]
     ],
     [
         'group_id' => 'clinical',
-        'group_title' => '2. Clinical Station',
+        'group_title' => 'งานบริการคลินิก',
         'group_icon' => '🩺',
-        'roles' => ['owner', 'admin', 'pharmacist'], // เภสัชกรและ admin
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Clinical Station',
-            'description' => 'กลุ่มนี้สำหรับงานเภสัชกรและการดูแลผู้ป่วย',
-            'tips' => [
-                '👩‍⚕️ Pharmacist Work - จัดการนัดหมาย Video Call และงานประจำวัน',
-                '💊 Drug & Safety - ตรวจสอบยาตีกันและข้อมูลยา',
-                '🏥 Triage - ดูประวัติการคัดกรองอาการ',
-            ],
-            'suggested' => 'เริ่มที่ Dashboard เภสัชกร เพื่อดูนัดหมายและงานที่ต้องทำวันนี้'
-        ],
+        'roles' => ['owner', 'admin', 'pharmacist'],
         'menus' => [
-            [
-                'title' => 'Pharmacy',
-                'icon' => '👩‍⚕️',
-                'href' => '/pharmacy'
-            ],
-            [
-                'title' => 'นัดหมาย',
-                'icon' => '📅',
-                'href' => '/appointments-admin'
-            ],
-            [
-                'title' => 'Video Call',
-                'icon' => '📹',
-                'href' => '/pharmacist-video-calls'
-            ],
+            ['title' => 'ห้องยา / จ่ายยา', 'icon' => '💊', 'href' => '/pharmacy'],
+            ['title' => 'นัดหมาย', 'icon' => '📅', 'href' => '/appointments-admin'],
+            ['title' => 'ปรึกษาออนไลน์', 'icon' => '📹', 'href' => '/pharmacist-video-calls'],
         ]
     ],
     [
         'group_id' => 'patient',
-        'group_title' => '3. Patient & Journey',
-        'group_icon' => '🗂️',
-        'roles' => ['owner', 'admin', 'marketing', 'staff'], // marketing เข้าได้
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Patient & Journey',
-            'description' => 'กลุ่มนี้จัดการลูกค้า การสื่อสาร และโปรแกรมสมาชิก',
-            'tips' => [
-                '💬 Chat & CRM - ตอบแชทลูกค้า จัดการข้อมูลและแท็ก',
-                '📢 Engagement - ส่ง Broadcast, Drip Campaign และข้อความอัตโนมัติ',
-                '💳 Loyalty - จัดการสมาชิก แต้มสะสม และของรางวัล',
-            ],
-            'suggested' => 'เริ่มที่กล่องข้อความเพื่อตอบลูกค้า หรือใช้ Broadcast ส่งโปรโมชั่น'
-        ],
+        'group_title' => 'ดูแลลูกค้า',
+        'group_icon' => '👥',
+        'roles' => ['owner', 'admin', 'marketing', 'staff'],
         'menus' => [
-            [
-                'title' => 'กล่องข้อความ',
-                'icon' => '💬',
-                'href' => '/inbox',
-                'badge' => $unreadMessages
-            ],
-            [
-                'title' => 'รายชื่อลูกค้า',
-                'icon' => '👥',
-                'href' => '/users'
-            ],
-            [
-                'title' => 'Broadcast',
-                'icon' => '📢',
-                'href' => '/broadcast'
-            ],
-            [
-                'title' => 'Membership',
-                'icon' => '💳',
-                'href' => '/membership'
-            ],
+            ['title' => 'กล่องข้อความ', 'icon' => '💬', 'href' => '/inbox', 'badge' => $unreadMessages],
+            ['title' => 'รายชื่อลูกค้า', 'icon' => '📇', 'href' => '/users'],
+            ['title' => 'บรอดแคสต์', 'icon' => '📢', 'href' => '/broadcast'],
+            ['title' => 'ระบบสมาชิก', 'icon' => '💳', 'href' => '/membership'],
         ]
     ],
     [
         'group_id' => 'supply',
-        'group_title' => '4. Supply & Revenue',
+        'group_title' => 'คลังสินค้าและยอดขาย',
         'group_icon' => '📦',
-        'roles' => ['owner', 'admin', 'staff'], // staff จัดการออเดอร์และสินค้า
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Supply & Revenue',
-            'description' => 'กลุ่มนี้จัดการออเดอร์ สินค้า คลัง และการจัดซื้อ',
-            'tips' => [
-                '💰 Sales & Orders - ดูออเดอร์ ตรวจสลิป และจัดการโปรโมชั่น',
-                '📦 Inventory - จัดการสินค้า สต็อก และหมวดหมู่',
-                '🚚 Procurement - สั่งซื้อสินค้า รับของ และจัดการ Supplier',
-            ],
-            'suggested' => 'เช็คออเดอร์รอดำเนินการก่อน แล้วดูสินค้าใกล้หมดเพื่อสั่งซื้อเพิ่ม'
-        ],
+        'roles' => ['owner', 'admin', 'staff'],
         'menus' => [
-            [
-                'title' => 'ออเดอร์',
-                'icon' => '💰',
-                'href' => '/shop/orders',
-                'badge' => $pendingOrders
-            ],
-            [
-                'title' => 'สินค้า',
-                'icon' => '🛍️',
-                'href' => '/shop/products'
-            ],
-            [
-                'title' => 'Inventory',
-                'icon' => '📦',
-                'href' => '/inventory'
-            ],
-            [
-                'title' => 'Procurement',
-                'icon' => '🚚',
-                'href' => '/procurement'
-            ],
+            ['title' => 'รายการสั่งซื้อ', 'icon' => '🧾', 'href' => '/shop/orders', 'badge' => $pendingOrders],
+            ['title' => 'สินค้า', 'icon' => '🛒', 'href' => '/shop/products'],
+            ['title' => 'คลังสินค้า', 'icon' => '📦', 'href' => '/inventory'],
+            ['title' => 'จัดซื้อ', 'icon' => '🚚', 'href' => '/procurement'],
         ]
     ],
     [
         'group_id' => 'facility',
-        'group_title' => '5. Facility Setup',
-        'group_icon' => '🏥',
-        'roles' => ['owner', 'admin', 'tech'], // tech ตั้งค่าระบบ
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Facility Setup',
-            'description' => 'กลุ่มนี้ตั้งค่าระบบ ผู้ใช้ และการเชื่อมต่อ',
-            'tips' => [
-                '👥 User Management - จัดการผู้ดูแลระบบและเภสัชกร',
-                '🔌 Connections - เชื่อมต่อ LINE, LIFF และ Telegram',
-                '⚙️ System Settings - ตั้งค่าร้าน AI และการแจ้งเตือน',
-            ],
-            'suggested' => 'เริ่มตั้งค่าบัญชี LINE ก่อน แล้วค่อยตั้งค่า LIFF และระบบอื่นๆ'
-        ],
+        'group_title' => 'ตั้งค่าร้านค้า',
+        'group_icon' => '⚙️',
+        'roles' => ['owner', 'admin', 'tech'],
         'menus' => [
-            [
-                'title' => 'ตั้งค่าระบบ',
-                'icon' => '⚙️',
-                'href' => '/settings'
-            ],
-            [
-                'title' => 'ตั้งค่าร้านค้า',
-                'icon' => '🏪',
-                'href' => '/shop/settings'
-            ],
-            [
-                'title' => 'คู่มือการใช้งาน',
-                'icon' => '❓',
-                'href' => '/help'
-            ],
-        ]
-    ],
-    [
-        'group_id' => 'marketing',
-        'group_title' => '6. Tool Marketing',
-        'group_icon' => '🛠️',
-        'roles' => ['owner', 'admin', 'marketing', 'tech'], // marketing และ tech
-        'ai_help' => [
-            'title' => 'AI ช่วยเหลือ: Tool Marketing',
-            'description' => 'กลุ่มนี้รวมเครื่องมือ AI และ LINE สำหรับการตลาด',
-            'tips' => [
-                '🤖 AI Tools - ใช้ AI Studio สร้าง Prompt, AI ตอบแชท และสร้างรูป',
-                '📲 LINE Tools - สร้าง Rich Menu, Flex Message และตั้งเวลาส่ง',
-            ],
-            'suggested' => 'ลองใช้ AI Studio สร้าง Prompt สำหรับตอบลูกค้า หรือสร้าง Rich Menu ใหม่'
-        ],
-        'menus' => [
-            [
-                'title' => 'AI Tools',
-                'icon' => '🤖',
-                'href' => '/ai-chat'
-            ],
-            [
-                'title' => 'Rich Menu',
-                'icon' => '📲',
-                'href' => '/rich-menu'
-            ],
-            [
-                'title' => 'ตั้งเวลาส่ง',
-                'icon' => '⏰',
-                'href' => '/scheduled'
-            ],
-            [
-                'title' => 'กลุ่ม LINE',
-                'icon' => '👥',
-                'href' => '/line-groups'
-            ],
+            ['title' => 'ตั้งค่าระบบ', 'icon' => '🔧', 'href' => '/settings'],
+            ['title' => 'ข้อมูลร้าน', 'icon' => '🏪', 'href' => '/shop/settings'],
         ]
     ],
 ];
@@ -536,18 +378,18 @@ $menuGroups = [
         }
         
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* Sidebar - Dark Purple Theme */
+        /* Sidebar - Simple Gray Theme */
         .sidebar {
-            width: var(--sidebar-width) !important;
-            min-width: var(--sidebar-width) !important;
-            max-width: var(--sidebar-width) !important;
-            flex: 0 0 var(--sidebar-width) !important;
-            background: #1e1b4b;
+            width: 220px !important;
+            min-width: 220px !important;
+            max-width: 220px !important;
+            flex: 0 0 220px !important;
+            background: #1f2937;
             border-right: none;
             transition: transform 0.3s ease;
             height: 100vh;
@@ -556,40 +398,40 @@ $menuGroups = [
         }
         
         .sidebar-brand {
-            padding: 16px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            background: #1e1b4b;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            background: #1f2937;
         }
         
         /* Bot Selector */
         .bot-selector {
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         
         .bot-card {
             display: flex;
             align-items: center;
-            padding: 10px 12px;
+            padding: 8px 10px;
             background: rgba(255,255,255,0.05);
-            border-radius: 12px;
+            border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s;
             border: 1px solid transparent;
         }
         
-        .bot-card:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .bot-card:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.15); }
         
         .bot-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 18px;
+            font-size: 14px;
             overflow: hidden;
             flex-shrink: 0;
         }
@@ -597,25 +439,25 @@ $menuGroups = [
         .bot-avatar img { width: 100%; height: 100%; object-fit: cover; }
         
         /* Menu Section */
-        .menu-section { padding: 8px 8px 4px; }
+        .menu-section { padding: 4px 6px 2px; }
         .menu-section-title {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 600;
-            color: rgba(255,255,255,0.4);
+            color: rgba(255,255,255,0.35);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            padding: 12px 12px 8px;
+            letter-spacing: 0.5px;
+            padding: 8px 10px 4px;
         }
         
         /* Simple Menu Item */
         .menu-item {
             display: flex;
             align-items: center;
-            padding: 10px 14px;
-            margin: 2px 8px;
-            border-radius: 8px;
-            color: rgba(255,255,255,0.7);
-            font-size: 13px;
+            padding: 7px 10px;
+            margin: 1px 6px;
+            border-radius: 6px;
+            color: rgba(255,255,255,0.65);
+            font-size: 12px;
             font-weight: 400;
             transition: all 0.15s ease;
             text-decoration: none;
@@ -626,31 +468,31 @@ $menuGroups = [
             background: rgba(255,255,255,0.08); 
             color: white; 
         }
-        .menu-item:hover .menu-icon { color: #a78bfa; }
+        .menu-item:hover .menu-icon { color: #9ca3af; }
         
         .menu-item.active {
-            background: #7c3aed;
+            background: #374151;
             color: white;
             font-weight: 500;
         }
         
         .menu-item.active .menu-icon { color: white; }
-        .menu-item.active:hover { background: #6d28d9; }
+        .menu-item.active:hover { background: #4b5563; }
         
         .menu-icon {
-            width: 20px;
-            margin-right: 12px;
-            font-size: 14px;
-            color: rgba(255,255,255,0.5);
+            width: 18px;
+            margin-right: 8px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.45);
             text-align: center;
         }
         
         .menu-badge {
             margin-left: auto;
-            padding: 2px 8px;
-            font-size: 10px;
+            padding: 1px 6px;
+            font-size: 9px;
             font-weight: 600;
-            border-radius: 10px;
+            border-radius: 8px;
             background: #ef4444;
             color: white;
         }
@@ -664,18 +506,18 @@ $menuGroups = [
         .menu-parent-wrapper {
             display: flex;
             align-items: center;
-            margin: 2px 8px;
+            margin: 1px 6px;
         }
         
         /* Group Header - Collapsible */
         .menu-parent {
             display: flex;
             align-items: center;
-            padding: 10px 14px;
+            padding: 7px 10px;
             flex: 1;
-            border-radius: 8px 0 0 8px;
-            color: rgba(255,255,255,0.9);
-            font-size: 13px;
+            border-radius: 6px;
+            color: rgba(255,255,255,0.8);
+            font-size: 11px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.15s ease;
@@ -683,60 +525,36 @@ $menuGroups = [
         }
         
         .menu-parent:hover { 
-            background: rgba(255,255,255,0.08); 
+            background: rgba(255,255,255,0.06); 
             color: white; 
-        }
-        
-        /* AI Help Button */
-        .ai-help-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 36px;
-            background: rgba(139, 92, 246, 0.3);
-            border: none;
-            border-radius: 0 8px 8px 0;
-            color: #a78bfa;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .ai-help-btn:hover {
-            background: #7c3aed;
-            color: white;
-        }
-        
-        .ai-help-btn i {
-            font-size: 12px;
         }
         
         /* Sidebar Footer */
         .sidebar-footer {
-            padding: 12px;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 10px;
+            border-top: 1px solid rgba(255,255,255,0.08);
         }
         
         .sidebar-footer-info {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 10px;
-            color: rgba(255,255,255,0.4);
+            font-size: 9px;
+            color: rgba(255,255,255,0.35);
         }
         
         .menu-parent-icon {
-            width: 22px;
-            margin-right: 10px;
-            font-size: 14px;
+            width: 18px;
+            margin-right: 8px;
+            font-size: 12px;
             text-align: center;
         }
         
         .menu-parent-label { flex: 1; }
         
         .menu-arrow {
-            font-size: 10px;
-            color: rgba(255,255,255,0.4);
+            font-size: 9px;
+            color: rgba(255,255,255,0.35);
             transition: transform 0.2s ease;
         }
         
@@ -755,14 +573,14 @@ $menuGroups = [
         }
         
         .menu-submenu .menu-item {
-            padding-left: 38px;
+            padding-left: 32px;
             font-size: 12.5px;
         }
         
         .menu-submenu .menu-icon {
-            font-size: 12px;
-            width: 16px;
-            margin-right: 10px;
+            font-size: 11px;
+            width: 14px;
+            margin-right: 8px;
         }
         
         /* Nested Menu Group - Simple Style */
@@ -773,11 +591,11 @@ $menuGroups = [
         .nested-menu-parent {
             display: flex;
             align-items: center;
-            padding: 8px 14px 8px 38px;
-            margin: 1px 8px;
-            border-radius: 6px;
-            color: rgba(255,255,255,0.7);
-            font-size: 12px;
+            padding: 6px 10px 6px 32px;
+            margin: 1px 6px;
+            border-radius: 5px;
+            color: rgba(255,255,255,0.6);
+            font-size: 11px;
             font-weight: 400;
             cursor: pointer;
             transition: all 0.15s ease;
@@ -785,32 +603,32 @@ $menuGroups = [
         }
         
         .nested-menu-parent:hover { 
-            background: rgba(255,255,255,0.08); 
+            background: rgba(255,255,255,0.06); 
             color: white;
         }
         
         .nested-menu-icon {
-            width: 18px;
-            margin-right: 8px;
-            font-size: 12px;
+            width: 16px;
+            margin-right: 6px;
+            font-size: 11px;
             text-align: center;
         }
         
         .nested-menu-label { 
             flex: 1; 
-            font-size: 12px;
+            font-size: 11px;
         }
         
         .nested-menu-note {
-            font-size: 9px;
-            color: rgba(255,255,255,0.4);
-            margin-right: 6px;
+            font-size: 8px;
+            color: rgba(255,255,255,0.35);
+            margin-right: 4px;
             font-weight: 400;
         }
         
         .nested-arrow {
-            font-size: 8px;
-            color: rgba(255,255,255,0.4);
+            font-size: 7px;
+            color: rgba(255,255,255,0.35);
             transition: transform 0.2s ease;
         }
         
@@ -832,33 +650,33 @@ $menuGroups = [
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 14px 8px 56px;
-            margin: 1px 8px;
-            border-radius: 6px;
-            color: rgba(255,255,255,0.6);
-            font-size: 12px;
+            padding: 6px 10px 6px 46px;
+            margin: 1px 6px;
+            border-radius: 5px;
+            color: rgba(255,255,255,0.55);
+            font-size: 11px;
             text-decoration: none;
             transition: all 0.15s ease;
         }
         
         .nested-menu-item.direct-link {
-            padding: 10px 14px 10px 40px;
-            gap: 10px;
+            padding: 7px 10px 7px 34px;
+            gap: 8px;
             justify-content: flex-start;
         }
         
         .nested-menu-item.direct-link .nested-menu-icon {
-            font-size: 14px;
-            min-width: 20px;
+            font-size: 12px;
+            min-width: 16px;
         }
         
         .nested-menu-item:hover {
-            background: rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.06);
             color: white;
         }
         
         .nested-menu-item.active {
-            background: #7c3aed;
+            background: #374151;
             color: white;
             font-weight: 500;
         }
@@ -872,14 +690,14 @@ $menuGroups = [
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 10px 8px;
-            border-radius: 12px;
+            padding: 8px 6px;
+            border-radius: 8px;
             text-decoration: none;
             transition: all 0.2s;
             position: relative;
         }
         
-        .quick-item:hover { transform: translateY(-2px); }
+        .quick-item:hover { transform: translateY(-1px); }
         
         .quick-icon {
             width: 44px;
