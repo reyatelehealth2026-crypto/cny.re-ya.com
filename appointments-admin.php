@@ -8,6 +8,34 @@ require_once 'config/database.php';
 $db = Database::getInstance()->getConnection();
 $pageTitle = 'จัดการนัดหมาย';
 
+// Check if appointments table exists
+try {
+    $tableCheck = $db->query("SHOW TABLES LIKE 'appointments'")->fetch();
+    if (!$tableCheck) {
+        // Create appointments table if not exists
+        $db->exec("CREATE TABLE IF NOT EXISTS appointments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            appointment_id VARCHAR(50),
+            user_id INT,
+            pharmacist_id INT,
+            appointment_date DATE,
+            appointment_time TIME,
+            duration INT DEFAULT 30,
+            status ENUM('pending','confirmed','in_progress','completed','cancelled','no_show') DEFAULT 'pending',
+            notes TEXT,
+            symptoms TEXT,
+            cancelled_by VARCHAR(50),
+            cancelled_reason TEXT,
+            rating INT,
+            review TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )");
+    }
+} catch (Exception $e) {
+    // Table check failed, continue anyway
+}
+
 // Handle actions
 $message = '';
 $messageType = '';
@@ -91,16 +119,24 @@ $stmt->execute($params);
 $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get pharmacists for filter
-$pharmacists = $db->query("SELECT id, name, title FROM pharmacists WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $pharmacists = $db->query("SELECT id, name, title FROM pharmacists WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $pharmacists = [];
+}
 
 // Get stats
-$stats = $db->query("SELECT 
-    COUNT(*) as total,
-    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-    SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
-    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-    SUM(CASE WHEN appointment_date = CURDATE() AND status IN ('pending','confirmed') THEN 1 ELSE 0 END) as today
-    FROM appointments")->fetch();
+try {
+    $stats = $db->query("SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN appointment_date = CURDATE() AND status IN ('pending','confirmed') THEN 1 ELSE 0 END) as today
+        FROM appointments")->fetch();
+} catch (Exception $e) {
+    $stats = ['total' => 0, 'pending' => 0, 'confirmed' => 0, 'completed' => 0, 'today' => 0];
+}
 
 require_once 'includes/header.php';
 
