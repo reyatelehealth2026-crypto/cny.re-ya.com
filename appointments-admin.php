@@ -101,11 +101,11 @@ $stmt->execute($params);
 $total = $stmt->fetchColumn();
 $totalPages = ceil($total / $perPage);
 
-// Get appointments
+// Get appointments - use only columns that exist
 $sql = "SELECT a.id, a.user_id, a.pharmacist_id, a.appointment_date, a.appointment_time, 
         a.status, a.notes, a.created_at, a.updated_at,
-        COALESCE(a.appointment_id, CONCAT('APT', LPAD(a.id, 6, '0'))) as appointment_id,
-        COALESCE(a.duration, 30) as duration,
+        CONCAT('APT', LPAD(a.id, 6, '0')) as appointment_id,
+        30 as duration,
         u.first_name, u.last_name, u.phone, u.display_name, u.picture_url,
         p.name as pharmacist_name, p.title as pharmacist_title
         FROM appointments a
@@ -114,9 +114,13 @@ $sql = "SELECT a.id, a.user_id, a.pharmacist_id, a.appointment_date, a.appointme
         {$where}
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
         LIMIT {$perPage} OFFSET {$offset}";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $appointments = [];
+}
 
 // Get pharmacists for filter
 try {
