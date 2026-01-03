@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Unified LIFF Application - Single Entry Point
  * LIFF Telepharmacy Redesign - SPA Architecture
@@ -25,7 +25,7 @@ $liffIdParam = $_GET['liff_id'] ?? null;
 
 // Get LIFF ID and shop settings
 $liffId = '';
-$shopName = 'ร้านค้า';
+$shopName = 'เธฃเนเธฒเธเธเนเธฒ';
 $shopLogo = '';
 $companyName = 'MedCare';
 
@@ -94,21 +94,21 @@ $baseUrl = rtrim(BASE_URL, '/');
 
 // Page configuration
 $pages = [
-    'home' => ['title' => 'หน้าหลัก', 'icon' => 'fa-home'],
-    'shop' => ['title' => 'ร้านค้า', 'icon' => 'fa-store'],
-    'cart' => ['title' => 'ตะกร้า', 'icon' => 'fa-shopping-cart'],
-    'checkout' => ['title' => 'ชำระเงิน', 'icon' => 'fa-credit-card'],
-    'orders' => ['title' => 'ออเดอร์ของฉัน', 'icon' => 'fa-box'],
-    'member' => ['title' => 'บัตรสมาชิก', 'icon' => 'fa-id-card'],
-    'points' => ['title' => 'ประวัติแต้ม', 'icon' => 'fa-coins'],
-    'redeem' => ['title' => 'แลกแต้ม', 'icon' => 'fa-gift'],
-    'appointments' => ['title' => 'นัดหมาย', 'icon' => 'fa-calendar-check'],
-    'video-call' => ['title' => 'ปรึกษาเภสัชกร', 'icon' => 'fa-video'],
-    'profile' => ['title' => 'โปรไฟล์', 'icon' => 'fa-user'],
-    'wishlist' => ['title' => 'รายการโปรด', 'icon' => 'fa-heart'],
-    'coupons' => ['title' => 'คูปอง', 'icon' => 'fa-ticket'],
-    'health-profile' => ['title' => 'ข้อมูลสุขภาพ', 'icon' => 'fa-heartbeat'],
-    'notifications' => ['title' => 'การแจ้งเตือน', 'icon' => 'fa-bell'],
+    'home' => ['title' => 'เธซเธเนเธฒเธซเธฅเธฑเธ', 'icon' => 'fa-home'],
+    'shop' => ['title' => 'เธฃเนเธฒเธเธเนเธฒ', 'icon' => 'fa-store'],
+    'cart' => ['title' => 'เธ•เธฐเธเธฃเนเธฒ', 'icon' => 'fa-shopping-cart'],
+    'checkout' => ['title' => 'เธเธณเธฃเธฐเน€เธเธดเธ', 'icon' => 'fa-credit-card'],
+    'orders' => ['title' => 'เธญเธญเน€เธ”เธญเธฃเนเธเธญเธเธเธฑเธ', 'icon' => 'fa-box'],
+    'member' => ['title' => 'เธเธฑเธ•เธฃเธชเธกเธฒเธเธดเธ', 'icon' => 'fa-id-card'],
+    'points' => ['title' => 'เธเธฃเธฐเธงเธฑเธ•เธดเนเธ•เนเธก', 'icon' => 'fa-coins'],
+    'redeem' => ['title' => 'เนเธฅเธเนเธ•เนเธก', 'icon' => 'fa-gift'],
+    'appointments' => ['title' => 'เธเธฑเธ”เธซเธกเธฒเธข', 'icon' => 'fa-calendar-check'],
+    'video-call' => ['title' => 'เธเธฃเธถเธเธฉเธฒเน€เธ เธชเธฑเธเธเธฃ', 'icon' => 'fa-video'],
+    'profile' => ['title' => 'เนเธเธฃเนเธเธฅเน', 'icon' => 'fa-user'],
+    'wishlist' => ['title' => 'เธฃเธฒเธขเธเธฒเธฃเนเธเธฃเธ”', 'icon' => 'fa-heart'],
+    'coupons' => ['title' => 'เธเธนเธเธญเธ', 'icon' => 'fa-ticket'],
+    'health-profile' => ['title' => 'เธเนเธญเธกเธนเธฅเธชเธธเธเธ เธฒเธ', 'icon' => 'fa-heartbeat'],
+    'notifications' => ['title' => 'เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธ', 'icon' => 'fa-bell'],
 ];
 
 $currentPage = $pages[$page] ?? $pages['home'];
@@ -133,13 +133,13 @@ $currentPage = $pages[$page] ?? $pages['home'];
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- App Styles -->
-    <link rel="stylesheet" href="<?= $baseUrl ?>/liff/assets/css/liff-app.css?v=20260103a">
+    <link rel="stylesheet" href="<?= $baseUrl ?>/liff/assets/css/liff-app.css?v=20260103b">
 </head>
 <body>
     <!-- Loading Overlay - Shows immediately (Requirement 1.1) -->
     <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner"></div>
-        <p class="loading-text">กำลังโหลด...</p>
+        <p class="loading-text">เธเธณเธฅเธฑเธเนเธซเธฅเธ”...</p>
     </div>
 
     <!-- App Shell -->
@@ -156,24 +156,24 @@ $currentPage = $pages[$page] ?? $pages['home'];
         <nav id="bottom-nav" class="bottom-nav">
             <a href="#/" class="nav-item" data-page="home">
                 <i class="fas fa-home"></i>
-                <span>หน้าหลัก</span>
+                <span>เธซเธเนเธฒเธซเธฅเธฑเธ</span>
             </a>
             <a href="#/shop" class="nav-item" data-page="shop">
                 <i class="fas fa-store"></i>
-                <span>ร้านค้า</span>
+                <span>เธฃเนเธฒเธเธเนเธฒ</span>
             </a>
             <a href="#/cart" class="nav-item" data-page="cart">
                 <i class="fas fa-shopping-cart"></i>
-                <span>ตะกร้า</span>
+                <span>เธ•เธฐเธเธฃเนเธฒ</span>
                 <span id="cart-badge" class="nav-badge hidden">0</span>
             </a>
             <a href="#/orders" class="nav-item" data-page="orders">
                 <i class="fas fa-box"></i>
-                <span>ออเดอร์</span>
+                <span>เธญเธญเน€เธ”เธญเธฃเน</span>
             </a>
             <a href="#/profile" class="nav-item" data-page="profile">
                 <i class="fas fa-user"></i>
-                <span>โปรไฟล์</span>
+                <span>เนเธเธฃเนเธเธฅเน</span>
             </a>
         </nav>
     </div>
@@ -192,12 +192,12 @@ $currentPage = $pages[$page] ?? $pages['home'];
                 <span id="cart-summary-badge" class="cart-summary-badge">0</span>
             </div>
             <div class="cart-summary-text">
-                <span id="cart-summary-count" class="cart-summary-count">0 รายการ</span>
-                <span id="cart-summary-total" class="cart-summary-total">฿0</span>
+                <span id="cart-summary-count" class="cart-summary-count">0 เธฃเธฒเธขเธเธฒเธฃ</span>
+                <span id="cart-summary-total" class="cart-summary-total">เธฟ0</span>
             </div>
         </div>
         <button class="cart-summary-btn" onclick="window.router.navigate('/cart')">
-            ดูตะกร้า
+            เธ”เธนเธ•เธฐเธเธฃเนเธฒ
             <i class="fas fa-chevron-right"></i>
         </button>
     </div>
@@ -230,17 +230,17 @@ $currentPage = $pages[$page] ?? $pages['home'];
         // Define debugLog function for script loading debug
         window.debugLog = function(msg, type) {
             if (type === 'error') {
-                console.error('🔴', msg);
+                console.error('๐”ด', msg);
             } else if (type === 'success') {
-                console.log('🟢', msg);
+                console.log('๐ข', msg);
             } else {
-                console.log('🔵', msg);
+                console.log('๐”ต', msg);
             }
         };
     </script>
 
     <!-- App Scripts -->
-    <?php $v = '20260103a'; // Cache bust version ?>
+    <?php $v = '20260103b'; // Cache bust version ?>
     <script>window.debugLog('Loading scripts...', 'info');</script>
     <script src="<?= $baseUrl ?>/liff/assets/js/store.js?v=<?= $v ?>" onerror="window.debugLog('FAILED: store.js', 'error')"></script>
     <script>window.debugLog('store.js loaded', 'success');</script>
