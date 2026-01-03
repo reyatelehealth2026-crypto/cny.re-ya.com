@@ -448,13 +448,21 @@ function formatThaiDateTime($datetime) {
 :root { --primary: #10B981; --primary-dark: #059669; }
 .chat-scroll::-webkit-scrollbar { width: 5px; }
 .chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
-.chat-bubble { white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; max-width: 100%; }
-.chat-incoming { background: #fff; color: #1E293B; border-radius: 0 12px 12px 12px; }
-.chat-outgoing { background: var(--primary); color: white; border-radius: 12px 0 12px 12px; }
+.chat-bubble { white-space: pre-wrap; word-wrap: break-word; line-height: 1.6; max-width: 100%; }
+.chat-incoming { background: #F1F5F9; color: #1E293B; border-radius: 4px 12px 12px 12px; }
+.chat-outgoing { background: #10B981; color: white; border-radius: 12px 4px 12px 12px; }
 .user-item.active { background: linear-gradient(90deg, #D1FAE5 0%, #ECFDF5 100%); border-left: 3px solid var(--primary); }
 .user-item:hover { background: #F0FDF4; }
 .tag-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 9999px; font-weight: 500; }
-#chatBox { background: linear-gradient(180deg, #7494A5 0%, #6B8A9A 100%); }
+#chatBox { background: #FFFFFF; }
+/* Flex Message Preview */
+.flex-preview { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; max-width: 280px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.flex-preview-header { background: linear-gradient(135deg, #10B981, #059669); color: white; padding: 12px; }
+.flex-preview-body { padding: 12px; font-size: 13px; }
+.flex-preview-footer { padding: 8px 12px; border-top: 1px solid #E5E7EB; background: #F9FAFB; }
+.flex-preview-btn { display: block; text-align: center; padding: 8px 12px; background: #10B981; color: white; border-radius: 6px; font-size: 12px; text-decoration: none; margin-top: 8px; }
+.flex-preview-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #F3F4F6; }
+.flex-preview-item:last-child { border-bottom: none; }
 .typing-indicator { display: flex; gap: 4px; padding: 8px 12px; background: #fff; border-radius: 12px; }
 .typing-indicator span { width: 8px; height: 8px; background: #94A3B8; border-radius: 50%; animation: typing 1.4s infinite; }
 .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
@@ -844,6 +852,75 @@ function formatThaiDateTime($datetime) {
                         <?php else: ?>
                         <div class="bg-white rounded-lg border p-2 text-xs text-gray-500">😊 Sticker</div>
                         <?php endif; ?>
+                    <?php elseif ($type === 'flex'): ?>
+                        <?php 
+                        $flexData = json_decode($content, true);
+                        $flexTitle = '';
+                        $flexBody = '';
+                        $flexItems = [];
+                        $flexBtn = '';
+                        
+                        // Parse flex message content
+                        if ($flexData) {
+                            // Try to extract title from header
+                            if (isset($flexData['contents']['header']['contents'][0]['text'])) {
+                                $flexTitle = $flexData['contents']['header']['contents'][0]['text'];
+                            } elseif (isset($flexData['altText'])) {
+                                $flexTitle = $flexData['altText'];
+                            }
+                            
+                            // Try to extract body content
+                            if (isset($flexData['contents']['body']['contents'])) {
+                                foreach ($flexData['contents']['body']['contents'] as $item) {
+                                    if (isset($item['text'])) {
+                                        $flexBody .= $item['text'] . "\n";
+                                    } elseif (isset($item['contents'])) {
+                                        // Box with multiple items (like price list)
+                                        $label = '';
+                                        $value = '';
+                                        foreach ($item['contents'] as $subItem) {
+                                            if (isset($subItem['text'])) {
+                                                if (empty($label)) $label = $subItem['text'];
+                                                else $value = $subItem['text'];
+                                            }
+                                        }
+                                        if ($label) $flexItems[] = ['label' => $label, 'value' => $value];
+                                    }
+                                }
+                            }
+                            
+                            // Try to extract button
+                            if (isset($flexData['contents']['footer']['contents'][0]['action']['label'])) {
+                                $flexBtn = $flexData['contents']['footer']['contents'][0]['action']['label'];
+                            }
+                        }
+                        ?>
+                        <div class="flex-preview">
+                            <?php if ($flexTitle): ?>
+                            <div class="flex-preview-header">
+                                <div class="font-bold text-sm"><?= htmlspecialchars($flexTitle) ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <div class="flex-preview-body">
+                                <?php if ($flexBody): ?>
+                                <p class="text-gray-700 text-sm mb-2"><?= nl2br(htmlspecialchars(trim($flexBody))) ?></p>
+                                <?php endif; ?>
+                                <?php foreach ($flexItems as $item): ?>
+                                <div class="flex-preview-item">
+                                    <span class="text-gray-600"><?= htmlspecialchars($item['label']) ?></span>
+                                    <span class="font-medium"><?= htmlspecialchars($item['value']) ?></span>
+                                </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($flexBody) && empty($flexItems)): ?>
+                                <p class="text-gray-500 text-xs">📋 Flex Message</p>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($flexBtn): ?>
+                            <div class="flex-preview-footer">
+                                <span class="flex-preview-btn"><?= htmlspecialchars($flexBtn) ?></span>
+                            </div>
+                            <?php endif; ?>
+                        </div>
                     <?php else: ?>
                         <div class="bg-white rounded-lg border p-3 text-xs text-gray-500"><i class="fas fa-file-alt mr-1"></i><?= ucfirst($type) ?></div>
                     <?php endif; ?>
@@ -1065,7 +1142,7 @@ function formatThaiDateTime($datetime) {
             
             <!-- Actions -->
             <div class="pt-3 border-t space-y-1.5">
-                <button onclick="openDispenseModal()" class="block w-full text-center bg-emerald-500 hover:bg-emerald-600 text-white text-xs py-2 rounded-lg cursor-pointer"><i class="fas fa-pills mr-1"></i>จ่ายยาให้ผู้ใช้</button>
+                <button onclick="createDispenseSession()" class="block w-full text-center bg-emerald-500 hover:bg-emerald-600 text-white text-xs py-2 rounded-lg cursor-pointer"><i class="fas fa-pills mr-1"></i>จ่ายยาให้ผู้ใช้</button>
                 <a href="user-detail.php?id=<?= $selectedUser['id'] ?>" class="block w-full text-center bg-gray-500 hover:bg-gray-600 text-white text-xs py-2 rounded-lg"><i class="fas fa-external-link-alt mr-1"></i>ดูโปรไฟล์เต็ม</a>
             </div>
         </div>
@@ -1911,7 +1988,36 @@ function closeMedicalModal() {
     document.getElementById('medicalModal').classList.add('hidden');
 }
 
-// ===== Dispense Modal =====
+// ===== Dispense - Create Session and Go to Pharmacy =====
+async function createDispenseSession() {
+    if (!userId) {
+        alert('ไม่พบข้อมูลผู้ใช้');
+        return;
+    }
+    
+    try {
+        const res = await fetch('api/pharmacist.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'create_dispense_session',
+                user_id: userId
+            })
+        });
+        const data = await res.json();
+        
+        if (data.success && data.session_id) {
+            // Redirect to pharmacy dispense page with session
+            window.location.href = `pharmacy.php?tab=dispense&session_id=${data.session_id}`;
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + (data.error || 'ไม่สามารถสร้าง session ได้'));
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาด: ' + e.message);
+    }
+}
+
+// ===== Dispense Modal (Legacy) =====
 let dispenseItems = [];
 let allDrugsLoaded = false;
 let allDrugsData = [];

@@ -246,6 +246,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
         
+        case 'create_dispense_session':
+            // Create a new triage session for dispensing from inbox
+            $userId = (int)($input['user_id'] ?? 0);
+            
+            if (!$userId) {
+                echo json_encode(['success' => false, 'error' => 'User ID required']);
+                exit;
+            }
+            
+            try {
+                // Get user info
+                $stmt = $db->prepare("SELECT display_name, line_account_id FROM users WHERE id = ?");
+                $stmt->execute([$userId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$user) {
+                    echo json_encode(['success' => false, 'error' => 'User not found']);
+                    exit;
+                }
+                
+                // Create triage session for dispense
+                $triageData = json_encode([
+                    'source' => 'inbox_dispense',
+                    'symptoms' => ['จ่ายยาจากกล่องข้อความ'],
+                    'created_from' => 'inbox'
+                ]);
+                
+                $stmt = $db->prepare("
+                    INSERT INTO triage_sessions (user_id, line_account_id, current_state, triage_data, status, created_at)
+                    VALUES (?, ?, 'dispense', ?, 'active', NOW())
+                ");
+                $stmt->execute([$userId, $user['line_account_id'] ?? 1, $triageData]);
+                $sessionId = $db->lastInsertId();
+                
+                echo json_encode(['success' => true, 'session_id' => $sessionId]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            break;
+        
         case 'add_to_cart_direct':
             // Add items directly to user's cart (from inbox dispense)
             $userId = (int)($input['user_id'] ?? 0);
