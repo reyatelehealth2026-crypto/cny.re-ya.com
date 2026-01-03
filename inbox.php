@@ -449,7 +449,7 @@ function formatThaiDateTime($datetime) {
 .chat-scroll::-webkit-scrollbar { width: 5px; }
 .chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
 .chat-bubble { white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; max-width: 100%; }
-.chat-incoming { background: #fff; color: #1E293B; border-radius: 0 12px 12px 12px; border: 1px solid #E2E8F0; }
+.chat-incoming { background: #fff; color: #1E293B; border-radius: 0 12px 12px 12px; }
 .chat-outgoing { background: var(--primary); color: white; border-radius: 12px 0 12px 12px; }
 .user-item.active { background: linear-gradient(90deg, #D1FAE5 0%, #ECFDF5 100%); border-left: 3px solid var(--primary); }
 .user-item:hover { background: #F0FDF4; }
@@ -1065,6 +1065,7 @@ function formatThaiDateTime($datetime) {
             
             <!-- Actions -->
             <div class="pt-3 border-t space-y-1.5">
+                <a href="pharmacy.php?tab=dispense&user_id=<?= $selectedUser['id'] ?>" class="block w-full text-center bg-emerald-500 hover:bg-emerald-600 text-white text-xs py-2 rounded-lg"><i class="fas fa-pills mr-1"></i>จ่ายยาให้ผู้ใช้</a>
                 <a href="user-detail.php?id=<?= $selectedUser['id'] ?>" class="block w-full text-center bg-gray-500 hover:bg-gray-600 text-white text-xs py-2 rounded-lg"><i class="fas fa-external-link-alt mr-1"></i>ดูโปรไฟล์เต็ม</a>
             </div>
         </div>
