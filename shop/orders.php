@@ -7,8 +7,10 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../classes/LineAPI.php';
 require_once __DIR__ . '/../classes/LineAccountManager.php';
+require_once __DIR__ . '/../classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
+$activityLogger = ActivityLogger::getInstance($db);
 $pageTitle = 'รายการ/คำสั่งซื้อ';
 
 // Use transactions table (unified with LIFF checkout)
@@ -56,6 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("UPDATE {$_ordersTable} SET status = ? WHERE id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
         $stmt->execute([$newStatus, $orderId, $currentBotId]);
         
+        // Log activity
+        $activityLogger->logOrder(ActivityLogger::ACTION_UPDATE, 'อัพเดทสถานะคำสั่งซื้อ', [
+            'entity_type' => 'order',
+            'entity_id' => $orderId,
+            'new_value' => ['status' => $newStatus]
+        ]);
+        
         $stmt = $db->prepare("SELECT o.*, u.line_user_id, u.display_name, u.reply_token, u.reply_token_expires FROM {$_ordersTable} o JOIN users u ON o.user_id = u.id WHERE o.id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch();
@@ -78,6 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'approve_payment' && $orderId) {
         $stmt = $db->prepare("UPDATE {$_ordersTable} SET payment_status = 'paid', status = 'paid' WHERE id = ?");
         $stmt->execute([$orderId]);
+        
+        // Log activity
+        $activityLogger->logOrder(ActivityLogger::ACTION_APPROVE, 'อนุมัติการชำระเงิน', [
+            'entity_type' => 'order',
+            'entity_id' => $orderId,
+            'new_value' => ['payment_status' => 'paid', 'status' => 'paid']
+        ]);
         
         $stmt = $db->prepare("SELECT o.*, u.line_user_id, u.reply_token, u.reply_token_expires FROM {$_ordersTable} o JOIN users u ON o.user_id = u.id WHERE o.id = ?");
         $stmt->execute([$orderId]);

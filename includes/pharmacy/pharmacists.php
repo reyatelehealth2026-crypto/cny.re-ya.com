@@ -55,6 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // Log activity
+        $activityLogger->logPharmacy($id ? ActivityLogger::ACTION_UPDATE : ActivityLogger::ACTION_CREATE, 
+            $id ? 'แก้ไขข้อมูลเภสัชกร' : 'เพิ่มเภสัชกรใหม่', [
+            'entity_type' => 'pharmacist',
+            'entity_id' => $id,
+            'new_value' => ['name' => $name, 'license_no' => $licenseNo, 'specialty' => $specialty]
+        ]);
+        
     } elseif ($action === 'delete_pharmacist') {
         $id = (int)$_POST['id'];
         // ตรวจสอบเฉพาะนัดหมายที่ยังไม่ถึงวันนัดและยังไม่เสร็จสิ้น
@@ -66,6 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("DELETE FROM pharmacists WHERE id = ?");
             $stmt->execute([$id]);
             $success = 'ลบเภสัชกรสำเร็จ!';
+            
+            // Log activity
+            $activityLogger->logPharmacy(ActivityLogger::ACTION_DELETE, 'ลบเภสัชกร', [
+                'entity_type' => 'pharmacist',
+                'entity_id' => $id
+            ]);
         }
         
     } elseif ($action === 'add_holiday') {

@@ -15,9 +15,11 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/components/tabs.php';
+require_once __DIR__ . '/classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
 $currentBotId = $_SESSION['current_bot_id'] ?? null;
+$activityLogger = ActivityLogger::getInstance($db);
 
 // Tab configuration
 $tabs = [

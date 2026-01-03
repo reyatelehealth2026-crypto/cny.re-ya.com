@@ -12,10 +12,12 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/classes/AdminAuth.php';
 require_once __DIR__ . '/classes/LineAccountManager.php';
+require_once __DIR__ . '/classes/ActivityLogger.php';
 
 $db = Database::getInstance()->getConnection();
 $auth = new AdminAuth($db);
 $lineManager = new LineAccountManager($db);
+$activityLogger = ActivityLogger::getInstance($db);
 
 // Require super admin or admin with permission
 $auth->requireLogin('auth/login.php');
@@ -143,6 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $success = "สร้างผู้ดูแล '{$username}' สำเร็จ";
+                
+                // Log activity
+                $activityLogger->logAdmin(ActivityLogger::ACTION_CREATE, 'สร้างผู้ดูแลใหม่', [
+                    'entity_type' => 'admin_user',
+                    'entity_id' => $adminId,
+                    'new_value' => ['username' => $username, 'role' => $role, 'display_name' => $displayName]
+                ]);
                 break;
                 
             case 'update':
@@ -212,6 +221,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $success = "อัพเดทผู้ดูแลสำเร็จ";
+                
+                // Log activity
+                $activityLogger->logAdmin(ActivityLogger::ACTION_UPDATE, 'แก้ไขข้อมูลผู้ดูแล', [
+                    'entity_type' => 'admin_user',
+                    'entity_id' => $adminId,
+                    'new_value' => ['display_name' => $displayName, 'role' => $role, 'is_active' => $isActive]
+                ]);
                 break;
                 
             case 'delete':
@@ -222,6 +238,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $adminId = (int)$_POST['admin_id'];
                 if ($auth->deleteAdmin($adminId)) {
                     $success = "ลบผู้ดูแลสำเร็จ";
+                    
+                    // Log activity
+                    $activityLogger->logAdmin(ActivityLogger::ACTION_DELETE, 'ลบผู้ดูแล', [
+                        'entity_type' => 'admin_user',
+                        'entity_id' => $adminId
+                    ]);
                 } else {
                     throw new Exception('ไม่สามารถลบ Super Admin ได้');
                 }
@@ -238,6 +260,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newStatus = $targetAdmin['is_active'] ? 0 : 1;
                 $auth->updateAdmin($adminId, ['is_active' => $newStatus]);
                 $success = $newStatus ? "เปิดใช้งานผู้ดูแลแล้ว" : "ปิดใช้งานผู้ดูแลแล้ว";
+                
+                // Log activity
+                $activityLogger->logAdmin(ActivityLogger::ACTION_UPDATE, $newStatus ? 'เปิดใช้งานผู้ดูแล' : 'ปิดใช้งานผู้ดูแล', [
+                    'entity_type' => 'admin_user',
+                    'entity_id' => $adminId,
+                    'new_value' => ['is_active' => $newStatus]
+                ]);
                 break;
         }
     } catch (Exception $e) {

@@ -22,9 +22,11 @@ require_once 'config/database.php';
 require_once 'classes/LineAPI.php';
 require_once 'classes/LineAccountManager.php';
 require_once 'classes/AdvancedCRM.php';
+require_once 'classes/ActivityLogger.php';
 require_once 'includes/components/tabs.php';
 
 $db = Database::getInstance()->getConnection();
+$activityLogger = ActivityLogger::getInstance($db);
 $pageTitle = 'Broadcast';
 
 // Get current bot ID
