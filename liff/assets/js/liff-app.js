@@ -4649,7 +4649,8 @@ class LiffApp {
     renderOrderDetailContent(order) {
         const status = this.normalizeOrderStatus(order.status);
         const paymentStatus = order.payment_status || 'pending';
-        const statusConfig = this.getStatusConfig(status);
+        const allStatusConfig = this.getStatusConfig();
+        const statusConfig = allStatusConfig[status] || allStatusConfig['pending'];
         const orderNumber = order.order_number || order.order_id || order.id;
         const items = order.items || [];
         const paymentMethod = order.payment_method || 'transfer';
@@ -4665,7 +4666,8 @@ class LiffApp {
                         <div class="order-detail-order-number">#${orderNumber}</div>
                         <div class="order-detail-order-date">${this.formatOrderDate(order.created_at)}</div>
                     </div>
-                    <span class="order-status-badge ${status}" style="background: ${statusConfig.bgColor}; color: ${statusConfig.textColor}">
+                    <span class="order-status-badge ${statusConfig.class}">
+                        <i class="fas ${statusConfig.icon}"></i>
                         ${statusConfig.label}
                     </span>
                 </div>
