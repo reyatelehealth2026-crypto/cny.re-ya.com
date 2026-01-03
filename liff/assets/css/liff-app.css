@@ -7534,8 +7534,7 @@ img[loading="lazy"] {
     border: none;
     color: var(--text-secondary);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center;    justify-content: center;
     cursor: pointer;
 }
 

@@ -757,6 +757,15 @@ function formatThaiDateTime($datetime) {
                 </div>
             </div>
             <div class="flex gap-2">
+                <button onclick="toggleNotifications()" class="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg" title="เปิด/ปิดการแจ้งเตือน">
+                    <i class="fas fa-bell" id="notifyIcon"></i>
+                </button>
+                <button onclick="toggleMute()" class="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg" title="ปิดเสียงแชทนี้">
+                    <i class="fas fa-volume-up" id="muteIcon"></i>
+                </button>
+                <button onclick="blockUser()" class="p-2 bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-lg" title="บล็อกผู้ใช้">
+                    <i class="fas fa-user-slash"></i>
+                </button>
                 <button onclick="generateAIReply()" class="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium" title="AI ช่วยตอบ">
                     <i class="fas fa-robot mr-1"></i>AI
                 </button>
@@ -1847,6 +1856,96 @@ function togglePanel() {
     const panel = document.getElementById('customerPanel');
     panel.classList.toggle('hidden');
     panel.classList.toggle('flex');
+}
+
+// Toggle notifications for this chat
+function toggleNotifications() {
+    const icon = document.getElementById('notifyIcon');
+    const isEnabled = icon.classList.contains('fa-bell');
+    
+    if (isEnabled) {
+        icon.classList.remove('fa-bell');
+        icon.classList.add('fa-bell-slash');
+        icon.parentElement.classList.add('text-gray-400');
+        showToast('ปิดการแจ้งเตือนสำหรับแชทนี้', 'info');
+    } else {
+        icon.classList.remove('fa-bell-slash');
+        icon.classList.add('fa-bell');
+        icon.parentElement.classList.remove('text-gray-400');
+        showToast('เปิดการแจ้งเตือนสำหรับแชทนี้', 'success');
+    }
+    
+    // Save preference via API
+    fetch('api/inbox.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=toggle_notification&user_id=<?= $selectedUserId ?>&enabled=${!isEnabled ? 1 : 0}`
+    });
+}
+
+// Toggle mute for this chat
+function toggleMute() {
+    const icon = document.getElementById('muteIcon');
+    const isMuted = icon.classList.contains('fa-volume-mute');
+    
+    if (isMuted) {
+        icon.classList.remove('fa-volume-mute');
+        icon.classList.add('fa-volume-up');
+        icon.parentElement.classList.remove('text-red-500');
+        showToast('เปิดเสียงแชทนี้', 'success');
+    } else {
+        icon.classList.remove('fa-volume-up');
+        icon.classList.add('fa-volume-mute');
+        icon.parentElement.classList.add('text-red-500');
+        showToast('ปิดเสียงแชทนี้', 'info');
+    }
+    
+    // Save preference via API
+    fetch('api/inbox.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=toggle_mute&user_id=<?= $selectedUserId ?>&muted=${!isMuted ? 1 : 0}`
+    });
+}
+
+// Block user
+function blockUser() {
+    if (!confirm('คุณต้องการบล็อกผู้ใช้นี้หรือไม่?\n\nผู้ใช้จะไม่สามารถส่งข้อความถึงคุณได้')) return;
+    
+    fetch('api/inbox.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=block_user&user_id=<?= $selectedUserId ?>`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('บล็อกผู้ใช้สำเร็จ', 'success');
+            setTimeout(() => location.href = 'inbox.php', 1000);
+        } else {
+            showToast(data.error || 'เกิดข้อผิดพลาด', 'error');
+        }
+    });
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500',
+        warning: 'bg-yellow-500'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('animate-fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 // Mobile: Show chat list (hide chat area)
