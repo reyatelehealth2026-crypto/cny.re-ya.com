@@ -10,52 +10,8 @@ try {
     $stmt = $db->query("SELECT * FROM welcome_settings WHERE id = 1");
     $welcomeSettings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (PDOException $e) {
-    // Table might not exist, create it
-    try {
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS welcome_settings (
-                id INT PRIMARY KEY DEFAULT 1,
-                enabled TINYINT(1) DEFAULT 1,
-                message_type ENUM('text', 'flex') DEFAULT 'text',
-                text_message TEXT,
-                flex_json LONGTEXT,
-                delay_seconds INT DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        ");
-        $db->exec("INSERT IGNORE INTO welcome_settings (id) VALUES (1)");
-        $welcomeSettings = ['enabled' => 1, 'message_type' => 'text', 'text_message' => '', 'flex_json' => '', 'delay_seconds' => 0];
-    } catch (PDOException $e2) {}
-}
-
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_welcome') {
-    $enabled = isset($_POST['enabled']) ? 1 : 0;
-    $messageType = $_POST['message_type'] ?? 'text';
-    $textMessage = $_POST['text_message'] ?? '';
-    $flexJson = $_POST['flex_json'] ?? '';
-    $delaySeconds = (int)($_POST['delay_seconds'] ?? 0);
-    
-    try {
-        $stmt = $db->prepare("
-            INSERT INTO welcome_settings (id, enabled, message_type, text_message, flex_json, delay_seconds)
-            VALUES (1, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
-                enabled = VALUES(enabled),
-                message_type = VALUES(message_type),
-                text_message = VALUES(text_message),
-                flex_json = VALUES(flex_json),
-                delay_seconds = VALUES(delay_seconds)
-        ");
-        $stmt->execute([$enabled, $messageType, $textMessage, $flexJson, $delaySeconds]);
-        $success = 'บันทึกการตั้งค่าข้อความต้อนรับสำเร็จ!';
-        
-        // Reload settings
-        $stmt = $db->query("SELECT * FROM welcome_settings WHERE id = 1");
-        $welcomeSettings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (PDOException $e) {
-        $error = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
-    }
+    // Table might not exist - will be created on first save
+    $welcomeSettings = ['enabled' => 1, 'message_type' => 'text', 'text_message' => '', 'flex_json' => '', 'delay_seconds' => 0];
 }
 
 $enabled = $welcomeSettings['enabled'] ?? 1;
@@ -80,8 +36,9 @@ $delaySeconds = $welcomeSettings['delay_seconds'] ?? 0;
         </div>
     </div>
 
-    <form id="welcomeForm" method="POST">
+    <form id="welcomeForm" method="POST" action="settings.php?tab=welcome">
         <input type="hidden" name="action" value="save_welcome">
+        <input type="hidden" name="tab" value="welcome">
         
         <!-- Message Type -->
         <div class="mb-6">

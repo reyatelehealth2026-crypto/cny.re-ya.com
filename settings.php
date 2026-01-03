@@ -120,6 +120,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Welcome message actions
+    elseif ($action === 'save_welcome') {
+        try {
+            // Create table if not exists
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS welcome_settings (
+                    id INT PRIMARY KEY DEFAULT 1,
+                    enabled TINYINT(1) DEFAULT 1,
+                    message_type ENUM('text', 'flex') DEFAULT 'text',
+                    text_message TEXT,
+                    flex_json LONGTEXT,
+                    delay_seconds INT DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            ");
+            
+            $enabled = isset($_POST['enabled']) ? 1 : 0;
+            $messageType = $_POST['message_type'] ?? 'text';
+            $textMessage = $_POST['text_message'] ?? '';
+            $flexJson = $_POST['flex_json'] ?? '';
+            $delaySeconds = (int)($_POST['delay_seconds'] ?? 0);
+            
+            $stmt = $db->prepare("
+                INSERT INTO welcome_settings (id, enabled, message_type, text_message, flex_json, delay_seconds)
+                VALUES (1, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    enabled = VALUES(enabled),
+                    message_type = VALUES(message_type),
+                    text_message = VALUES(text_message),
+                    flex_json = VALUES(flex_json),
+                    delay_seconds = VALUES(delay_seconds)
+            ");
+            $stmt->execute([$enabled, $messageType, $textMessage, $flexJson, $delaySeconds]);
+            $success = 'บันทึกการตั้งค่าข้อความต้อนรับสำเร็จ!';
+        } catch (Exception $e) {
+            $error = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
+        }
+        $activeTab = 'welcome';
+    }
+
     // Telegram actions
     elseif ($action === 'save_telegram_token') {
         $botToken = trim($_POST['bot_token'] ?? '');
