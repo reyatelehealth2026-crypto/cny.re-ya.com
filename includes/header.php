@@ -1311,6 +1311,41 @@ $menuGroups = [
                 </div>
                 
                 <div class="header-actions">
+                    <!-- Quick Access Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="header-btn" title="Quick Access" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                            <i class="fas fa-bolt"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                            <a href="<?= $baseUrl ?>inbox.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <i class="fas fa-inbox text-green-500"></i>
+                                <span class="text-sm">กล่องข้อความ</span>
+                            </a>
+                            <a href="<?= $baseUrl ?>shop/orders.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <i class="fas fa-shopping-bag text-orange-500"></i>
+                                <span class="text-sm">ออเดอร์</span>
+                            </a>
+                            <a href="<?= $baseUrl ?>pharmacy.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <i class="fas fa-pills text-blue-500"></i>
+                                <span class="text-sm">ร้านยา</span>
+                            </a>
+                            <a href="<?= $baseUrl ?>members.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <i class="fas fa-users text-purple-500"></i>
+                                <span class="text-sm">สมาชิก</span>
+                            </a>
+                            <a href="<?= $baseUrl ?>shop/products.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition">
+                                <i class="fas fa-box text-teal-500"></i>
+                                <span class="text-sm">สินค้า</span>
+                            </a>
+                            <div class="border-t my-1"></div>
+                            <a href="<?= $baseUrl ?>quick-access-settings.php" class="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition text-gray-500">
+                                <i class="fas fa-cog"></i>
+                                <span class="text-sm">ตั้งค่า Quick Access</span>
+                            </a>
+                        </div>
+                    </div>
+                    
                     <!-- AI Tools Dropdown -->
                     <div class="relative" x-data="{ open: false }">
                         <button @click="open = !open" class="header-btn ai-tools-btn" title="AI Tools" style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white;">
