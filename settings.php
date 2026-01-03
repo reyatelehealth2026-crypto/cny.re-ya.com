@@ -127,6 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'บันทึก Token และ Chat ID สำเร็จ!';
         $activeTab = 'telegram';
     } elseif ($action === 'save_telegram_notifications') {
+        // Ensure columns exist
+        try {
+            $cols = $db->query("SHOW COLUMNS FROM telegram_settings")->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('notify_new_order', $cols)) {
+                $db->exec("ALTER TABLE telegram_settings ADD COLUMN notify_new_order TINYINT(1) DEFAULT 1");
+            }
+            if (!in_array('notify_payment', $cols)) {
+                $db->exec("ALTER TABLE telegram_settings ADD COLUMN notify_payment TINYINT(1) DEFAULT 1");
+            }
+        } catch (Exception $e) {}
+        
         $stmt = $db->prepare("UPDATE telegram_settings SET 
             is_enabled = ?, notify_new_follower = ?, notify_new_message = ?, 
             notify_unfollow = ?, notify_new_order = ?, notify_payment = ? WHERE id = 1");
