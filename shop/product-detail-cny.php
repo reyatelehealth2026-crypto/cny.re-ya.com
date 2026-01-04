@@ -28,7 +28,12 @@ if (!$product) {
 }
 
 // Decode JSON fields
-$product['product_price'] = json_decode($product['product_price'], true);
+if (is_string($product['product_price'])) {
+    $product['product_price'] = json_decode($product['product_price'], true);
+}
+if (!is_array($product['product_price'])) {
+    $product['product_price'] = [];
+}
 
 $pageTitle = $product['name'] ?? 'รายละเอียดสินค้า';
 
