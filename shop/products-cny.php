@@ -56,8 +56,11 @@ $where = ["enable = '1'"];
 $params = [];
 
 if ($search) {
-    $where[] = "(name LIKE :search OR name_en LIKE :search OR sku LIKE :search)";
-    $params[':search'] = "%{$search}%";
+    $where[] = "(name LIKE :search1 OR name_en LIKE :search2 OR sku LIKE :search3)";
+    $searchTerm = "%{$search}%";
+    $params[':search1'] = $searchTerm;
+    $params[':search2'] = $searchTerm;
+    $params[':search3'] = $searchTerm;
 }
 
 $whereClause = implode(' AND ', $where);
