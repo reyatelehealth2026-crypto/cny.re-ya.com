@@ -145,7 +145,7 @@ if ($viewOrderId) {
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-center font-bold"><?= $item['quantity'] ?></td>
-                                <td class="px-4 py-3 text-right">฿<?= number_format($item['unit_price'] * $item['quantity'], 2) ?></td>
+                                <td class="px-4 py-3 text-right">฿<?= number_format(($item['product_price'] ?? 0) * $item['quantity'], 2) ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>

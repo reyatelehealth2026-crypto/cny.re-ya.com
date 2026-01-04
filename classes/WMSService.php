@@ -323,7 +323,7 @@ class WMSService {
                 wpi.picked_at,
                 ti.product_name,
                 ti.product_sku,
-                ti.unit_price,
+                ti.product_price,
                 bi.storage_condition as storage_location
             FROM wms_pick_items wpi
             JOIN transaction_items ti ON wpi.transaction_item_id = ti.id
