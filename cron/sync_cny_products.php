@@ -3,6 +3,9 @@
  * Background script to sync CNY Pharmacy products to database
  * Run this via cron or manually to update product cache
  */
+ini_set('memory_limit', '512M'); // Increase memory limit first
+set_time_limit(300); // 5 minutes
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
