@@ -3698,7 +3698,7 @@ class LiffApp {
                     <p class="order-success-number">หมายเลขคำสั่งซื้อ: <strong>#${orderResult.order_number}</strong></p>
                     <p class="order-success-total">ยอดชำระ: <strong>฿${this.formatNumber(orderResult.total)}</strong></p>
                     <p class="order-success-method">ชำระเงินปลายทาง (COD)</p>
-                    <p class="order-success-note">ทางร้านจะติดต่อกลับเพื่อยืนยันคำสั่งซื้อ</p>
+                    <p class="order-success-note">คำสั่งซื้อยืนยันแล้ว รอจัดส่ง 1-3 วันทำการ</p>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-primary btn-block" onclick="window.liffApp.hideModal(); window.router.navigate('/orders');">
@@ -4022,7 +4022,16 @@ class LiffApp {
     renderOrderCard(order) {
         const orderId = order.order_number || order.order_id || order.id;
         const status = this.normalizeOrderStatus(order.status);
-        const statusBadge = this.getOrderStatusBadge(status);
+        const paymentMethod = order.payment_method || 'transfer';
+        
+        // สำหรับ COD ที่ status = confirmed แสดงว่ารอจัดส่ง
+        let statusBadge;
+        if (paymentMethod === 'cod' && status === 'confirmed') {
+            statusBadge = `<span class="order-status-badge confirmed"><i class="fas fa-truck-loading"></i> รอจัดส่ง (COD)</span>`;
+        } else {
+            statusBadge = this.getOrderStatusBadge(status);
+        }
+        
         const date = this.formatOrderDate(order.created_at);
         const items = order.items || [];
         const total = parseFloat(order.grand_total || order.total_amount || 0);
@@ -4650,10 +4659,18 @@ class LiffApp {
         const status = this.normalizeOrderStatus(order.status);
         const paymentStatus = order.payment_status || 'pending';
         const allStatusConfig = this.getStatusConfig();
-        const statusConfig = allStatusConfig[status] || allStatusConfig['pending'];
+        const paymentMethod = order.payment_method || 'transfer';
+        
+        // สำหรับ COD ที่ status = confirmed แสดงว่ารอจัดส่ง
+        let statusConfig;
+        if (paymentMethod === 'cod' && status === 'confirmed') {
+            statusConfig = { label: 'รอจัดส่ง (COD)', icon: 'fa-truck-loading', class: 'confirmed' };
+        } else {
+            statusConfig = allStatusConfig[status] || allStatusConfig['pending'];
+        }
+        
         const orderNumber = order.order_number || order.order_id || order.id;
         const items = order.items || [];
-        const paymentMethod = order.payment_method || 'transfer';
         
         // Check if needs slip upload (transfer/promptpay and not paid)
         const needsSlipUpload = ['transfer', 'promptpay'].includes(paymentMethod) && paymentStatus === 'pending';
