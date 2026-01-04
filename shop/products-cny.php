@@ -3,6 +3,9 @@
  * Shop Products - CNY Pharmacy API Integration
  * Display products from CNY Pharmacy external API
  */
+// Increase memory limit FIRST before any operations
+ini_set('memory_limit', '512M');
+
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
@@ -80,8 +83,7 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTime) {
 }
 
 if (!$useCache) {
-    // Fetch from API
-    ini_set('memory_limit', '256M'); // Increase memory limit temporarily
+    // Fetch from API (memory limit already increased at top of file)
     $allProducts = callCNYAPI('get_product_all');
     
     if ($allProducts && is_array($allProducts)) {
