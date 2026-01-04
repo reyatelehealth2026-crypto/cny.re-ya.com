@@ -4,14 +4,28 @@ let testData = {};
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     testData = initializeTestData();
-    renderCategories();      // Render first
     
-    // Wait for DOM to be fully ready before loading saved data
-    setTimeout(function() {
-        loadSavedData();         // Then load saved data
-        setupEventListeners();
-        updateStats();
-    }, 100);
+    // Load saved data into testData first
+    const saved = localStorage.getItem('testingChecklistData');
+    if (saved) {
+        try {
+            const savedData = JSON.parse(saved);
+            Object.keys(savedData).forEach(testId => {
+                if (testData[testId]) {
+                    testData[testId] = savedData[testId];
+                }
+            });
+        } catch (e) {
+            console.error('Error loading saved data:', e);
+        }
+    }
+    
+    renderCategories();      // Render with saved status
+    setupEventListeners();
+    updateStats();
+    
+    // Update category progress bars
+    document.querySelectorAll('.category-section').forEach(updateCategoryProgress);
 });
 
 // Render all categories
@@ -61,10 +75,32 @@ function createCategoryElement(category) {
 // Create test case element
 function createTestElement(test) {
     const testCase = document.createElement('div');
+    
+    // Check if we have saved status for this test
+    const savedData = localStorage.getItem('testingChecklistData');
+    let savedStatus = 'pending';
+    let savedNotes = '';
+    
+    if (savedData) {
+        try {
+            const parsed = JSON.parse(savedData);
+            if (parsed[test.id]) {
+                savedStatus = parsed[test.id].status || 'pending';
+                savedNotes = parsed[test.id].notes || '';
+            }
+        } catch (e) {
+            console.error('Error parsing saved data in createTestElement:', e);
+        }
+    }
+    
+    // Set class with status
     testCase.className = 'test-case';
+    if (savedStatus && savedStatus !== 'pending') {
+        testCase.className += ` status-${savedStatus}`;
+    }
     testCase.dataset.testId = test.id;
     
-    const stepsHtml = test.steps.map((step, i) => `<li>${step}</li>`).join('');
+    const stepsHtml = test.steps.map((step) => `<li>${step}</li>`).join('');
     
     testCase.innerHTML = `
         <div class="test-case-header">
@@ -91,7 +127,7 @@ function createTestElement(test) {
                 </div>
             </div>
             <div class="notes-section">
-                <textarea class="notes-textarea" placeholder="Add notes or observations..." data-test-id="${test.id}"></textarea>
+                <textarea class="notes-textarea" placeholder="Add notes or observations..." data-test-id="${test.id}">${savedNotes}</textarea>
             </div>
         </div>
     `;
