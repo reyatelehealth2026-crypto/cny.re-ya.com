@@ -33,11 +33,23 @@ $pickList = [];
 $viewOrder = null;
 if ($viewOrderId) {
     try {
-        $pickList = $wmsService->getPickList((int)$viewOrderId);
+        // Get order first
         $stmt = $db->prepare("SELECT * FROM transactions WHERE id = ?");
         $stmt->execute([$viewOrderId]);
         $viewOrder = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {}
+        
+        // Then get pick list
+        if ($viewOrder) {
+            try {
+                $pickList = $wmsService->getPickList((int)$viewOrderId);
+            } catch (Exception $e) {
+                // Pick list may not be initialized yet, that's ok
+                error_log("getPickList error: " . $e->getMessage());
+            }
+        }
+    } catch (Exception $e) {
+        error_log("viewOrder error: " . $e->getMessage());
+    }
 }
 ?>
 
