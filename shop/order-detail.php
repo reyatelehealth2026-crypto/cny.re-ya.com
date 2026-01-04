@@ -206,6 +206,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("UPDATE {$ordersTable} SET status = ? WHERE id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
             $stmt->execute([$newStatus, $orderId, $currentBotId]);
             
+            // WMS Integration: Set wms_status to pending_pick when order is confirmed or paid
+            if (in_array($newStatus, ['confirmed', 'paid'])) {
+                try {
+                    $stmt = $db->prepare("UPDATE {$ordersTable} SET wms_status = 'pending_pick' WHERE id = ? AND (wms_status IS NULL OR wms_status = '')");
+                    $stmt->execute([$orderId]);
+                } catch (Exception $e) {
+                    // wms_status column may not exist, ignore
+                }
+            }
+            
             // Update tracking if provided
             $tracking = null;
             if (!empty($_POST['tracking'])) {
@@ -247,6 +257,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = $db->prepare("UPDATE {$ordersTable} SET payment_status = 'paid', status = 'paid' WHERE id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
             $stmt->execute([$orderId, $currentBotId]);
+            
+            // WMS Integration: Set wms_status to pending_pick when payment approved
+            try {
+                $stmt = $db->prepare("UPDATE {$ordersTable} SET wms_status = 'pending_pick' WHERE id = ? AND (wms_status IS NULL OR wms_status = '')");
+                $stmt->execute([$orderId]);
+            } catch (Exception $e) {
+                // wms_status column may not exist, ignore
+            }
             
             $stmt = $db->prepare("UPDATE payment_slips SET status = 'approved' WHERE transaction_id = ? AND status = 'pending'");
             $stmt->execute([$orderId]);

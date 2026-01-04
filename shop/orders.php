@@ -58,6 +58,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("UPDATE {$_ordersTable} SET status = ? WHERE id = ? AND (line_account_id = ? OR line_account_id IS NULL)");
         $stmt->execute([$newStatus, $orderId, $currentBotId]);
         
+        // WMS Integration: Set wms_status to pending_pick when order is confirmed or paid
+        if (in_array($newStatus, ['confirmed', 'paid'])) {
+            try {
+                $stmt = $db->prepare("UPDATE {$_ordersTable} SET wms_status = 'pending_pick' WHERE id = ? AND (wms_status IS NULL OR wms_status = '')");
+                $stmt->execute([$orderId]);
+            } catch (Exception $e) {
+                // wms_status column may not exist, ignore
+            }
+        }
+        
         // Log activity
         $activityLogger->logOrder(ActivityLogger::ACTION_UPDATE, 'อัพเดทสถานะคำสั่งซื้อ', [
             'entity_type' => 'order',
@@ -87,6 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'approve_payment' && $orderId) {
         $stmt = $db->prepare("UPDATE {$_ordersTable} SET payment_status = 'paid', status = 'paid' WHERE id = ?");
         $stmt->execute([$orderId]);
+        
+        // WMS Integration: Set wms_status to pending_pick when payment approved
+        try {
+            $stmt = $db->prepare("UPDATE {$_ordersTable} SET wms_status = 'pending_pick' WHERE id = ? AND (wms_status IS NULL OR wms_status = '')");
+            $stmt->execute([$orderId]);
+        } catch (Exception $e) {
+            // wms_status column may not exist, ignore
+        }
         
         // Log activity
         $activityLogger->logOrder(ActivityLogger::ACTION_APPROVE, 'อนุมัติการชำระเงิน', [

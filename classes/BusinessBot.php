@@ -2313,6 +2313,16 @@ class BusinessBot
             $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ?");
             $stmt->execute([$userDbId]);
             
+            // WMS Integration: Set wms_status to pending_pick for COD orders (already confirmed)
+            if ($orderStatus === 'confirmed' && $transTable === 'transactions') {
+                try {
+                    $stmt = $this->db->prepare("UPDATE transactions SET wms_status = 'pending_pick' WHERE id = ?");
+                    $stmt->execute([$transactionId]);
+                } catch (Exception $e) {
+                    // wms_status column may not exist, ignore
+                }
+            }
+            
             $this->db->commit();
             
             $this->trackBehavior($userDbId, 'purchase', ['transaction_id' => $transactionId, 'amount' => $total]);

@@ -695,6 +695,16 @@ function handleCreateOrder($data) {
         $stmt = $db->prepare("DELETE FROM cart_items WHERE user_id = ?");
         $stmt->execute([$userId]);
         
+        // WMS Integration: Set wms_status to pending_pick for COD orders (already confirmed)
+        if ($orderStatus === 'confirmed') {
+            try {
+                $stmt = $db->prepare("UPDATE transactions SET wms_status = 'pending_pick' WHERE id = ?");
+                $stmt->execute([$orderId]);
+            } catch (Exception $e) {
+                // wms_status column may not exist, ignore
+            }
+        }
+        
         $db->commit();
         
         // Hook: Auto-create Account Receivable for credit sales
