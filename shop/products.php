@@ -1,14 +1,11 @@
 <?php
 /**
- * Shop Products - Redirect to Inventory
- * This file has been moved to inventory/index.php?tab=products
+ * Shop Products - Redirect to CNY Products
+ * ใช้ข้อมูลสินค้าจาก CNY Pharmacy API
  */
 
 // Preserve query parameters
 $queryString = $_SERVER['QUERY_STRING'] ?? '';
-$params = [];
-parse_str($queryString, $params);
-$params['tab'] = 'products';
 
-header('Location: /inventory?' . http_build_query($params));
+header('Location: /shop/products-cny.php' . ($queryString ? '?' . $queryString : ''));
 exit;
