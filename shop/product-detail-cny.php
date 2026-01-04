@@ -1,50 +1,13 @@
 <?php
 /**
- * Product Detail - CNY Pharmacy API
- * Display single product details from CNY API
+ * Product Detail - CNY Pharmacy
+ * Display single product details from database cache
  */
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
 $db = Database::getInstance()->getConnection();
-
-// CNY API Configuration
-define('CNY_API_BASE', 'https://manager.cnypharmacy.com/api/');
-define('CNY_API_TOKEN', '90xcKekelCqCAjmgkpI1saJF6N55eiNexcI4hdcYM2M');
-
-/**
- * Call CNY Pharmacy API
- */
-function callCNYAPI($endpoint, $method = 'GET', $data = null) {
-    $url = CNY_API_BASE . ltrim($endpoint, '/');
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . CNY_API_TOKEN,
-        'Content-Type: application/json'
-    ]);
-    
-    if ($method === 'POST') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        if ($data) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        }
-    }
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpCode !== 200) {
-        error_log("CNY API Error: HTTP {$httpCode}, Response: {$response}");
-        return null;
-    }
-    
-    return json_decode($response, true);
-}
 
 // Get SKU from URL
 $sku = $_GET['sku'] ?? '';
@@ -54,13 +17,18 @@ if (empty($sku)) {
     exit;
 }
 
-// Fetch product from CNY API
-$product = callCNYAPI("get_product_sku/{$sku}");
+// Fetch product from database
+$stmt = $db->prepare("SELECT * FROM cny_products WHERE sku = :sku LIMIT 1");
+$stmt->execute([':sku' => $sku]);
+$product = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$product) {
     header('Location: products-cny.php');
     exit;
 }
+
+// Decode JSON fields
+$product['product_price'] = json_decode($product['product_price'], true);
 
 $pageTitle = $product['name'] ?? 'รายละเอียดสินค้า';
 

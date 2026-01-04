@@ -1,11 +1,8 @@
 <?php
 /**
  * Shop Products - CNY Pharmacy API Integration
- * Display products from CNY Pharmacy external API
+ * Display products from CNY Pharmacy database cache
  */
-// Increase memory limit FIRST before any operations
-ini_set('memory_limit', '512M');
-
 session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
@@ -13,121 +10,48 @@ require_once __DIR__ . '/../config/database.php';
 $db = Database::getInstance()->getConnection();
 $pageTitle = 'สินค้า - CNY Pharmacy';
 
-// CNY API Configuration
-define('CNY_API_BASE', 'https://manager.cnypharmacy.com/api/');
-define('CNY_API_TOKEN', '90xcKekelCqCAjmgkpI1saJF6N55eiNexcI4hdcYM2M');
-
-/**
- * Call CNY Pharmacy API with streaming to file
- */
-function callCNYAPIToFile($endpoint, $outputFile) {
-    $url = CNY_API_BASE . ltrim($endpoint, '/');
-    
-    $fp = fopen($outputFile, 'w+');
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FILE, $fp);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . CNY_API_TOKEN,
-        'Content-Type: application/json'
-    ]);
-    
-    $result = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    fclose($fp);
-    
-    if ($httpCode !== 200 || !$result) {
-        error_log("CNY API Error: HTTP {$httpCode}");
-        if (file_exists($outputFile)) {
-            unlink($outputFile);
-        }
-        return false;
-    }
-    
-    return true;
-}
-
 // Get filters
 $search = $_GET['search'] ?? '';
-$category = $_GET['category'] ?? '';
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 24;
-
-// Cache configuration
-$cacheFile = __DIR__ . '/../uploads/cache/cny_products.json';
-$cacheTime = 3600; // 1 hour
-
-// Handle cache refresh
-if (isset($_GET['refresh_cache'])) {
-    if (file_exists($cacheFile)) {
-        unlink($cacheFile);
-    }
-    header('Location: products-cny.php');
-    exit;
-}
-
-// Fetch products from CNY API with caching
-$allProducts = [];
-$useCache = false;
-
-if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTime) {
-    // Use cached data - read in chunks to avoid memory issues
-    $cachedData = file_get_contents($cacheFile);
-    if ($cachedData) {
-        $allProducts = json_decode($cachedData, true);
-        if ($allProducts) {
-            $useCache = true;
-        }
-    }
-}
-
-if (!$useCache) {
-    // Ensure cache directory exists
-    $cacheDir = dirname($cacheFile);
-    if (!is_dir($cacheDir)) {
-        mkdir($cacheDir, 0755, true);
-    }
-    
-    // Fetch from API directly to file (streaming)
-    $success = callCNYAPIToFile('get_product_all', $cacheFile);
-    
-    if ($success) {
-        // Now read from the cached file
-        $cachedData = file_get_contents($cacheFile);
-        if ($cachedData) {
-            $allProducts = json_decode($cachedData, true);
-        }
-    }
-    
-    if (!$allProducts) {
-        $allProducts = [];
-    }
-}
-
-// Filter products
-$filteredProducts = array_filter($allProducts, function($product) use ($search, $category) {
-    // Search filter
-    if ($search && stripos($product['name'], $search) === false && 
-        stripos($product['name_en'], $search) === false &&
-        stripos($product['sku'], $search) === false) {
-        return false;
-    }
-    
-    // Only show enabled products
-    if ($product['enable'] !== '1') {
-        return false;
-    }
-    
-    return true;
-});
-
-// Pagination
-$totalProducts = count($filteredProducts);
-$totalPages = ceil($totalProducts / $perPage);
 $offset = ($page - 1) * $perPage;
-$products = array_slice($filteredProducts, $offset, $perPage);
+
+// Build query
+$where = ["enable = '1'"];
+$params = [];
+
+if ($search) {
+    $where[] = "(name LIKE :search OR name_en LIKE :search OR sku LIKE :search)";
+    $params[':search'] = "%{$search}%";
+}
+
+$whereClause = implode(' AND ', $where);
+
+// Get total count
+$countStmt = $db->prepare("SELECT COUNT(*) FROM cny_products WHERE {$whereClause}");
+$countStmt->execute($params);
+$totalProducts = $countStmt->fetchColumn();
+$totalPages = ceil($totalProducts / $perPage);
+
+// Get products for current page
+$stmt = $db->prepare("
+    SELECT * FROM cny_products 
+    WHERE {$whereClause}
+    ORDER BY name
+    LIMIT :limit OFFSET :offset
+");
+
+foreach ($params as $key => $value) {
+    $stmt->bindValue($key, $value);
+}
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
+$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Get last sync time
+$syncStmt = $db->query("SELECT MAX(last_updated) as last_sync FROM cny_products");
+$lastSync = $syncStmt->fetchColumn();
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -141,8 +65,10 @@ require_once __DIR__ . '/../includes/header.php';
         </h1>
         <p class="text-gray-600">
             ข้อมูลจาก CNY Pharmacy API - ทั้งหมด <?= number_format($totalProducts) ?> รายการ
-            <?php if ($useCache): ?>
-            <span class="text-xs text-gray-500 ml-2">(จากแคช)</span>
+            <?php if ($lastSync): ?>
+            <span class="text-xs text-gray-500 ml-2">
+                (อัพเดทล่าสุด: <?= date('d/m/Y H:i', strtotime($lastSync)) ?>)
+            </span>
             <?php endif; ?>
         </p>
     </div>
@@ -163,10 +89,6 @@ require_once __DIR__ . '/../includes/header.php';
                 <i class="fas fa-times mr-2"></i>ล้าง
             </a>
             <?php endif; ?>
-            <a href="?refresh_cache=1" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" 
-               title="รีเฟรชข้อมูลจาก API">
-                <i class="fas fa-sync-alt mr-2"></i>รีเฟรช
-            </a>
         </form>
     </div>
 
@@ -175,12 +97,18 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="bg-white rounded-xl shadow p-12 text-center">
         <i class="fas fa-box-open text-gray-300 text-6xl mb-4"></i>
         <p class="text-gray-500 text-lg">ไม่พบสินค้า</p>
+        <?php if ($totalProducts == 0): ?>
+        <p class="text-gray-400 text-sm mt-2">
+            กรุณารันคำสั่ง: php cron/sync_cny_products.php เพื่อดึงข้อมูลจาก API
+        </p>
+        <?php endif; ?>
     </div>
     <?php else: ?>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
         <?php foreach ($products as $product): 
-            $price = $product['product_price'][0]['price'] ?? 0;
-            $unit = $product['product_price'][0]['unit'] ?? '';
+            $priceData = json_decode($product['product_price'], true);
+            $price = $priceData[0]['price'] ?? 0;
+            $unit = $priceData[0]['unit'] ?? '';
             $stock = (float)($product['qty'] ?? 0);
             $inStock = $stock > 0;
         ?>
