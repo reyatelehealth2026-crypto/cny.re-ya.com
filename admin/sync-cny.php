@@ -3,13 +3,14 @@
  * Admin page to manually sync CNY products
  */
 session_start();
-require_once __DIR__ . '/../includes/header.php';
 
-// Check if user is admin
+// Check if user is admin BEFORE including header
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../index.php');
     exit;
 }
+
+require_once __DIR__ . '/../includes/header.php';
 
 $output = '';
 $running = false;
