@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS cny_products (
     properties_other TEXT,
     how_to_use TEXT,
     photo_path TEXT,
+    category VARCHAR(255),
     qty DECIMAL(10,2) DEFAULT 0,
     qty_incoming DECIMAL(10,2) DEFAULT 0,
     enable CHAR(1) DEFAULT '1',
@@ -19,5 +20,6 @@ CREATE TABLE IF NOT EXISTS cny_products (
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_sku (sku),
     INDEX idx_enable (enable),
+    INDEX idx_category (category),
     INDEX idx_name (name(100))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
