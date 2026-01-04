@@ -1,8 +1,8 @@
 <?php
 /**
- * Shop Products API - CNY Pharmacy Integration
+ * Shop Products API
  * สำหรับโหลดสินค้าแบบ pagination ใน LIFF Shop
- * ใช้ตาราง cny_products จาก CNY Pharmacy API
+ * ใช้ตาราง business_items
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -19,14 +19,8 @@ require_once __DIR__ . '/../config/database.php';
 
 $db = Database::getInstance()->getConnection();
 
-// Check if cny_products table exists
+// ใช้ business_items เป็นหลัก (ปิด CNY ไว้ก่อน)
 $useCnyProducts = false;
-try {
-    $db->query("SELECT 1 FROM cny_products LIMIT 1");
-    $useCnyProducts = true;
-} catch (Exception $e) {
-    // Fall back to business_items
-}
 
 // Action handler
 $action = $_GET['action'] ?? 'products';
