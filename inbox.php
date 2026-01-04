@@ -335,6 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 }
 
 $pageTitle = 'Inbox';
+$hideAiChatWidget = true; // ซ่อน AI Chat Widget ในหน้า Inbox
 require_once 'includes/header.php';
 
 // Get Users List

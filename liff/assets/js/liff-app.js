@@ -4315,18 +4315,35 @@ class LiffApp {
         const status = this.normalizeOrderStatus(order.status);
         const trackingNumber = order.tracking_number || order.delivery_info?.tracking_number;
         const carrier = order.carrier || order.delivery_info?.carrier || 'ขนส่ง';
+        const isCOD = order.payment_method === 'cod';
         
-        // Define timeline stages
-        const stages = [
-            { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart' },
-            { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check' },
-            { key: 'paid', label: 'ชำระเงินแล้ว', icon: 'fa-credit-card' },
-            { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box' },
-            { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck' },
-            { key: 'delivered', label: 'ส่งแล้ว', icon: 'fa-check-circle' }
-        ];
+        // Define timeline stages - แยกตาม payment method
+        let stages;
+        let statusOrder;
         
-        const statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
+        if (isCOD) {
+            // COD: ไม่มีขั้นตอนชำระเงินก่อนจัดส่ง (ชำระตอนรับสินค้า)
+            stages = [
+                { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart' },
+                { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check' },
+                { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box' },
+                { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck' },
+                { key: 'delivered', label: 'ส่งแล้ว/ชำระเงิน', icon: 'fa-check-circle' }
+            ];
+            statusOrder = ['pending', 'confirmed', 'packing', 'shipping', 'delivered', 'completed'];
+        } else {
+            // Transfer: มีขั้นตอนชำระเงินก่อน
+            stages = [
+                { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart' },
+                { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check' },
+                { key: 'paid', label: 'ชำระเงินแล้ว', icon: 'fa-credit-card' },
+                { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box' },
+                { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck' },
+                { key: 'delivered', label: 'ส่งแล้ว', icon: 'fa-check-circle' }
+            ];
+            statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
+        }
+        
         const currentIndex = statusOrder.indexOf(status);
         
         return `
@@ -4936,18 +4953,35 @@ class LiffApp {
         const trackingNumber = order.tracking_number || order.delivery_info?.tracking_number;
         const carrier = order.carrier || order.delivery_info?.carrier || 'ขนส่ง';
         const estimatedDelivery = order.estimated_delivery || order.delivery_info?.estimated_delivery;
+        const isCOD = order.payment_method === 'cod';
         
-        // Define timeline stages with icons
-        const stages = [
-            { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart', description: 'ออเดอร์ของคุณได้รับการยืนยันแล้ว' },
-            { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check', description: 'ร้านค้ายืนยันออเดอร์แล้ว' },
-            { key: 'paid', label: 'ชำระเงินแล้ว', icon: 'fa-credit-card', description: 'ชำระเงินเรียบร้อยแล้ว' },
-            { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box', description: 'กำลังจัดเตรียมสินค้าของคุณ' },
-            { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck', description: 'สินค้าออกจากคลังแล้ว' },
-            { key: 'delivered', label: 'ส่งแล้ว', icon: 'fa-check-circle', description: 'สินค้าถึงมือคุณแล้ว' }
-        ];
+        // Define timeline stages with icons - แยกตาม payment method
+        let stages;
+        let statusOrder;
         
-        const statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
+        if (isCOD) {
+            // COD: ไม่มีขั้นตอนชำระเงินก่อนจัดส่ง (ชำระตอนรับสินค้า)
+            stages = [
+                { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart', description: 'ออเดอร์ของคุณได้รับการยืนยันแล้ว' },
+                { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check', description: 'ร้านค้ายืนยันออเดอร์แล้ว' },
+                { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box', description: 'กำลังจัดเตรียมสินค้าของคุณ' },
+                { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck', description: 'สินค้าออกจากคลังแล้ว' },
+                { key: 'delivered', label: 'ส่งแล้ว/ชำระเงิน', icon: 'fa-check-circle', description: 'สินค้าถึงมือคุณแล้ว ชำระเงินปลายทาง' }
+            ];
+            statusOrder = ['pending', 'confirmed', 'packing', 'shipping', 'delivered', 'completed'];
+        } else {
+            // Transfer: มีขั้นตอนชำระเงินก่อน
+            stages = [
+                { key: 'pending', label: 'สั่งซื้อสำเร็จ', icon: 'fa-shopping-cart', description: 'ออเดอร์ของคุณได้รับการยืนยันแล้ว' },
+                { key: 'confirmed', label: 'ยืนยันออเดอร์', icon: 'fa-check', description: 'ร้านค้ายืนยันออเดอร์แล้ว' },
+                { key: 'paid', label: 'ชำระเงินแล้ว', icon: 'fa-credit-card', description: 'ชำระเงินเรียบร้อยแล้ว' },
+                { key: 'packing', label: 'กำลังเตรียมสินค้า', icon: 'fa-box', description: 'กำลังจัดเตรียมสินค้าของคุณ' },
+                { key: 'shipping', label: 'กำลังส่ง', icon: 'fa-truck', description: 'สินค้าออกจากคลังแล้ว' },
+                { key: 'delivered', label: 'ส่งแล้ว', icon: 'fa-check-circle', description: 'สินค้าถึงมือคุณแล้ว' }
+            ];
+            statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
+        }
+        
         const currentIndex = statusOrder.indexOf(status);
         
         return `

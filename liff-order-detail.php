@@ -124,12 +124,50 @@ $deliveryType = $deliveryInfo['type'] ?? 'shipping';
                     <span class="px-4 py-1.5 rounded-full text-sm font-bold <?= $statusClass ?>"><?= $statusText ?></span>
                 </div>
                 
-                <!-- Order Timeline -->
+                <!-- Order Timeline - แยกตาม payment method -->
                 <div class="flex items-center justify-between text-xs text-gray-400 mt-4">
                     <?php
-                    $steps = ['pending' => 'สั่งซื้อ', 'paid' => 'ชำระเงิน', 'processing' => 'เตรียมสินค้า', 'shipping' => 'จัดส่ง', 'delivered' => 'ได้รับ'];
-                    $currentStep = array_search($order['status'], array_keys($steps));
-                    if ($currentStep === false) $currentStep = 0;
+                    // Timeline สำหรับ COD (ไม่มีขั้นตอนชำระเงินก่อนจัดส่ง)
+                    if ($isCOD) {
+                        $steps = [
+                            'pending' => 'สั่งซื้อ', 
+                            'confirmed' => 'ยืนยัน', 
+                            'processing' => 'เตรียมสินค้า', 
+                            'shipping' => 'จัดส่ง', 
+                            'delivered' => 'ได้รับ/ชำระ'
+                        ];
+                        // Map status สำหรับ COD
+                        $statusMap = [
+                            'pending' => 0,
+                            'confirmed' => 1,
+                            'processing' => 2,
+                            'shipping' => 3,
+                            'shipped' => 3,
+                            'delivered' => 4,
+                            'completed' => 4
+                        ];
+                        $currentStep = $statusMap[$order['status']] ?? 0;
+                    } else {
+                        // Timeline สำหรับ Transfer (มีขั้นตอนชำระเงิน)
+                        $steps = [
+                            'pending' => 'สั่งซื้อ', 
+                            'paid' => 'ชำระเงิน', 
+                            'processing' => 'เตรียมสินค้า', 
+                            'shipping' => 'จัดส่ง', 
+                            'delivered' => 'ได้รับ'
+                        ];
+                        $statusMap = [
+                            'pending' => 0,
+                            'paid' => 1,
+                            'confirmed' => 1,
+                            'processing' => 2,
+                            'shipping' => 3,
+                            'shipped' => 3,
+                            'delivered' => 4,
+                            'completed' => 4
+                        ];
+                        $currentStep = $statusMap[$order['status']] ?? 0;
+                    }
                     $i = 0;
                     foreach ($steps as $key => $label):
                         $isActive = $i <= $currentStep;

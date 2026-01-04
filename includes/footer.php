@@ -22,13 +22,13 @@
         };
         
         const toast = document.createElement('div');
-        toast.className = `fixed bottom-4 right-4 px-5 py-3 rounded-xl text-white ${colors[type] || colors.success} shadow-xl z-50 flex items-center gap-3 animate-slide-up`;
+        toast.className = `fixed top-20 right-4 px-5 py-3 rounded-xl text-white ${colors[type] || colors.success} shadow-xl z-50 flex items-center gap-3 animate-slide-up`;
         toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i><span>${message}</span>`;
         document.body.appendChild(toast);
         
         setTimeout(() => { 
             toast.style.opacity = '0'; 
-            toast.style.transform = 'translateY(20px)';
+            toast.style.transform = 'translateY(-20px)';
             setTimeout(() => toast.remove(), 300); 
         }, 3000);
     }
