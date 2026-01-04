@@ -128,7 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $wmsTablesExist) {
     }
     
     $_SESSION['wms_message'] = $response;
-    header('Location: ?tab=wms&wms_tab=' . $wmsSubTab);
+    // Use JavaScript redirect since headers already sent by header.php
+    $redirectUrl = '?tab=wms&wms_tab=' . $wmsSubTab;
+    echo "<script>window.location.href = '{$redirectUrl}';</script>";
     exit;
 }
 

@@ -126,7 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header('Location: orders.php');
+    // Use JavaScript redirect since headers may already be sent
+    echo "<script>window.location.href = 'orders.php';</script>";
     exit;
 }
 
