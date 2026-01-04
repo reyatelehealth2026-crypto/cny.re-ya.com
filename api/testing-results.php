@@ -4,14 +4,19 @@ session_start();
 
 // Try to load database config
 $dbAvailable = false;
-$conn = null;
+$pdo = null;
 
-if (file_exists('../config/config.php')) {
-    @include_once '../config/config.php';
-    if (defined('DB_HOST') && file_exists('../config/database.php')) {
-        require_once '../config/database.php';
-        $dbAvailable = true;
+try {
+    if (file_exists('../config/config.php')) {
+        @include_once '../config/config.php';
+        if (defined('DB_HOST') && file_exists('../config/database.php')) {
+            require_once '../config/database.php';
+            $pdo = Database::getInstance()->getConnection();
+            $dbAvailable = true;
+        }
     }
+} catch (Exception $e) {
+    $dbAvailable = false;
 }
 
 // Allow access without auth for testing purposes
@@ -31,7 +36,7 @@ if ($method === 'POST') {
     }
     
     // If database not available, just return success (data saved in localStorage)
-    if (!$dbAvailable) {
+    if (!$dbAvailable || !$pdo) {
         echo json_encode([
             'success' => true,
             'message' => 'Results saved to localStorage (database not configured)',
@@ -46,7 +51,7 @@ if ($method === 'POST') {
         $timestamp = $input['timestamp'] ?? date('Y-m-d H:i:s');
         
         // Create table if not exists
-        $createTable = "CREATE TABLE IF NOT EXISTS testing_results (
+        $pdo->exec("CREATE TABLE IF NOT EXISTS testing_results (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
             user_name VARCHAR(255),
@@ -55,42 +60,35 @@ if ($method === 'POST') {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_user (user_id),
             INDEX idx_created (created_at)
-        )";
-        $conn->query($createTable);
+        )");
         
         // Check if user has existing results
-        $checkStmt = $conn->prepare("SELECT id FROM testing_results WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
-        $checkStmt->bind_param("i", $userId);
-        $checkStmt->execute();
-        $result = $checkStmt->get_result();
+        $checkStmt = $pdo->prepare("SELECT id FROM testing_results WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+        $checkStmt->execute([$userId]);
+        $existing = $checkStmt->fetch();
         
-        if ($result->num_rows > 0) {
+        if ($existing) {
             // Update existing
-            $row = $result->fetch_assoc();
-            $stmt = $conn->prepare("UPDATE testing_results SET test_data = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("si", $testData, $row['id']);
+            $stmt = $pdo->prepare("UPDATE testing_results SET test_data = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$testData, $existing['id']]);
         } else {
             // Insert new
-            $stmt = $conn->prepare("INSERT INTO testing_results (user_id, user_name, test_data) VALUES (?, ?, ?)");
-            $stmt->bind_param("iss", $userId, $userName, $testData);
+            $stmt = $pdo->prepare("INSERT INTO testing_results (user_id, user_name, test_data) VALUES (?, ?, ?)");
+            $stmt->execute([$userId, $userName, $testData]);
         }
         
-        if ($stmt->execute()) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Results saved successfully',
-                'timestamp' => date('Y-m-d H:i:s'),
-                'storage' => 'database'
-            ]);
-        } else {
-            throw new Exception('Failed to save results');
-        }
+        echo json_encode([
+            'success' => true,
+            'message' => 'Results saved successfully',
+            'timestamp' => date('Y-m-d H:i:s'),
+            'storage' => 'database'
+        ]);
         
     } catch (Exception $e) {
         // Fallback to localStorage message
         echo json_encode([
             'success' => true,
-            'message' => 'Results saved to localStorage (database error)',
+            'message' => 'Results saved to localStorage (database error: ' . $e->getMessage() . ')',
             'timestamp' => date('Y-m-d H:i:s'),
             'storage' => 'localStorage'
         ]);
@@ -98,7 +96,7 @@ if ($method === 'POST') {
     
 } elseif ($method === 'GET') {
     // Get test results
-    if (!$dbAvailable) {
+    if (!$dbAvailable || !$pdo) {
         echo json_encode([
             'success' => true,
             'testData' => null,
@@ -108,13 +106,11 @@ if ($method === 'POST') {
     }
     
     try {
-        $stmt = $conn->prepare("SELECT test_data, updated_at FROM testing_results WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1");
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $stmt = $pdo->prepare("SELECT test_data, updated_at FROM testing_results WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1");
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch();
         
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
+        if ($row) {
             echo json_encode([
                 'success' => true,
                 'testData' => json_decode($row['test_data'], true),
@@ -140,4 +136,3 @@ if ($method === 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
 }
-?>
