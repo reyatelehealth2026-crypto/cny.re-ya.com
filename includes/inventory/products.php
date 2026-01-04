@@ -173,7 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tablesExist) {
         $_SESSION['bulk_message'] = 'ปิดสินค้าที่ stock น้อย แล้ว ' . $stmt->rowCount() . ' รายการ';
     }
     
-    header('Location: ?tab=products&' . http_build_query(array_diff_key($_GET, ['tab' => ''])));
+    // Use JavaScript redirect since headers already sent by header.php
+    $redirectUrl = '?tab=products&' . http_build_query(array_diff_key($_GET, ['tab' => '']));
+    echo "<script>window.location.href = '{$redirectUrl}';</script>";
     exit;
 }
 
