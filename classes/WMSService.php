@@ -324,12 +324,12 @@ class WMSService {
                 ti.product_name,
                 ti.product_sku,
                 ti.product_price,
-                bi.storage_condition as storage_location
+                NULL as storage_location
             FROM wms_pick_items wpi
             JOIN transaction_items ti ON wpi.transaction_item_id = ti.id
             LEFT JOIN business_items bi ON wpi.product_id = bi.id
             WHERE wpi.order_id = ?
-            ORDER BY bi.storage_condition ASC, ti.product_name ASC
+            ORDER BY ti.product_name ASC
         ");
         $stmt->execute([$orderId]);
         
@@ -534,15 +534,15 @@ class WMSService {
                 ti.product_id,
                 ti.product_name,
                 ti.product_sku,
-                bi.storage_condition as storage_location,
+                NULL as storage_location,
                 SUM(ti.quantity) as total_quantity,
                 COUNT(DISTINCT ti.transaction_id) as order_count,
                 GROUP_CONCAT(DISTINCT ti.transaction_id) as order_ids
             FROM transaction_items ti
             LEFT JOIN business_items bi ON ti.product_id = bi.id
             WHERE ti.transaction_id IN ({$placeholders})
-            GROUP BY ti.product_id, ti.product_name, ti.product_sku, bi.storage_condition
-            ORDER BY bi.storage_condition ASC, ti.product_name ASC
+            GROUP BY ti.product_id, ti.product_name, ti.product_sku
+            ORDER BY ti.product_name ASC
         ");
         $stmt->execute($orderIds);
         $consolidatedItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
