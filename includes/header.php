@@ -218,6 +218,7 @@ $quickAccessMenus = [
     'low-stock' => ['icon' => 'fa-exclamation-triangle', 'label' => 'สินค้าใกล้หมด', 'url' => '/inventory?tab=low-stock', 'page' => 'inventory', 'color' => 'red', 'roles' => ['admin', 'pharmacist']],
     'product-units' => ['icon' => 'fa-balance-scale', 'label' => 'หน่วยสินค้า', 'url' => '/inventory/product-units', 'page' => 'product-units', 'color' => 'emerald', 'roles' => ['admin', 'pharmacist']],
     'sync' => ['icon' => 'fa-sync', 'label' => 'Sync สินค้า', 'url' => '/sync-dashboard', 'page' => 'sync-dashboard', 'color' => 'sky', 'roles' => ['admin', 'owner']],
+    'wms' => ['icon' => 'fa-shipping-fast', 'label' => 'WMS', 'url' => '/inventory?tab=wms', 'page' => 'inventory', 'color' => 'purple', 'roles' => ['admin', 'staff']],
     
     // ==================== Supply & Revenue - Procurement ====================
     'purchase-orders' => ['icon' => 'fa-file-invoice', 'label' => 'ใบสั่งซื้อ (PO)', 'url' => '/procurement?tab=po', 'page' => 'procurement', 'color' => 'violet', 'roles' => ['admin', 'owner']],

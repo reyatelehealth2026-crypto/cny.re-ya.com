@@ -33,6 +33,7 @@ $tabs = [
     'adjustment' => ['label' => 'ปรับสต็อก', 'icon' => 'fas fa-sliders-h'],
     'low-stock' => ['label' => 'สินค้าใกล้หมด', 'icon' => 'fas fa-exclamation-triangle'],
     'reports' => ['label' => 'รายงาน', 'icon' => 'fas fa-chart-bar'],
+    'wms' => ['label' => 'WMS', 'icon' => 'fas fa-shipping-fast'],
 ];
 
 // Get active tab
@@ -46,6 +47,7 @@ $tabTitles = [
     'adjustment' => 'ปรับสต็อก (Stock Adjustment)',
     'low-stock' => 'สินค้าใกล้หมด & จุดสั่งซื้อ (ROP)',
     'reports' => 'รายงานคลังสินค้า',
+    'wms' => 'WMS - Pick Pack Ship',
 ];
 $pageTitle = $tabTitles[$activeTab] ?? 'จัดการคลังสินค้า';
 
@@ -88,6 +90,9 @@ switch ($activeTab) {
         break;
     case 'reports':
         include __DIR__ . '/../includes/inventory/reports.php';
+        break;
+    case 'wms':
+        include __DIR__ . '/../includes/inventory/wms.php';
         break;
     default:
         include __DIR__ . '/../includes/inventory/stock.php';
