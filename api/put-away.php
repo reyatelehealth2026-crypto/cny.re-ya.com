@@ -300,6 +300,94 @@ try {
             break;
         
         // =============================================
+        // QUICK ASSIGN FROM PLANOGRAM
+        // =============================================
+        
+        /**
+         * Quick assign product to location (from Planogram view)
+         */
+        case 'assign_to_location':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            
+            $locationId = (int)($data['location_id'] ?? 0);
+            $productId = (int)($data['product_id'] ?? 0);
+            $quantity = (int)($data['quantity'] ?? 0);
+            $batchNumber = $data['batch_number'] ?? null;
+            $notes = $data['notes'] ?? null;
+            
+            if (!$locationId) {
+                throw new Exception('Location ID is required');
+            }
+            if (!$productId) {
+                throw new Exception('Product ID is required');
+            }
+            if ($quantity <= 0) {
+                throw new Exception('Quantity must be greater than 0');
+            }
+            
+            // Get location info
+            $locationService = new LocationService($db, $lineAccountId);
+            $location = $locationService->getLocation($locationId);
+            if (!$location) {
+                // Try without line_account_id filter
+                $stmt = $db->prepare("SELECT * FROM warehouse_locations WHERE id = ?");
+                $stmt->execute([$locationId]);
+                $location = $stmt->fetch(PDO::FETCH_ASSOC);
+            }
+            
+            if (!$location) {
+                throw new Exception('Location not found');
+            }
+            
+            // Check capacity
+            $availableCapacity = $location['capacity'] - $location['current_qty'];
+            if ($quantity > $availableCapacity) {
+                throw new Exception("ความจุไม่เพียงพอ (ว่าง: {$availableCapacity}, ต้องการ: {$quantity})");
+            }
+            
+            // Create batch if batch_number provided
+            $batchId = null;
+            if ($batchNumber) {
+                $batchService = new BatchService($db, $lineAccountId);
+                $batchId = $batchService->createBatch([
+                    'product_id' => $productId,
+                    'batch_number' => $batchNumber,
+                    'quantity' => $quantity,
+                    'quantity_available' => $quantity,
+                    'location_id' => $locationId,
+                    'status' => 'active'
+                ]);
+            }
+            
+            // Update location quantity
+            $stmt = $db->prepare("
+                UPDATE warehouse_locations 
+                SET current_qty = current_qty + ? 
+                WHERE id = ?
+            ");
+            $stmt->execute([$quantity, $locationId]);
+            
+            // Log movement
+            try {
+                $stmt = $db->prepare("
+                    INSERT INTO location_movements 
+                    (line_account_id, product_id, batch_id, to_location_id, quantity, movement_type, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, 'put_away', ?, NOW())
+                ");
+                $stmt->execute([$lineAccountId, $productId, $batchId, $locationId, $quantity, $notes]);
+            } catch (Exception $e) {
+                // Table might not exist, continue anyway
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'message' => "จัดเก็บสินค้า {$quantity} ชิ้น ที่ตำแหน่ง {$location['location_code']} สำเร็จ",
+                'location_id' => $locationId,
+                'batch_id' => $batchId
+            ]);
+            break;
+        
+        // =============================================
         // DEFAULT
         // =============================================
         
