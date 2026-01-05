@@ -334,9 +334,22 @@ $results[] = testModule('File System', function() {
         }
     }
     
-    // Check error_log
-    $errorLog = __DIR__ . '/error_log';
-    $status['Error Log'] = file_exists($errorLog) ? '✅ ' . number_format(filesize($errorLog) / 1024, 1) . ' KB' : '⚠️ Not found';
+    // Check error_log - try multiple paths
+    $errorLogPaths = [
+        '/var/www/vhosts/flexrich.site/logs/clinicya.re-ya.com/error_log',
+        __DIR__ . '/error_log'
+    ];
+    $errorLogFound = false;
+    foreach ($errorLogPaths as $errorLog) {
+        if (file_exists($errorLog)) {
+            $status['Error Log'] = '✅ ' . number_format(filesize($errorLog) / 1024, 1) . ' KB (' . basename(dirname($errorLog)) . ')';
+            $errorLogFound = true;
+            break;
+        }
+    }
+    if (!$errorLogFound) {
+        $status['Error Log'] = '⚠️ Not found';
+    }
     
     return [
         'status' => 'pass',
@@ -386,12 +399,17 @@ $results[] = testModule('Recent Errors', function() use ($db) {
         $status['dev_logs'] = '❌ Table missing';
     }
     
-    // Check PHP error log
-    $errorLog = __DIR__ . '/error_log';
-    if (file_exists($errorLog)) {
-        $lines = file($errorLog);
-        $recentLines = array_slice($lines, -5);
-        $status['PHP Error Log'] = count($lines) . ' lines total';
+    // Check PHP error log - try multiple paths
+    $errorLogPaths = [
+        '/var/www/vhosts/flexrich.site/logs/clinicya.re-ya.com/error_log',
+        __DIR__ . '/error_log'
+    ];
+    foreach ($errorLogPaths as $errorLog) {
+        if (file_exists($errorLog)) {
+            $lines = file($errorLog);
+            $status['PHP Error Log'] = count($lines) . ' lines (' . basename(dirname($errorLog)) . ')';
+            break;
+        }
     }
     
     return [

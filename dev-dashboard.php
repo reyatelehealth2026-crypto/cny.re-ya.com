@@ -120,7 +120,8 @@ try {
 $phpErrorLog = '';
 $errorLogPath = ini_get('error_log');
 $possiblePaths = [
-    __DIR__ . '/error_log',  // Local error_log first
+    '/var/www/vhosts/flexrich.site/logs/clinicya.re-ya.com/error_log',  // Plesk server log
+    __DIR__ . '/error_log',  // Local error_log
     $errorLogPath,
     __DIR__ . '/php_errors.log',
     __DIR__ . '/logs/error.log',
@@ -135,10 +136,10 @@ $foundLogPath = null;
 foreach ($possiblePaths as $path) {
     if ($path && file_exists($path) && is_readable($path)) {
         $foundLogPath = $path;
-        // Read last 200 lines
+        // Read last 300 lines for more context
         $lines = file($path);
         if ($lines) {
-            $phpErrorLog = implode('', array_slice($lines, -200));
+            $phpErrorLog = implode('', array_slice($lines, -300));
         }
         break;
     }
