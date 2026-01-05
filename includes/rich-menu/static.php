@@ -183,10 +183,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['tab'] ?? 'static') === 'sta
         $menu = $stmt->fetch();
         
         if ($menu) {
-            $line->setDefaultRichMenu($menu['line_rich_menu_id']);
-            $db->query("UPDATE rich_menus SET is_default = 0");
-            $stmt = $db->prepare("UPDATE rich_menus SET is_default = 1 WHERE id = ?");
-            $stmt->execute([$_POST['id']]);
+            $result = $line->setDefaultRichMenu($menu['line_rich_menu_id']);
+            
+            if ($result['code'] === 200) {
+                $db->query("UPDATE rich_menus SET is_default = 0");
+                $stmt = $db->prepare("UPDATE rich_menus SET is_default = 1 WHERE id = ?");
+                $stmt->execute([$_POST['id']]);
+                $_SESSION['rich_menu_success'] = 'ตั้ง Default Rich Menu สำเร็จ';
+            } else {
+                $errorMessage = 'ไม่สามารถตั้ง Default Rich Menu ได้: ' . json_encode($result['body'] ?? $result);
+                error_log("setDefaultRichMenu failed: " . json_encode($result));
+            }
+        } else {
+            $errorMessage = 'ไม่พบ Rich Menu ที่เลือก';
         }
     } elseif ($action === 'update') {
         // อัพเดท Rich Menu (เฉพาะ areas ใน DB เพราะ LINE ไม่รองรับแก้ไข)

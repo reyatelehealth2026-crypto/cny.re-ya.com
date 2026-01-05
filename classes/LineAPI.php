@@ -762,6 +762,26 @@ class LineAPI {
     }
 
     /**
+     * Cancel default Rich Menu (remove default for all users)
+     */
+    public function cancelDefaultRichMenu() {
+        $url = $this->apiEndpoint . '/user/all/richmenu';
+        $headers = ['Authorization: Bearer ' . $this->channelAccessToken];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return ['code' => $httpCode, 'body' => json_decode($response, true)];
+    }
+
+    /**
      * Validate signature
      */
     public function validateSignature($body, $signature) {
