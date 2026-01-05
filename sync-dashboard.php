@@ -168,7 +168,7 @@ $progress = round(($done / $total) * 100);
         
         <!-- Continuous Sync -->
         <div class="card">
-            <h2>🔄 Continuous Sync (ซิงค์ต่อเนื่อง)</h2>
+            <h2>🔄 Continuous Sync (ซิงค์ต่อเนื่องจาก CNY API)</h2>
             <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
                 <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 120px;">
                     <label>Batch Size (ทีละกี่รายการ)</label>
@@ -183,9 +183,8 @@ $progress = round(($done / $total) * 100);
                 <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 120px;">
                     <label>Delay (หน่วงระหว่าง batch)</label>
                     <select id="continuousDelay">
-                        <option value="500">0.5 วินาที</option>
-                        <option value="1000" selected>1 วินาที</option>
-                        <option value="2000">2 วินาที</option>
+                        <option value="1000">1 วินาที</option>
+                        <option value="2000" selected>2 วินาที</option>
                         <option value="3000">3 วินาที</option>
                         <option value="5000">5 วินาที</option>
                     </select>
@@ -195,7 +194,8 @@ $progress = round(($done / $total) * 100);
                     <input type="number" id="maxBatches" value="0" min="0" style="width: 100%;">
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-success" id="startContinuousBtn" onclick="startContinuousSync()">▶️ เริ่ม Sync</button>
+                    <button class="btn btn-success" id="startContinuousBtn" onclick="startContinuousSync(false)">▶️ เริ่ม Sync</button>
+                    <button class="btn" id="resetSyncBtn" onclick="startContinuousSync(true)" style="background:#8b5cf6;">🔄 เริ่มใหม่</button>
                     <button class="btn btn-danger" id="stopContinuousBtn" onclick="stopContinuousSync()" disabled>⏹️ หยุด</button>
                 </div>
             </div>
@@ -205,6 +205,16 @@ $progress = round(($done / $total) * 100);
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <span style="font-weight: 600; color: #2d3748;">📊 สถานะ Sync</span>
                     <span id="syncStatusBadge" style="background: #48bb78; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">กำลังทำงาน...</span>
+                </div>
+                <!-- Progress Bar -->
+                <div id="syncProgressContainer" class="hidden" style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #718096; margin-bottom: 4px;">
+                        <span>Progress</span>
+                        <span id="syncProgressText">0 / 0</span>
+                    </div>
+                    <div style="background: #e2e8f0; border-radius: 10px; height: 12px; overflow: hidden;">
+                        <div id="syncProgressBar" style="height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%; transition: width 0.3s;"></div>
+                    </div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; text-align: center;">
                     <div><div style="font-size: 24px; font-weight: bold; color: #667eea;" id="syncBatchCount">0</div><div style="font-size: 11px; color: #718096;">Batches</div></div>
@@ -280,6 +290,7 @@ $progress = round(($done / $total) * 100);
         let continuousSyncRunning = false;
         let continuousSyncStats = { batches: 0, created: 0, updated: 0, skipped: 0, failed: 0 };
         let autoRefreshTimer = null;
+        let resetOnStart = false;
         
         function createBatch() {
             document.getElementById('batchForm').classList.remove('hidden');
@@ -306,13 +317,16 @@ $progress = round(($done / $total) * 100);
         }
         
         // Continuous Sync Functions
-        function startContinuousSync() {
+        function startContinuousSync(reset = false) {
             continuousSyncRunning = true;
+            resetOnStart = reset;
             continuousSyncStats = { batches: 0, created: 0, updated: 0, skipped: 0, failed: 0 };
             
             document.getElementById('startContinuousBtn').disabled = true;
+            document.getElementById('resetSyncBtn').disabled = true;
             document.getElementById('stopContinuousBtn').disabled = false;
             document.getElementById('continuousSyncStatus').classList.remove('hidden');
+            document.getElementById('syncProgressContainer').classList.remove('hidden');
             document.getElementById('syncStatusBadge').textContent = 'กำลังทำงาน...';
             document.getElementById('syncStatusBadge').style.background = '#48bb78';
             document.getElementById('syncLog').innerHTML = '';
@@ -320,12 +334,14 @@ $progress = round(($done / $total) * 100);
             // Stop auto refresh while syncing
             if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
             
+            addSyncLog(reset ? '🔄 เริ่ม sync ใหม่ตั้งแต่ต้น...' : '▶️ เริ่ม sync ต่อจากที่ค้างไว้...', 'info');
             runContinuousBatch();
         }
         
         function stopContinuousSync() {
             continuousSyncRunning = false;
             document.getElementById('startContinuousBtn').disabled = false;
+            document.getElementById('resetSyncBtn').disabled = false;
             document.getElementById('stopContinuousBtn').disabled = true;
             document.getElementById('syncStatusBadge').textContent = 'หยุดแล้ว';
             document.getElementById('syncStatusBadge').style.background = '#718096';
@@ -347,9 +363,13 @@ $progress = round(($done / $total) * 100);
             }
             
             try {
-                addSyncLog(`🔄 กำลัง sync batch #${continuousSyncStats.batches + 1}...`, 'info');
+                // Build URL with reset param for first batch
+                let url = `api/sync_continuous.php?batch_size=${batchSize}`;
+                if (resetOnStart && continuousSyncStats.batches === 0) {
+                    url += '&reset=1';
+                }
                 
-                const response = await fetch(`api/sync_continuous.php?batch_size=${batchSize}`);
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -361,11 +381,29 @@ $progress = round(($done / $total) * 100);
                     
                     updateSyncDisplay();
                     
+                    // Update progress bar
+                    if (data.progress) {
+                        const current = data.progress.offset + data.stats.processed;
+                        const total = data.progress.total_available;
+                        const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+                        document.getElementById('syncProgressBar').style.width = percent + '%';
+                        document.getElementById('syncProgressText').textContent = `${current.toLocaleString()} / ${total.toLocaleString()}`;
+                    }
+                    
                     const processed = data.stats.processed || 0;
                     if (processed > 0) {
                         addSyncLog(`✓ Batch #${continuousSyncStats.batches}: ${processed} รายการ (C:${data.stats.created} U:${data.stats.updated} S:${data.stats.skipped} F:${data.stats.failed})`, 'success');
+                        
+                        // Check if complete
+                        if (data.progress && data.progress.is_complete) {
+                            addSyncLog(`🎉 Sync เสร็จสมบูรณ์! ทั้งหมด ${data.progress.total_available} รายการ`, 'success');
+                            document.getElementById('syncStatusBadge').textContent = 'เสร็จสมบูรณ์';
+                            document.getElementById('syncStatusBadge').style.background = '#48bb78';
+                            stopContinuousSync();
+                            return;
+                        }
                     } else {
-                        addSyncLog(`⚠️ ไม่มีรายการใน queue แล้ว`, 'warning');
+                        addSyncLog(`⚠️ ไม่มีรายการให้ sync แล้ว`, 'warning');
                         stopContinuousSync();
                         return;
                     }
