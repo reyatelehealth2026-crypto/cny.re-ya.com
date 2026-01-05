@@ -60,9 +60,9 @@ $stats['active_users'] = $stmt->fetchColumn();
 // Top Tags
 $topTags = [];
 try {
-    $stmt = $db->prepare("SELECT t.name, t.color, COUNT(ut.user_id) as count 
-        FROM tags t 
-        LEFT JOIN user_tags ut ON t.id = ut.tag_id 
+    $stmt = $db->prepare("SELECT t.name, t.color, COUNT(uta.user_id) as count 
+        FROM user_tags t 
+        LEFT JOIN user_tag_assignments uta ON t.id = uta.tag_id 
         WHERE (t.line_account_id = ? OR t.line_account_id IS NULL)
         GROUP BY t.id 
         ORDER BY count DESC 

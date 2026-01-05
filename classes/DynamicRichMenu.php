@@ -155,9 +155,9 @@ class DynamicRichMenu {
         
         // ดึง tags
         $stmt = $this->db->prepare("
-            SELECT t.name FROM tags t
-            JOIN user_tags ut ON t.id = ut.tag_id
-            WHERE ut.user_id = ?
+            SELECT t.name FROM user_tags t
+            JOIN user_tag_assignments uta ON t.id = uta.tag_id
+            WHERE uta.user_id = ?
         ");
         $stmt->execute([$userId]);
         $user['tags'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -384,8 +384,8 @@ class DynamicRichMenu {
         $stmt = $this->db->prepare("
             SELECT u.id, u.line_user_id 
             FROM users u
-            JOIN user_tags ut ON u.id = ut.user_id
-            JOIN tags t ON ut.tag_id = t.id
+            JOIN user_tag_assignments uta ON u.id = uta.user_id
+            JOIN user_tags t ON uta.tag_id = t.id
             WHERE t.name = ? AND u.line_account_id = ? AND u.line_user_id IS NOT NULL
         ");
         $stmt->execute([$tagName, $this->lineAccountId]);

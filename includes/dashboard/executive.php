@@ -199,8 +199,8 @@ try {
                 </div>
                 <div>
                     <p class="text-sm text-gray-500">ข้อความวันนี้</p>
-                    <p class="text-2xl font-bold"><?= number_format($msgStats['total']) ?></p>
-                    <p class="text-xs text-gray-400">รับ <?= number_format($msgStats['incoming']) ?> / ส่ง <?= number_format($msgStats['outgoing']) ?></p>
+                    <p class="text-2xl font-bold"><?= number_format($msgStats['total'] ?? 0) ?></p>
+                    <p class="text-xs text-gray-400">รับ <?= number_format($msgStats['incoming'] ?? 0) ?> / ส่ง <?= number_format($msgStats['outgoing'] ?? 0) ?></p>
                 </div>
             </div>
         </div>
@@ -225,8 +225,8 @@ try {
                 </div>
                 <div>
                     <p class="text-sm text-gray-500">ออเดอร์</p>
-                    <p class="text-2xl font-bold"><?= number_format($orderStats['total']) ?></p>
-                    <p class="text-xs text-orange-500"><?= $orderStats['pending'] ?> รอดำเนินการ</p>
+                    <p class="text-2xl font-bold"><?= number_format($orderStats['total'] ?? 0) ?></p>
+                    <p class="text-xs text-orange-500"><?= $orderStats['pending'] ?? 0 ?> รอดำเนินการ</p>
                 </div>
             </div>
         </div>
@@ -238,8 +238,8 @@ try {
                 </div>
                 <div>
                     <p class="text-sm text-gray-500">รายได้</p>
-                    <p class="text-2xl font-bold">฿<?= number_format($orderStats['revenue']) ?></p>
-                    <p class="text-xs text-gray-400"><?= $orderStats['completed'] ?> สำเร็จ</p>
+                    <p class="text-2xl font-bold">฿<?= number_format($orderStats['revenue'] ?? 0) ?></p>
+                    <p class="text-xs text-gray-400"><?= $orderStats['completed'] ?? 0 ?> สำเร็จ</p>
                 </div>
             </div>
         </div>
@@ -264,12 +264,12 @@ try {
         
         <div class="bg-white rounded-xl shadow p-4">
             <div class="flex items-center gap-3">
-                <div class="w-12 h-12 <?= $msgStats['unread'] > 0 ? 'bg-red-100' : 'bg-green-100' ?> rounded-lg flex items-center justify-center">
-                    <i class="fas fa-envelope <?= $msgStats['unread'] > 0 ? 'text-red-500' : 'text-green-500' ?> text-xl"></i>
+                <div class="w-12 h-12 <?= ($msgStats['unread'] ?? 0) > 0 ? 'bg-red-100' : 'bg-green-100' ?> rounded-lg flex items-center justify-center">
+                    <i class="fas fa-envelope <?= ($msgStats['unread'] ?? 0) > 0 ? 'text-red-500' : 'text-green-500' ?> text-xl"></i>
                 </div>
                 <div>
                     <p class="text-sm text-gray-500">ยังไม่ได้อ่าน</p>
-                    <p class="text-2xl font-bold <?= $msgStats['unread'] > 0 ? 'text-red-500' : '' ?>"><?= number_format($msgStats['unread']) ?></p>
+                    <p class="text-2xl font-bold <?= ($msgStats['unread'] ?? 0) > 0 ? 'text-red-500' : '' ?>"><?= number_format($msgStats['unread'] ?? 0) ?></p>
                     <p class="text-xs text-gray-400">ข้อความ</p>
                 </div>
             </div>
@@ -310,7 +310,7 @@ try {
                             <p class="text-xs text-gray-500">ดูแล <?= $admin['customers_handled'] ?> ลูกค้า</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-lg font-bold text-blue-600"><?= number_format($admin['messages_sent']) ?></p>
+                            <p class="text-lg font-bold text-blue-600"><?= number_format($admin['messages_sent'] ?? 0) ?></p>
                             <p class="text-xs text-gray-400">ข้อความ</p>
                         </div>
                     </div>
