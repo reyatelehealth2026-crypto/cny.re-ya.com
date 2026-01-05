@@ -484,15 +484,19 @@ class PutAwayService {
      * @return bool True if controlled drug
      */
     private function isControlledDrug(array $product): bool {
-        // Check drug_category field
-        $drugCategory = strtolower($product['drug_category'] ?? '');
-        if (in_array($drugCategory, self::CONTROLLED_DRUG_CATEGORIES)) {
-            return true;
-        }
-        
         // Check storage_zone_type field
         if (($product['storage_zone_type'] ?? '') === self::ZONE_TYPE_CONTROLLED) {
             return true;
+        }
+        
+        // Check name for controlled drug keywords
+        $name = strtolower($product['name'] ?? '');
+        $controlledKeywords = ['morphine', 'codeine', 'tramadol', 'diazepam', 'alprazolam', 'มอร์ฟีน', 'โคเดอีน'];
+        
+        foreach ($controlledKeywords as $keyword) {
+            if (strpos($name, $keyword) !== false) {
+                return true;
+            }
         }
         
         return false;
@@ -838,17 +842,38 @@ class PutAwayService {
      * @return array|null Product data or null if not found
      */
     private function getProduct(int $productId): ?array {
-        $stmt = $this->db->prepare("
-            SELECT id, name, sku, category_id, drug_category, 
-                   storage_condition, storage_zone_type, movement_class,
-                   default_location_id, requires_batch_tracking, requires_expiry_tracking
-            FROM business_items 
-            WHERE id = ? AND line_account_id = ?
-        ");
-        $stmt->execute([$productId, $this->lineAccountId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        return $result ?: null;
+        // First try with all columns, fallback to basic columns if some don't exist
+        try {
+            $stmt = $this->db->prepare("
+                SELECT id, name, sku, category_id, 
+                       COALESCE(storage_condition, 'room_temp') as storage_condition,
+                       COALESCE(storage_zone_type, 'general') as storage_zone_type,
+                       COALESCE(movement_class, 'C') as movement_class
+                FROM business_items 
+                WHERE id = ?
+            ");
+            $stmt->execute([$productId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            return $result ?: null;
+        } catch (PDOException $e) {
+            // Fallback to basic query
+            $stmt = $this->db->prepare("
+                SELECT id, name, sku, category_id
+                FROM business_items 
+                WHERE id = ?
+            ");
+            $stmt->execute([$productId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($result) {
+                $result['storage_condition'] = 'room_temp';
+                $result['storage_zone_type'] = 'general';
+                $result['movement_class'] = 'C';
+            }
+            
+            return $result ?: null;
+        }
     }
     
     /**
