@@ -97,16 +97,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tablesExist) {
             isset($_POST['is_active']) ? 1 : 0
         ];
         
-        if ($hasNewColumns) {
-            $cols = array_merge($cols, ['barcode', 'manufacturer', 'generic_name', 'usage_instructions', 'unit']);
-            $data = array_merge($data, [
-                $_POST['barcode'] ?: null,
-                $_POST['manufacturer'] ?: null,
-                $_POST['generic_name'] ?: null,
-                $_POST['usage_instructions'] ?: null,
-                $_POST['unit'] ?: 'ชิ้น'
-            ]);
-        }
+        // Extended fields for CNY API compatibility
+        $cols = array_merge($cols, ['barcode', 'manufacturer', 'generic_name', 'usage_instructions', 'unit', 'name_en']);
+        $data = array_merge($data, [
+            $_POST['barcode'] ?: null,
+            $_POST['manufacturer'] ?: null,
+            $_POST['generic_name'] ?: null,
+            $_POST['usage_instructions'] ?: null,
+            $_POST['unit'] ?: null,
+            $_POST['name_en'] ?: null
+        ]);
         
         if ($hasItemType) {
             $cols = array_merge($cols, ['item_type', 'delivery_method']);
@@ -626,7 +626,7 @@ function productSortLink($column, $label) {
 
 <!-- Product Modal -->
 <div id="productModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-xl w-full max-w-3xl mx-4 max-h-[95vh] overflow-hidden flex flex-col">
+    <div class="bg-white rounded-xl w-full max-w-4xl mx-4 max-h-[95vh] overflow-hidden flex flex-col">
         <form method="POST" id="productForm">
             <input type="hidden" name="action" id="formAction" value="create">
             <input type="hidden" name="id" id="formId">
@@ -637,22 +637,31 @@ function productSortLink($column, $label) {
             </div>
             
             <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                <!-- Basic Info -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า (SKU)</label>
                         <input type="text" name="sku" id="sku" class="w-full px-3 py-2 border rounded-lg">
                     </div>
-                    <?php if ($hasNewColumns): ?>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">บาร์โค้ด</label>
                         <input type="text" name="barcode" id="barcode" class="w-full px-3 py-2 border rounded-lg">
                     </div>
-                    <?php endif; ?>
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า *</label>
                     <input type="text" name="name" id="name" required class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อภาษาอังกฤษ</label>
+                    <input type="text" name="name_en" id="name_en" class="w-full px-3 py-2 border rounded-lg" placeholder="English name">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อสามัญ / Generic Name</label>
+                    <input type="text" name="generic_name" id="generic_name" class="w-full px-3 py-2 border rounded-lg" placeholder="เช่น IBUPROFEN 100 MG/5 ML">
                 </div>
                 
                 <div>
@@ -666,15 +675,21 @@ function productSortLink($column, $label) {
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
-                    <textarea name="description" id="description" rows="2" class="w-full px-3 py-2 border rounded-lg"></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด / สรรพคุณ</label>
+                    <textarea name="description" id="description" rows="2" class="w-full px-3 py-2 border rounded-lg" placeholder="สรรพคุณ, คุณสมบัติ"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">วิธีใช้</label>
+                    <textarea name="usage_instructions" id="usage_instructions" rows="2" class="w-full px-3 py-2 border rounded-lg" placeholder="วิธีรับประทาน, ขนาดยา"></textarea>
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">URL รูปภาพ</label>
-                    <input type="url" name="image_url" id="image_url" class="w-full px-3 py-2 border rounded-lg">
+                    <input type="url" name="image_url" id="image_url" class="w-full px-3 py-2 border rounded-lg" placeholder="https://...">
                 </div>
                 
+                <!-- Price & Stock -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">ราคา *</label>
@@ -685,15 +700,18 @@ function productSortLink($column, $label) {
                         <input type="number" name="sale_price" id="sale_price" min="0" step="0.01" class="w-full px-3 py-2 border rounded-lg">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">จำนวน</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">จำนวน (Stock)</label>
                         <input type="number" name="stock" id="stock" value="0" min="0" class="w-full px-3 py-2 border rounded-lg">
                     </div>
-                    <?php if ($hasNewColumns): ?>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
-                        <input type="text" name="unit" id="unit" value="ชิ้น" class="w-full px-3 py-2 border rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">หน่วยจำนวน</label>
+                        <input type="text" name="unit" id="unit" class="w-full px-3 py-2 border rounded-lg" placeholder="เช่น ขวด[ 60ML ], กล่อง[ 10เม็ด ]">
                     </div>
-                    <?php endif; ?>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ผู้ผลิต / Manufacturer</label>
+                    <input type="text" name="manufacturer" id="manufacturer" class="w-full px-3 py-2 border rounded-lg">
                 </div>
                 
                 <div class="flex items-center gap-2">
@@ -762,7 +780,11 @@ function editProduct(product) {
     document.getElementById('is_active').checked = product.is_active == 1;
     
     if (document.getElementById('barcode')) document.getElementById('barcode').value = product.barcode || '';
-    if (document.getElementById('unit')) document.getElementById('unit').value = product.unit || 'ชิ้น';
+    if (document.getElementById('unit')) document.getElementById('unit').value = product.unit || '';
+    if (document.getElementById('name_en')) document.getElementById('name_en').value = product.name_en || '';
+    if (document.getElementById('generic_name')) document.getElementById('generic_name').value = product.generic_name || '';
+    if (document.getElementById('usage_instructions')) document.getElementById('usage_instructions').value = product.usage_instructions || '';
+    if (document.getElementById('manufacturer')) document.getElementById('manufacturer').value = product.manufacturer || '';
     if (document.getElementById('is_featured')) document.getElementById('is_featured').checked = product.is_featured == 1;
     if (document.getElementById('is_flash_sale')) document.getElementById('is_flash_sale').checked = product.is_flash_sale == 1;
     if (document.getElementById('is_choice')) document.getElementById('is_choice').checked = product.is_choice == 1;
