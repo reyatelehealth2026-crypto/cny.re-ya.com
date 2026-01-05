@@ -713,8 +713,8 @@ function productSortLink($column, $label) {
                         
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">จำนวน (Stock)</label>
-                                <input type="number" name="stock" id="stock" value="0" min="0" class="w-full px-2 py-1.5 border rounded-lg text-sm">
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Stock คงเหลือ</label>
+                                <input type="number" id="stock" value="0" readonly class="w-full px-2 py-1.5 border rounded-lg text-sm bg-gray-100 cursor-not-allowed" title="Stock จะเปลี่ยนผ่านการรับสินค้า/ขาย/ปรับ Stock เท่านั้น">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-700 mb-1">หน่วยจำนวน</label>
