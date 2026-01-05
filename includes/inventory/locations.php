@@ -34,13 +34,31 @@ $locations = $locationService->getLocations($filters);
 // Get unique zones for filter dropdown
 $allZones = $locationService->getZones();
 
-// Zone type labels
-$zoneTypeLabels = [
-    'general' => ['label' => 'ทั่วไป', 'color' => 'blue', 'icon' => 'fa-box'],
-    'cold_storage' => ['label' => 'ห้องเย็น', 'color' => 'cyan', 'icon' => 'fa-snowflake'],
-    'controlled' => ['label' => 'ยาควบคุม (RX)', 'color' => 'red', 'icon' => 'fa-lock'],
-    'hazardous' => ['label' => 'วัตถุอันตราย', 'color' => 'orange', 'icon' => 'fa-exclamation-triangle']
-];
+// Get zone types from database or use defaults
+$zoneTypeLabels = [];
+try {
+    $stmt = $db->query("SELECT code, label, color, icon FROM zone_types WHERE is_active = 1 ORDER BY sort_order");
+    $zoneTypes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($zoneTypes as $zt) {
+        $zoneTypeLabels[$zt['code']] = [
+            'label' => $zt['label'],
+            'color' => $zt['color'],
+            'icon' => $zt['icon']
+        ];
+    }
+} catch (Exception $e) {
+    // Fallback to defaults if table doesn't exist
+}
+
+// Default zone types if none found
+if (empty($zoneTypeLabels)) {
+    $zoneTypeLabels = [
+        'general' => ['label' => 'ทั่วไป', 'color' => 'blue', 'icon' => 'fa-box'],
+        'cold_storage' => ['label' => 'ห้องเย็น', 'color' => 'cyan', 'icon' => 'fa-snowflake'],
+        'controlled' => ['label' => 'ยาควบคุม (RX)', 'color' => 'red', 'icon' => 'fa-lock'],
+        'hazardous' => ['label' => 'วัตถุอันตราย', 'color' => 'orange', 'icon' => 'fa-exclamation-triangle']
+    ];
+}
 
 // Ergonomic level labels
 $ergonomicLabels = [
@@ -85,9 +103,14 @@ function getUtilizationColor($percent) {
     <div class="bg-white rounded-xl shadow">
         <div class="p-4 border-b flex justify-between items-center">
             <h2 class="font-semibold"><i class="fas fa-th-large mr-2 text-blue-500"></i>แผนผังการใช้งานโซน (Heat Map)</h2>
-            <button onclick="openCreateZoneModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                <i class="fas fa-plus mr-1"></i>สร้างโซนใหม่
-            </button>
+            <div class="flex gap-2">
+                <button onclick="openZoneTypeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+                    <i class="fas fa-cog mr-1"></i>จัดการประเภทโซน
+                </button>
+                <button onclick="openCreateZoneModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i class="fas fa-plus mr-1"></i>สร้างโซนใหม่
+                </button>
+            </div>
         </div>
         <div class="p-4">
             <?php if (empty($zones)): ?>
@@ -440,6 +463,103 @@ function getUtilizationColor($percent) {
     </div>
 </div>
 
+<!-- Zone Type Management Modal -->
+<div id="zoneTypeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="font-semibold text-lg"><i class="fas fa-tags mr-2 text-purple-500"></i>จัดการประเภทโซน</h3>
+            <button onclick="closeZoneTypeModal()" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4">
+            <!-- Zone Type List -->
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h4 class="font-medium">ประเภทโซนทั้งหมด</h4>
+                    <button onclick="showAddZoneTypeForm()" class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                        <i class="fas fa-plus mr-1"></i>เพิ่มใหม่
+                    </button>
+                </div>
+                <div id="zoneTypeList" class="space-y-2 max-h-60 overflow-y-auto">
+                    <p class="text-gray-500 text-center py-4">กำลังโหลด...</p>
+                </div>
+            </div>
+            
+            <!-- Add/Edit Form -->
+            <div id="zoneTypeFormContainer" class="hidden border-t pt-4 mt-4">
+                <h4 id="zoneTypeFormTitle" class="font-medium mb-3">เพิ่มประเภทโซนใหม่</h4>
+                <form id="zoneTypeForm" onsubmit="saveZoneType(event)" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">รหัส <span class="text-red-500">*</span></label>
+                            <input type="text" id="zoneTypeCode" required placeholder="เช่น frozen, premium" 
+                                   class="w-full px-3 py-2 border rounded-lg" maxlength="50" pattern="[a-z0-9_]+">
+                            <p class="text-xs text-gray-500 mt-1">ใช้ตัวอักษรพิมพ์เล็ก ตัวเลข และ _ เท่านั้น</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ชื่อแสดง <span class="text-red-500">*</span></label>
+                            <input type="text" id="zoneTypeLabel" required placeholder="เช่น ห้องแช่แข็ง" 
+                                   class="w-full px-3 py-2 border rounded-lg" maxlength="100">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">สี</label>
+                            <select id="zoneTypeColor" class="w-full px-3 py-2 border rounded-lg">
+                                <option value="gray">เทา (Gray)</option>
+                                <option value="blue">น้ำเงิน (Blue)</option>
+                                <option value="cyan">ฟ้า (Cyan)</option>
+                                <option value="green">เขียว (Green)</option>
+                                <option value="yellow">เหลือง (Yellow)</option>
+                                <option value="orange">ส้ม (Orange)</option>
+                                <option value="red">แดง (Red)</option>
+                                <option value="purple">ม่วง (Purple)</option>
+                                <option value="pink">ชมพู (Pink)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ไอคอน</label>
+                            <select id="zoneTypeIcon" class="w-full px-3 py-2 border rounded-lg">
+                                <option value="fa-box">📦 กล่อง (fa-box)</option>
+                                <option value="fa-snowflake">❄️ หิมะ (fa-snowflake)</option>
+                                <option value="fa-lock">🔒 ล็อค (fa-lock)</option>
+                                <option value="fa-exclamation-triangle">⚠️ เตือน (fa-exclamation-triangle)</option>
+                                <option value="fa-fire">🔥 ไฟ (fa-fire)</option>
+                                <option value="fa-star">⭐ ดาว (fa-star)</option>
+                                <option value="fa-gem">💎 เพชร (fa-gem)</option>
+                                <option value="fa-pills">💊 ยา (fa-pills)</option>
+                                <option value="fa-syringe">💉 เข็ม (fa-syringe)</option>
+                                <option value="fa-flask">🧪 ขวด (fa-flask)</option>
+                                <option value="fa-warehouse">🏭 โกดัง (fa-warehouse)</option>
+                                <option value="fa-truck">🚚 รถ (fa-truck)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">คำอธิบาย</label>
+                        <textarea id="zoneTypeDescription" rows="2" class="w-full px-3 py-2 border rounded-lg" 
+                                  placeholder="รายละเอียดเพิ่มเติม..."></textarea>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-save mr-1"></i>บันทึก
+                        </button>
+                        <button type="button" onclick="hideZoneTypeForm()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+                            ยกเลิก
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="p-4 border-t bg-gray-50 rounded-b-xl">
+            <button onclick="closeZoneTypeModal()" class="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+                ปิด
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Location Modal -->
 <div id="editLocationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
     <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -691,6 +811,163 @@ function printSelectedLabels(withQr = false) {
     
     window.open(url, '_blank');
     document.getElementById('printMenu').classList.add('hidden');
+}
+
+// Zone Type Management Functions
+let zoneTypes = <?= json_encode(array_map(function($code, $info) {
+    return ['code' => $code, 'label' => $info['label'], 'color' => $info['color'], 'icon' => $info['icon']];
+}, array_keys($zoneTypeLabels), $zoneTypeLabels)) ?>;
+
+function openZoneTypeModal() {
+    document.getElementById('zoneTypeModal').classList.remove('hidden');
+    loadZoneTypes();
+}
+
+function closeZoneTypeModal() {
+    document.getElementById('zoneTypeModal').classList.add('hidden');
+}
+
+async function loadZoneTypes() {
+    try {
+        const response = await fetch('../api/locations.php?action=list_zone_types');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderZoneTypeList(data.zone_types);
+        }
+    } catch (error) {
+        console.error('Error loading zone types:', error);
+    }
+}
+
+function renderZoneTypeList(types) {
+    const container = document.getElementById('zoneTypeList');
+    if (types.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">ไม่มีประเภทโซน</p>';
+        return;
+    }
+    
+    container.innerHTML = types.map(type => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span class="w-10 h-10 flex items-center justify-center bg-${type.color}-100 text-${type.color}-600 rounded-lg">
+                    <i class="fas ${type.icon}"></i>
+                </span>
+                <div>
+                    <div class="font-medium">${type.label}</div>
+                    <div class="text-xs text-gray-500">รหัส: ${type.code}</div>
+                </div>
+            </div>
+            <div class="flex gap-1">
+                ${type.is_default ? '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">ค่าเริ่มต้น</span>' : `
+                <button onclick="editZoneType('${type.code}')" class="p-2 text-blue-600 hover:bg-blue-50 rounded" title="แก้ไข">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteZoneType('${type.code}')" class="p-2 text-red-600 hover:bg-red-50 rounded" title="ลบ">
+                    <i class="fas fa-trash"></i>
+                </button>
+                `}
+            </div>
+        </div>
+    `).join('');
+}
+
+function showAddZoneTypeForm() {
+    document.getElementById('zoneTypeFormTitle').textContent = 'เพิ่มประเภทโซนใหม่';
+    document.getElementById('zoneTypeForm').reset();
+    document.getElementById('zoneTypeForm').dataset.mode = 'create';
+    document.getElementById('zoneTypeForm').dataset.editCode = '';
+    document.getElementById('zoneTypeFormContainer').classList.remove('hidden');
+}
+
+function hideZoneTypeForm() {
+    document.getElementById('zoneTypeFormContainer').classList.add('hidden');
+}
+
+async function editZoneType(code) {
+    try {
+        const response = await fetch(`../api/locations.php?action=get_zone_type&code=${encodeURIComponent(code)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const type = data.zone_type;
+            document.getElementById('zoneTypeFormTitle').textContent = 'แก้ไขประเภทโซน';
+            document.getElementById('zoneTypeCode').value = type.code;
+            document.getElementById('zoneTypeLabel').value = type.label;
+            document.getElementById('zoneTypeColor').value = type.color;
+            document.getElementById('zoneTypeIcon').value = type.icon;
+            document.getElementById('zoneTypeDescription').value = type.description || '';
+            document.getElementById('zoneTypeForm').dataset.mode = 'update';
+            document.getElementById('zoneTypeForm').dataset.editCode = code;
+            document.getElementById('zoneTypeFormContainer').classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('ไม่สามารถโหลดข้อมูลได้');
+    }
+}
+
+async function deleteZoneType(code) {
+    if (!confirm(`ยืนยันการลบประเภทโซน "${code}"?`)) return;
+    
+    try {
+        const response = await fetch('../api/locations.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete_zone_type', code: code })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            loadZoneTypes();
+        } else {
+            alert(data.error || 'ไม่สามารถลบได้');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาด');
+    }
+}
+
+async function saveZoneType(e) {
+    e.preventDefault();
+    const form = document.getElementById('zoneTypeForm');
+    const mode = form.dataset.mode;
+    const editCode = form.dataset.editCode;
+    
+    const data = {
+        action: mode === 'update' ? 'update_zone_type' : 'create_zone_type',
+        code: document.getElementById('zoneTypeCode').value,
+        label: document.getElementById('zoneTypeLabel').value,
+        color: document.getElementById('zoneTypeColor').value,
+        icon: document.getElementById('zoneTypeIcon').value,
+        description: document.getElementById('zoneTypeDescription').value
+    };
+    
+    if (mode === 'update') {
+        data.original_code = editCode;
+    }
+    
+    try {
+        const response = await fetch('../api/locations.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            hideZoneTypeForm();
+            loadZoneTypes();
+            // Reload page to update dropdowns
+            setTimeout(() => location.reload(), 500);
+        } else {
+            alert(result.error || 'ไม่สามารถบันทึกได้');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาด');
+    }
 }
 
 // Event listeners

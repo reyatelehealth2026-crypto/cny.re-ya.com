@@ -570,6 +570,155 @@ try {
             break;
         
         // =============================================
+        // ZONE TYPE MANAGEMENT ENDPOINTS
+        // =============================================
+        
+        /**
+         * List all zone types
+         */
+        case 'list_zone_types':
+            $stmt = $db->prepare("SELECT * FROM zone_types WHERE line_account_id IN (1, ?) AND is_active = 1 ORDER BY sort_order, label");
+            $stmt->execute([$lineAccountId]);
+            $zoneTypes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'zone_types' => $zoneTypes]);
+            break;
+        
+        /**
+         * Get a single zone type by code
+         */
+        case 'get_zone_type':
+            $code = trim($_GET['code'] ?? '');
+            if (empty($code)) {
+                throw new Exception('Zone type code is required');
+            }
+            
+            $stmt = $db->prepare("SELECT * FROM zone_types WHERE code = ? AND line_account_id IN (1, ?) AND is_active = 1");
+            $stmt->execute([$code, $lineAccountId]);
+            $zoneType = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$zoneType) {
+                throw new Exception('Zone type not found');
+            }
+            
+            echo json_encode(['success' => true, 'zone_type' => $zoneType]);
+            break;
+        
+        /**
+         * Create a new zone type
+         */
+        case 'create_zone_type':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            
+            if (empty($data['code']) || empty($data['label'])) {
+                throw new Exception('Code and label are required');
+            }
+            
+            // Check if code already exists
+            $stmt = $db->prepare("SELECT id FROM zone_types WHERE code = ? AND line_account_id IN (1, ?)");
+            $stmt->execute([$data['code'], $lineAccountId]);
+            if ($stmt->fetch()) {
+                throw new Exception('รหัสประเภทโซนนี้มีอยู่แล้ว');
+            }
+            
+            $stmt = $db->prepare("INSERT INTO zone_types (line_account_id, code, label, color, icon, description, is_default, sort_order) VALUES (?, ?, ?, ?, ?, ?, 0, 99)");
+            $stmt->execute([
+                $lineAccountId,
+                $data['code'],
+                $data['label'],
+                $data['color'] ?? 'gray',
+                $data['icon'] ?? 'fa-box',
+                $data['description'] ?? null
+            ]);
+            
+            echo json_encode(['success' => true, 'id' => $db->lastInsertId(), 'message' => 'Zone type created']);
+            break;
+        
+        /**
+         * Update a zone type
+         */
+        case 'update_zone_type':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $originalCode = $data['original_code'] ?? $data['code'] ?? '';
+            
+            if (empty($originalCode)) {
+                throw new Exception('Original code is required');
+            }
+            
+            // Check if zone type exists and is not default
+            $stmt = $db->prepare("SELECT id, is_default FROM zone_types WHERE code = ? AND line_account_id IN (1, ?)");
+            $stmt->execute([$originalCode, $lineAccountId]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$existing) {
+                throw new Exception('Zone type not found');
+            }
+            
+            if ($existing['is_default']) {
+                throw new Exception('ไม่สามารถแก้ไขประเภทโซนค่าเริ่มต้นได้');
+            }
+            
+            // If code is changing, check new code doesn't exist
+            if ($data['code'] !== $originalCode) {
+                $stmt = $db->prepare("SELECT id FROM zone_types WHERE code = ? AND line_account_id IN (1, ?)");
+                $stmt->execute([$data['code'], $lineAccountId]);
+                if ($stmt->fetch()) {
+                    throw new Exception('รหัสประเภทโซนนี้มีอยู่แล้ว');
+                }
+            }
+            
+            $stmt = $db->prepare("UPDATE zone_types SET code = ?, label = ?, color = ?, icon = ?, description = ? WHERE id = ?");
+            $stmt->execute([
+                $data['code'],
+                $data['label'],
+                $data['color'] ?? 'gray',
+                $data['icon'] ?? 'fa-box',
+                $data['description'] ?? null,
+                $existing['id']
+            ]);
+            
+            echo json_encode(['success' => true, 'message' => 'Zone type updated']);
+            break;
+        
+        /**
+         * Delete a zone type (soft delete)
+         */
+        case 'delete_zone_type':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $code = $data['code'] ?? '';
+            
+            if (empty($code)) {
+                throw new Exception('Zone type code is required');
+            }
+            
+            // Check if zone type exists and is not default
+            $stmt = $db->prepare("SELECT id, is_default FROM zone_types WHERE code = ? AND line_account_id IN (1, ?)");
+            $stmt->execute([$code, $lineAccountId]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$existing) {
+                throw new Exception('Zone type not found');
+            }
+            
+            if ($existing['is_default']) {
+                throw new Exception('ไม่สามารถลบประเภทโซนค่าเริ่มต้นได้');
+            }
+            
+            // Check if zone type is in use
+            $stmt = $db->prepare("SELECT COUNT(*) FROM warehouse_locations WHERE zone_type = ? AND line_account_id = ? AND is_active = 1");
+            $stmt->execute([$code, $lineAccountId]);
+            $inUse = $stmt->fetchColumn();
+            
+            if ($inUse > 0) {
+                throw new Exception("ไม่สามารถลบได้ มีตำแหน่งใช้งานประเภทนี้อยู่ $inUse ตำแหน่ง");
+            }
+            
+            $stmt = $db->prepare("UPDATE zone_types SET is_active = 0 WHERE id = ?");
+            $stmt->execute([$existing['id']]);
+            
+            echo json_encode(['success' => true, 'message' => 'Zone type deleted']);
+            break;
+        
+        // =============================================
         // DEFAULT
         // =============================================
         
