@@ -347,6 +347,7 @@ $activeRules = count(array_filter($rules, fn($r) => $r['is_active']));
                             'exact' => 'bg-purple-100 text-purple-600',
                             'starts_with' => 'bg-blue-100 text-blue-600',
                             'regex' => 'bg-orange-100 text-orange-600',
+                            'all' => 'bg-red-100 text-red-600',
                             default => 'bg-green-100 text-green-600'
                         };
                         ?>">
@@ -466,6 +467,7 @@ $activeRules = count(array_filter($rules, fn($r) => $r['is_active']));
                             <option value="exact">Exact (ตรงทั้งหมด)</option>
                             <option value="starts_with">Starts With (ขึ้นต้นด้วย)</option>
                             <option value="regex">Regex (Regular Expression)</option>
+                            <option value="all">All (ตอบทุกข้อความ)</option>
                         </select>
                     </div>
                 </div>

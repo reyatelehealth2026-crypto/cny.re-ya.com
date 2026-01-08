@@ -1503,6 +1503,10 @@
                     case 'regex':
                         $matched = preg_match('/' . $rule['keyword'] . '/i', $text);
                         break;
+                    case 'all':
+                        // Match all messages - ตอบทุกข้อความ
+                        $matched = true;
+                        break;
                 }
 
                 if ($matched) {
