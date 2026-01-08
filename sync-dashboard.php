@@ -167,27 +167,51 @@ $pageTitle = 'CNY Sync Dashboard';
                     <p class="text-sm text-white/80 mt-1">นำเข้าจากไฟล์ CSV - เร็วและใช้ memory น้อย</p>
                 </div>
                 <div class="p-6">
-                    <p class="text-gray-600 mb-4">
-                        Import ข้อมูลจากไฟล์ <code class="bg-gray-100 px-2 py-1 rounded">CNY API for AI - AI.csv</code>
-                    </p>
+                    <!-- Upload CSV Form -->
+                    <form id="csvUploadForm" enctype="multipart/form-data" class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">เลือกไฟล์ CSV:</label>
+                        <div class="flex gap-2">
+                            <input type="file" id="csvFile" name="csv_file" accept=".csv" 
+                                   class="flex-1 px-3 py-2 border rounded-lg text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-purple-100 file:text-purple-700">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">รองรับไฟล์ CSV จาก CNY API หรือ Export</p>
+                    </form>
+                    
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">เลือกตารางปลายทาง:</label>
                         <div class="space-y-2">
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="csvToCny" checked class="w-4 h-4 text-purple-600 rounded">
+                                <input type="checkbox" id="csvToCny" class="w-4 h-4 text-purple-600 rounded">
                                 <span class="text-sm">cny_products (Cache)</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="csvToBusiness" class="w-4 h-4 text-purple-600 rounded">
-                                <span class="text-sm">business_items (ระบบหลัก)</span>
+                                <input type="checkbox" id="csvToBusiness" checked class="w-4 h-4 text-purple-600 rounded">
+                                <span class="text-sm">business_items (ระบบหลัก) ✓</span>
                             </label>
                         </div>
                     </div>
+                    
                     <div class="flex gap-3">
-                        <button onclick="importCSV()" 
+                        <button type="button" onclick="uploadAndImportCSV()" 
                            class="flex-1 text-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium">
-                            <i class="fas fa-file-import mr-2"></i>Import CSV
+                            <i class="fas fa-upload mr-2"></i>Upload & Import
                         </button>
+                        <a href="admin/export-cny-csv.php" 
+                           class="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                            <i class="fas fa-download mr-2"></i>Export CSV
+                        </a>
+                    </div>
+                    
+                    <!-- Import Progress -->
+                    <div id="csvImportProgress" class="hidden mt-4 bg-gray-50 rounded-lg p-4">
+                        <div class="flex justify-between text-sm text-gray-600 mb-2">
+                            <span>กำลัง Import...</span>
+                            <span id="csvProgressText">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div id="csvProgressBar" class="bg-purple-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                        <div id="csvImportLog" class="text-xs text-gray-600 max-h-32 overflow-y-auto"></div>
                     </div>
                 </div>
             </div>
@@ -593,6 +617,90 @@ $pageTitle = 'CNY Sync Dashboard';
         
         const url = `admin/setup-cny.php?key=cny2024&step=import_csv&targets=${targets.join(',')}`;
         window.location.href = url;
+    }
+    
+    // Upload and Import CSV directly
+    async function uploadAndImportCSV() {
+        const fileInput = document.getElementById('csvFile');
+        const toCny = document.getElementById('csvToCny').checked;
+        const toBusiness = document.getElementById('csvToBusiness').checked;
+        
+        if (!fileInput.files.length) {
+            alert('กรุณาเลือกไฟล์ CSV');
+            return;
+        }
+        
+        if (!toCny && !toBusiness) {
+            alert('กรุณาเลือกอย่างน้อย 1 ตาราง');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        if (!file.name.endsWith('.csv')) {
+            alert('กรุณาเลือกไฟล์ .csv เท่านั้น');
+            return;
+        }
+        
+        // Show progress
+        const progressDiv = document.getElementById('csvImportProgress');
+        const progressBar = document.getElementById('csvProgressBar');
+        const progressText = document.getElementById('csvProgressText');
+        const logDiv = document.getElementById('csvImportLog');
+        
+        progressDiv.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'กำลังอัพโหลด...';
+        logDiv.innerHTML = '';
+        
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('csv_file', file);
+        formData.append('action', 'import_csv');
+        if (toCny) formData.append('to_cny', '1');
+        if (toBusiness) formData.append('to_business', '1');
+        
+        try {
+            progressText.textContent = 'กำลัง Import...';
+            progressBar.style.width = '30%';
+            
+            const response = await fetch('api/csv-import.php', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                progressBar.style.width = '100%';
+                progressText.textContent = 'เสร็จสิ้น!';
+                
+                let msg = '✅ Import สำเร็จ!\n';
+                if (data.cny_stats) {
+                    msg += `\ncny_products: ${data.cny_stats.inserted} inserted, ${data.cny_stats.updated} updated`;
+                    logDiv.innerHTML += `<div class="text-green-600">cny_products: ${data.cny_stats.inserted} inserted, ${data.cny_stats.updated} updated</div>`;
+                }
+                if (data.business_stats) {
+                    msg += `\nbusiness_items: ${data.business_stats.inserted} inserted, ${data.business_stats.updated} updated`;
+                    logDiv.innerHTML += `<div class="text-green-600">business_items: ${data.business_stats.inserted} inserted, ${data.business_stats.updated} updated</div>`;
+                }
+                
+                alert(msg);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('bg-purple-600');
+                progressBar.classList.add('bg-red-600');
+                progressText.textContent = 'Error!';
+                logDiv.innerHTML = `<div class="text-red-600">${data.error || 'Unknown error'}</div>`;
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            progressBar.classList.remove('bg-purple-600');
+            progressBar.classList.add('bg-red-600');
+            progressText.textContent = 'Error!';
+            logDiv.innerHTML = `<div class="text-red-600">${e.message}</div>`;
+            alert('Network error: ' + e.message);
+        }
     }
     
     // Sync from API with table selection
