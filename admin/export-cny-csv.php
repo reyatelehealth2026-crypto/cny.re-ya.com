@@ -264,32 +264,11 @@ function mapProductToRow($p) {
         $manufacturer = $matches[1];
     }
     
-    // Clean description - skip full HTML pages
-    $description = '';
-    $desc = $p['description'] ?? '';
-    if (!empty($desc) && strpos($desc, '<!doctype') === false && strpos($desc, '<html') === false) {
-        $description = strip_tags($desc);
-        $description = preg_replace('/\s+/', ' ', $description);
-        $description = trim(substr($description, 0, 2000));
-    }
-    
-    // Clean usage instructions
-    $usageInstructions = '';
-    $howToUse = $p['how_to_use'] ?? '';
-    if (!empty($howToUse) && strpos($howToUse, '<!doctype') === false && strpos($howToUse, '<html') === false) {
-        $usageInstructions = strip_tags($howToUse);
-        $usageInstructions = preg_replace('/\s+/', ' ', $usageInstructions);
-        $usageInstructions = trim(substr($usageInstructions, 0, 5000));
-    }
-    
-    // Clean properties
-    $propertiesOther = '';
-    $props = $p['properties_other'] ?? '';
-    if (!empty($props) && strpos($props, '<!doctype') === false && strpos($props, '<html') === false) {
-        $propertiesOther = strip_tags($props);
-        $propertiesOther = preg_replace('/\s+/', ' ', $propertiesOther);
-        $propertiesOther = trim(substr($propertiesOther, 0, 5000));
-    }
+    // Keep full HTML content for description, how_to_use, properties_other
+    // These fields contain rich HTML that should be preserved
+    $description = $p['description'] ?? '';
+    $usageInstructions = $p['how_to_use'] ?? '';
+    $propertiesOther = $p['properties_other'] ?? '';
     
     return [
         $p['id'] ?? '',                                    // id
@@ -297,18 +276,18 @@ function mapProductToRow($p) {
         $p['barcode'] ?? '',                               // barcode
         $p['name'] ?? '',                                  // name
         $p['name_en'] ?? '',                               // name_en
-        $description,                                       // description
+        $description,                                       // description (full HTML)
         $price,                                            // price
         intval($p['qty'] ?? 0),                            // stock
         $p['photo_path'] ?? '',                            // image_url
         ($p['enable'] ?? '1') == '1' ? 1 : 0,              // is_active
         $p['spec_name'] ?? '',                             // generic_name
-        $usageInstructions,                                // usage_instructions
+        $usageInstructions,                                // usage_instructions (full HTML)
         $manufacturer,                                     // manufacturer
         $unit,                                             // unit
         $baseUnit,                                         // base_unit
         $productPrice,                                     // product_price (JSON)
-        $propertiesOther,                                  // properties_other
+        $propertiesOther,                                  // properties_other (full HTML)
         $p['photo_path'] ?? '',                            // photo_path
         $p['id'] ?? '',                                    // cny_id
         $p['category'] ?? '',                              // cny_category
