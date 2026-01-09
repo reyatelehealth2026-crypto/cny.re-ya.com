@@ -296,7 +296,7 @@ function searchProducts(query) {
     `;
     
     searchTimeout = setTimeout(() => {
-        fetch(`<?= $baseUrl ?? '/' ?>api/landing-products.php?action=search&q=${encodeURIComponent(query)}`)
+        fetch(`/api/landing-products.php?action=search&q=${encodeURIComponent(query)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.products && data.products.length > 0) {

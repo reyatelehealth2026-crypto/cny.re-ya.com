@@ -6,22 +6,26 @@
 
 header('Content-Type: application/json');
 
+// Start session if not started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../includes/auth_check.php';
 
-// Check authentication
-if (!isLoggedIn()) {
+// Simple auth check for AJAX
+if (empty($_SESSION['admin_user'])) {
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
+    echo json_encode(['error' => 'Unauthorized', 'products' => []]);
     exit;
 }
 
-$db = Database::getInstance()->getConnection();
-$action = $_GET['action'] ?? '';
-$lineAccountId = $_SESSION['current_bot_id'] ?? null;
-
 try {
+    $db = Database::getInstance()->getConnection();
+    $action = $_GET['action'] ?? '';
+    $lineAccountId = $_SESSION['current_bot_id'] ?? null;
+
     switch ($action) {
         case 'search':
             $query = trim($_GET['q'] ?? '');
@@ -51,9 +55,9 @@ try {
             break;
             
         default:
-            echo json_encode(['error' => 'Invalid action']);
+            echo json_encode(['error' => 'Invalid action', 'products' => []]);
     }
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => $e->getMessage(), 'products' => []]);
 }
