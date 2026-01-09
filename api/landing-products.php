@@ -34,24 +34,40 @@ try {
                 exit;
             }
             
-            $sql = "SELECT id, name, sku, price, image_url 
-                    FROM products 
-                    WHERE is_active = 1 
-                    AND (name LIKE ? OR sku LIKE ?)";
-            $params = ["%{$query}%", "%{$query}%"];
-            
-            if ($lineAccountId !== null) {
-                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
-                $params[] = $lineAccountId;
+            // Check which table exists: products or business_items
+            $tableName = 'products';
+            try {
+                $db->query("SELECT 1 FROM products LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    $db->query("SELECT 1 FROM business_items LIMIT 1");
+                    $tableName = 'business_items';
+                } catch (PDOException $e2) {
+                    echo json_encode(['products' => [], 'error' => 'No products table']);
+                    exit;
+                }
             }
             
-            $sql .= " ORDER BY name ASC LIMIT 20";
+            // Build query based on table
+            if ($tableName === 'business_items') {
+                $sql = "SELECT id, item_name as name, item_code as sku, price, image_url 
+                        FROM business_items 
+                        WHERE (item_name LIKE ? OR item_code LIKE ?)";
+            } else {
+                $sql = "SELECT id, name, sku, price, image_url 
+                        FROM products 
+                        WHERE (name LIKE ? OR sku LIKE ?)";
+            }
+            
+            $params = ["%{$query}%", "%{$query}%"];
+            
+            $sql .= " ORDER BY 2 ASC LIMIT 20";
             
             $stmt = $db->prepare($sql);
             $stmt->execute($params);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            echo json_encode(['products' => $products]);
+            echo json_encode(['products' => $products, 'table' => $tableName, 'query' => $query]);
             break;
             
         default:
