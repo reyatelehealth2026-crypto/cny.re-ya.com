@@ -907,12 +907,6 @@ $featuredProductService = new FeaturedProductService($db, $lineAccountId);
         </div>
     </section>
     
-    <!-- Trust Badges Section (Requirements: 3.1, 3.2, 3.3, 3.4, 3.5) -->
-    <?php include 'includes/landing/trust-badges.php'; ?>
-    
-    <!-- Featured Products Section (from admin selection) -->
-    <?php include 'includes/landing/featured-products.php'; ?>
-    
     <!-- Services Section (Requirements: 1.4, 5.1) -->
     <section class="services-section" id="services">
         <div class="container">
@@ -948,9 +942,6 @@ $featuredProductService = new FeaturedProductService($db, $lineAccountId);
             </div>
         </div>
     </section>
-    
-    <!-- Testimonials Section (Requirements: 5.1, 5.2, 5.3, 5.4, 5.5) -->
-    <?php include 'includes/landing/testimonials.php'; ?>
     
     <?php if (!empty($promotions)): ?>
     <!-- Promotions Section (Requirements: 5.2) -->
@@ -1011,6 +1002,12 @@ $featuredProductService = new FeaturedProductService($db, $lineAccountId);
     
     <!-- FAQ Section (Requirements: 4.1, 4.3, 4.4, 4.5) -->
     <?php include 'includes/landing/faq-section.php'; ?>
+    
+    <!-- Trust Badges Section (moved after FAQ) -->
+    <?php include 'includes/landing/trust-badges.php'; ?>
+    
+    <!-- Testimonials Section (moved after Trust Badges) -->
+    <?php include 'includes/landing/testimonials.php'; ?>
     
     <!-- Footer (Requirements: 3.1, 3.2) -->
     <footer class="landing-footer">
