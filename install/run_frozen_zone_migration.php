@@ -4,13 +4,21 @@
  * เปลี่ยน zone_type จาก ENUM เป็น VARCHAR เพื่อรองรับประเภทโซนแบบ dynamic
  */
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once __DIR__ . '/../config/config.php';
 
 echo "<h2>Migration: Add Frozen Zone Type & Flexible Zone Types</h2>";
 echo "<pre>";
 
-// Disable strict mode temporarily
-$db->exec("SET sql_mode = ''");
+try {
+    // Disable strict mode temporarily
+    $db->exec("SET sql_mode = ''");
+    echo "SQL mode set\n";
+} catch (Exception $e) {
+    echo "SQL mode error: " . $e->getMessage() . "\n";
+}
 
 try {
     // 1. First fix any invalid zone_type values to 'general'
