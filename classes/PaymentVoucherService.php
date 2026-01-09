@@ -122,7 +122,7 @@ class PaymentVoucherService {
             $data['bank_account'] ?? null,
             $data['reference_number'] ?? null,
             $data['cheque_number'] ?? null,
-            $data['cheque_date'] ?? null,
+            !empty($data['cheque_date']) ? $data['cheque_date'] : null,
             $data['attachment_path'] ?? null,
             $data['notes'] ?? null,
             $metadata,
