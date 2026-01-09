@@ -25,24 +25,29 @@ class FAQService {
         // Enforce max limit of 10 per Requirements 4.5
         $limit = min($limit, 10);
         
-        $sql = "SELECT id, question, answer, sort_order 
-                FROM landing_faqs 
-                WHERE is_active = 1";
-        $params = [];
-        
-        if ($this->lineAccountId !== null) {
-            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
-            $params[] = $this->lineAccountId;
-        } else {
-            $sql .= " AND line_account_id IS NULL";
+        try {
+            $sql = "SELECT id, question, answer, sort_order 
+                    FROM landing_faqs 
+                    WHERE is_active = 1";
+            $params = [];
+            
+            if ($this->lineAccountId !== null) {
+                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+                $params[] = $this->lineAccountId;
+            } else {
+                $sql .= " AND line_account_id IS NULL";
+            }
+            
+            $sql .= " ORDER BY sort_order ASC, id ASC LIMIT ?";
+            $params[] = $limit;
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // Table doesn't exist yet - return empty array
+            return [];
         }
-        
-        $sql .= " ORDER BY sort_order ASC, id ASC LIMIT ?";
-        $params[] = $limit;
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /**

@@ -22,24 +22,28 @@ class TestimonialService {
      * @return array
      */
     public function getApprovedTestimonials(int $limit = 10): array {
-        $sql = "SELECT id, customer_name, customer_avatar, rating, review_text, source, created_at, approved_at
-                FROM landing_testimonials 
-                WHERE status = 'approved'";
-        $params = [];
-        
-        if ($this->lineAccountId !== null) {
-            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
-            $params[] = $this->lineAccountId;
-        } else {
-            $sql .= " AND line_account_id IS NULL";
+        try {
+            $sql = "SELECT id, customer_name, customer_avatar, rating, review_text, source, created_at, approved_at
+                    FROM landing_testimonials 
+                    WHERE status = 'approved'";
+            $params = [];
+            
+            if ($this->lineAccountId !== null) {
+                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+                $params[] = $this->lineAccountId;
+            } else {
+                $sql .= " AND line_account_id IS NULL";
+            }
+            
+            $sql .= " ORDER BY approved_at DESC, id DESC LIMIT ?";
+            $params[] = $limit;
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
         }
-        
-        $sql .= " ORDER BY approved_at DESC, id DESC LIMIT ?";
-        $params[] = $limit;
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /**
