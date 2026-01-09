@@ -456,4 +456,269 @@ class AccountingDashboardService {
         $stmt->execute($params);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+    
+    /**
+     * Get Profit/Loss Summary
+     * คำนวณกำไรขาดทุนจากรายรับ (ยอดขาย) และรายจ่าย (ต้นทุน + ค่าใช้จ่าย)
+     * 
+     * @param string $month Month in YYYY-MM format (defaults to current month)
+     * @return array Profit/Loss summary
+     */
+    public function getProfitLossSummary(string $month = ''): array {
+        if (empty($month)) {
+            $month = date('Y-m');
+        }
+        
+        $startDate = $month . '-01';
+        $endDate = date('Y-m-t', strtotime($startDate));
+        
+        // Get revenue from orders (sales)
+        $revenue = $this->getMonthlyRevenue($startDate, $endDate);
+        
+        // Get cost of goods sold (COGS) from orders
+        $cogs = $this->getMonthlyCOGS($startDate, $endDate);
+        
+        // Get operating expenses
+        $expenses = $this->getMonthlyExpenses($startDate, $endDate);
+        
+        // Calculate gross profit
+        $grossProfit = $revenue['total'] - $cogs['total'];
+        $grossMargin = $revenue['total'] > 0 ? ($grossProfit / $revenue['total']) * 100 : 0;
+        
+        // Calculate net profit
+        $netProfit = $grossProfit - $expenses['total'];
+        $netMargin = $revenue['total'] > 0 ? ($netProfit / $revenue['total']) * 100 : 0;
+        
+        return [
+            'month' => $month,
+            'revenue' => $revenue,
+            'cogs' => $cogs,
+            'gross_profit' => $grossProfit,
+            'gross_margin' => round($grossMargin, 2),
+            'expenses' => $expenses,
+            'net_profit' => $netProfit,
+            'net_margin' => round($netMargin, 2),
+            'is_profitable' => $netProfit >= 0
+        ];
+    }
+    
+    /**
+     * Get monthly revenue from orders
+     * 
+     * @param string $startDate Start date
+     * @param string $endDate End date
+     * @return array Revenue data
+     */
+    private function getMonthlyRevenue(string $startDate, string $endDate): array {
+        // Check if orders table exists
+        try {
+            $sql = "
+                SELECT 
+                    COUNT(*) as order_count,
+                    COALESCE(SUM(total_amount), 0) as total
+                FROM orders
+                WHERE order_date BETWEEN ? AND ?
+                AND status IN ('completed', 'delivered', 'paid')
+            ";
+            $params = [$startDate, $endDate];
+            
+            if ($this->lineAccountId) {
+                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+                $params[] = $this->lineAccountId;
+            }
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            return [
+                'total' => (float)($result['total'] ?? 0),
+                'order_count' => (int)($result['order_count'] ?? 0)
+            ];
+        } catch (Exception $e) {
+            // Fallback: use AR as revenue proxy
+            return $this->getMonthlyArRevenue($startDate, $endDate);
+        }
+    }
+    
+    /**
+     * Get monthly revenue from AR (fallback)
+     * 
+     * @param string $startDate Start date
+     * @param string $endDate End date
+     * @return array Revenue data
+     */
+    private function getMonthlyArRevenue(string $startDate, string $endDate): array {
+        $sql = "
+            SELECT 
+                COUNT(*) as invoice_count,
+                COALESCE(SUM(total_amount), 0) as total
+            FROM account_receivables
+            WHERE invoice_date BETWEEN ? AND ?
+        ";
+        $params = [$startDate, $endDate];
+        
+        if ($this->lineAccountId) {
+            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+            $params[] = $this->lineAccountId;
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return [
+            'total' => (float)($result['total'] ?? 0),
+            'order_count' => (int)($result['invoice_count'] ?? 0)
+        ];
+    }
+    
+    /**
+     * Get monthly COGS from orders or stock movements
+     * 
+     * @param string $startDate Start date
+     * @param string $endDate End date
+     * @return array COGS data
+     */
+    private function getMonthlyCOGS(string $startDate, string $endDate): array {
+        // Try to get COGS from stock movements (sales type)
+        try {
+            $sql = "
+                SELECT 
+                    COUNT(*) as movement_count,
+                    COALESCE(SUM(ABS(total_value)), 0) as total
+                FROM stock_movements
+                WHERE movement_date BETWEEN ? AND ?
+                AND movement_type = 'sale'
+            ";
+            $params = [$startDate, $endDate];
+            
+            if ($this->lineAccountId) {
+                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+                $params[] = $this->lineAccountId;
+            }
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ((float)($result['total'] ?? 0) > 0) {
+                return [
+                    'total' => (float)$result['total'],
+                    'movement_count' => (int)$result['movement_count']
+                ];
+            }
+        } catch (Exception $e) {
+            // Table doesn't exist
+        }
+        
+        // Fallback: estimate COGS from AP (purchases)
+        return $this->getMonthlyApCOGS($startDate, $endDate);
+    }
+    
+    /**
+     * Get monthly COGS from AP (fallback - purchases as proxy)
+     * 
+     * @param string $startDate Start date
+     * @param string $endDate End date
+     * @return array COGS data
+     */
+    private function getMonthlyApCOGS(string $startDate, string $endDate): array {
+        $sql = "
+            SELECT 
+                COUNT(*) as purchase_count,
+                COALESCE(SUM(total_amount), 0) as total
+            FROM account_payables
+            WHERE invoice_date BETWEEN ? AND ?
+            AND source_type = 'goods_receive'
+        ";
+        $params = [$startDate, $endDate];
+        
+        if ($this->lineAccountId) {
+            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+            $params[] = $this->lineAccountId;
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return [
+            'total' => (float)($result['total'] ?? 0),
+            'movement_count' => (int)($result['purchase_count'] ?? 0)
+        ];
+    }
+    
+    /**
+     * Get monthly operating expenses
+     * 
+     * @param string $startDate Start date
+     * @param string $endDate End date
+     * @return array Expenses data with breakdown by category
+     */
+    private function getMonthlyExpenses(string $startDate, string $endDate): array {
+        $sql = "
+            SELECT 
+                COUNT(*) as expense_count,
+                COALESCE(SUM(amount), 0) as total
+            FROM expenses
+            WHERE expense_date BETWEEN ? AND ?
+        ";
+        $params = [$startDate, $endDate];
+        
+        if ($this->lineAccountId) {
+            $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
+            $params[] = $this->lineAccountId;
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Get breakdown by category
+        $sqlCategory = "
+            SELECT 
+                ec.name as category_name,
+                COUNT(*) as count,
+                COALESCE(SUM(e.amount), 0) as total
+            FROM expenses e
+            LEFT JOIN expense_categories ec ON e.category_id = ec.id
+            WHERE e.expense_date BETWEEN ? AND ?
+        ";
+        $paramsCategory = [$startDate, $endDate];
+        
+        if ($this->lineAccountId) {
+            $sqlCategory .= " AND (e.line_account_id = ? OR e.line_account_id IS NULL)";
+            $paramsCategory[] = $this->lineAccountId;
+        }
+        
+        $sqlCategory .= " GROUP BY e.category_id, ec.name ORDER BY total DESC";
+        
+        $stmtCategory = $this->db->prepare($sqlCategory);
+        $stmtCategory->execute($paramsCategory);
+        $categories = $stmtCategory->fetchAll(PDO::FETCH_ASSOC);
+        
+        return [
+            'total' => (float)($result['total'] ?? 0),
+            'expense_count' => (int)($result['expense_count'] ?? 0),
+            'by_category' => $categories
+        ];
+    }
+    
+    /**
+     * Get Profit/Loss trend for multiple months
+     * 
+     * @param int $months Number of months to include
+     * @return array Monthly P&L trend
+     */
+    public function getProfitLossTrend(int $months = 6): array {
+        $trends = [];
+        
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $month = date('Y-m', strtotime("-{$i} months"));
+            $trends[] = $this->getProfitLossSummary($month);
+        }
+        
+        return $trends;
+    }
 }

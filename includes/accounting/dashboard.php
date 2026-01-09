@@ -30,6 +30,10 @@ $expenseSummary = $dashboardData['expense_summary'];
 // Get aging summary for additional insights
 $agingSummary = $dashboardService->getAgingSummary();
 
+// Get Profit/Loss summary
+$profitLoss = $dashboardService->getProfitLossSummary($currentMonth);
+$profitLossTrend = $dashboardService->getProfitLossTrend(6);
+
 // Format numbers helper
 function formatMoney($amount) {
     return number_format((float)$amount, 2);
@@ -132,6 +136,165 @@ function formatMoney($amount) {
                 <i class="fas fa-exclamation-triangle text-orange-500 text-xl"></i>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Profit/Loss Summary Section -->
+<div class="bg-white rounded-xl shadow mb-8">
+    <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">
+            <i class="fas fa-chart-line text-indigo-500 mr-2"></i>สรุปกำไรขาดทุน (Profit/Loss) - <?= date('M Y', strtotime($currentMonth . '-01')) ?>
+        </h3>
+        <span class="px-3 py-1 rounded-full text-sm font-medium <?= $profitLoss['is_profitable'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
+            <?= $profitLoss['is_profitable'] ? 'กำไร' : 'ขาดทุน' ?>
+        </span>
+    </div>
+    
+    <div class="p-6">
+        <!-- P&L Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <!-- Revenue -->
+            <div class="p-4 bg-blue-50 rounded-lg">
+                <p class="text-xs text-blue-600 mb-1">รายได้ (Revenue)</p>
+                <p class="text-xl font-bold text-blue-700">฿<?= formatMoney($profitLoss['revenue']['total']) ?></p>
+                <p class="text-xs text-blue-500 mt-1"><?= $profitLoss['revenue']['order_count'] ?> รายการ</p>
+            </div>
+            
+            <!-- COGS -->
+            <div class="p-4 bg-red-50 rounded-lg">
+                <p class="text-xs text-red-600 mb-1">ต้นทุนขาย (COGS)</p>
+                <p class="text-xl font-bold text-red-700">฿<?= formatMoney($profitLoss['cogs']['total']) ?></p>
+                <p class="text-xs text-red-500 mt-1"><?= $profitLoss['cogs']['movement_count'] ?? 0 ?> รายการ</p>
+            </div>
+            
+            <!-- Gross Profit -->
+            <div class="p-4 <?= $profitLoss['gross_profit'] >= 0 ? 'bg-emerald-50' : 'bg-orange-50' ?> rounded-lg">
+                <p class="text-xs <?= $profitLoss['gross_profit'] >= 0 ? 'text-emerald-600' : 'text-orange-600' ?> mb-1">กำไรขั้นต้น</p>
+                <p class="text-xl font-bold <?= $profitLoss['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-orange-700' ?>">
+                    <?= $profitLoss['gross_profit'] >= 0 ? '' : '-' ?>฿<?= formatMoney(abs($profitLoss['gross_profit'])) ?>
+                </p>
+                <p class="text-xs <?= $profitLoss['gross_profit'] >= 0 ? 'text-emerald-500' : 'text-orange-500' ?> mt-1">
+                    Margin: <?= $profitLoss['gross_margin'] ?>%
+                </p>
+            </div>
+            
+            <!-- Operating Expenses -->
+            <div class="p-4 bg-purple-50 rounded-lg">
+                <p class="text-xs text-purple-600 mb-1">ค่าใช้จ่าย (OPEX)</p>
+                <p class="text-xl font-bold text-purple-700">฿<?= formatMoney($profitLoss['expenses']['total']) ?></p>
+                <p class="text-xs text-purple-500 mt-1"><?= $profitLoss['expenses']['expense_count'] ?> รายการ</p>
+            </div>
+            
+            <!-- Net Profit -->
+            <div class="p-4 <?= $profitLoss['is_profitable'] ? 'bg-green-100 ring-2 ring-green-400' : 'bg-red-100 ring-2 ring-red-400' ?> rounded-lg">
+                <p class="text-xs <?= $profitLoss['is_profitable'] ? 'text-green-600' : 'text-red-600' ?> mb-1">กำไรสุทธิ (Net Profit)</p>
+                <p class="text-2xl font-bold <?= $profitLoss['is_profitable'] ? 'text-green-700' : 'text-red-700' ?>">
+                    <?= $profitLoss['net_profit'] >= 0 ? '+' : '' ?>฿<?= formatMoney($profitLoss['net_profit']) ?>
+                </p>
+                <p class="text-xs <?= $profitLoss['is_profitable'] ? 'text-green-500' : 'text-red-500' ?> mt-1">
+                    Margin: <?= $profitLoss['net_margin'] ?>%
+                </p>
+            </div>
+        </div>
+        
+        <!-- P&L Breakdown & Trend -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- P&L Waterfall -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-3">รายละเอียดกำไรขาดทุน</h4>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">รายได้จากการขาย</span>
+                        <span class="font-semibold text-blue-600">+฿<?= formatMoney($profitLoss['revenue']['total']) ?></span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">หัก: ต้นทุนขาย</span>
+                        <span class="font-semibold text-red-600">-฿<?= formatMoney($profitLoss['cogs']['total']) ?></span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 <?= $profitLoss['gross_profit'] >= 0 ? 'bg-emerald-50' : 'bg-orange-50' ?> rounded-lg border-l-4 <?= $profitLoss['gross_profit'] >= 0 ? 'border-emerald-500' : 'border-orange-500' ?>">
+                        <span class="font-medium <?= $profitLoss['gross_profit'] >= 0 ? 'text-emerald-700' : 'text-orange-700' ?>">= กำไรขั้นต้น</span>
+                        <span class="font-bold <?= $profitLoss['gross_profit'] >= 0 ? 'text-emerald-600' : 'text-orange-600' ?>">
+                            ฿<?= formatMoney($profitLoss['gross_profit']) ?>
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">หัก: ค่าใช้จ่ายดำเนินงาน</span>
+                        <span class="font-semibold text-purple-600">-฿<?= formatMoney($profitLoss['expenses']['total']) ?></span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 <?= $profitLoss['is_profitable'] ? 'bg-green-100' : 'bg-red-100' ?> rounded-lg border-l-4 <?= $profitLoss['is_profitable'] ? 'border-green-500' : 'border-red-500' ?>">
+                        <span class="font-medium <?= $profitLoss['is_profitable'] ? 'text-green-700' : 'text-red-700' ?>">= กำไรสุทธิ</span>
+                        <span class="font-bold text-lg <?= $profitLoss['is_profitable'] ? 'text-green-600' : 'text-red-600' ?>">
+                            ฿<?= formatMoney($profitLoss['net_profit']) ?>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 6-Month Trend -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-3">แนวโน้ม 6 เดือนย้อนหลัง</h4>
+                <div class="space-y-2">
+                    <?php 
+                    $maxNetProfit = max(array_map(function($t) { return abs($t['net_profit']); }, $profitLossTrend));
+                    foreach ($profitLossTrend as $trend): 
+                        $barWidth = $maxNetProfit > 0 ? (abs($trend['net_profit']) / $maxNetProfit) * 100 : 0;
+                        $isProfit = $trend['net_profit'] >= 0;
+                    ?>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 w-16"><?= date('M y', strtotime($trend['month'] . '-01')) ?></span>
+                        <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
+                            <div class="h-full <?= $isProfit ? 'bg-green-500' : 'bg-red-500' ?> rounded-full transition-all duration-500" 
+                                 style="width: <?= $barWidth ?>%"></div>
+                        </div>
+                        <span class="text-xs font-medium w-24 text-right <?= $isProfit ? 'text-green-600' : 'text-red-600' ?>">
+                            <?= $isProfit ? '+' : '' ?>฿<?= formatMoney($trend['net_profit']) ?>
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                
+                <!-- Summary Stats -->
+                <div class="mt-4 grid grid-cols-2 gap-3">
+                    <?php 
+                    $totalNetProfit = array_sum(array_column($profitLossTrend, 'net_profit'));
+                    $avgNetProfit = count($profitLossTrend) > 0 ? $totalNetProfit / count($profitLossTrend) : 0;
+                    $profitableMonths = count(array_filter($profitLossTrend, function($t) { return $t['net_profit'] >= 0; }));
+                    ?>
+                    <div class="p-3 bg-gray-50 rounded-lg text-center">
+                        <p class="text-xs text-gray-500">กำไรเฉลี่ย/เดือน</p>
+                        <p class="font-semibold <?= $avgNetProfit >= 0 ? 'text-green-600' : 'text-red-600' ?>">
+                            ฿<?= formatMoney($avgNetProfit) ?>
+                        </p>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg text-center">
+                        <p class="text-xs text-gray-500">เดือนที่มีกำไร</p>
+                        <p class="font-semibold text-gray-700"><?= $profitableMonths ?>/<?= count($profitLossTrend) ?> เดือน</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Expense Breakdown by Category (if has expenses) -->
+        <?php if (!empty($profitLoss['expenses']['by_category'])): ?>
+        <div class="mt-6 pt-6 border-t">
+            <h4 class="text-sm font-medium text-gray-700 mb-3">ค่าใช้จ่ายแยกตามหมวดหมู่</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <?php 
+                $expenseColors = ['bg-purple-100 text-purple-700', 'bg-pink-100 text-pink-700', 'bg-indigo-100 text-indigo-700', 'bg-blue-100 text-blue-700'];
+                $colorIdx = 0;
+                foreach (array_slice($profitLoss['expenses']['by_category'], 0, 4) as $cat): 
+                    $color = $expenseColors[$colorIdx % count($expenseColors)];
+                    $colorIdx++;
+                ?>
+                <div class="p-3 <?= $color ?> rounded-lg">
+                    <p class="text-xs opacity-75"><?= htmlspecialchars($cat['category_name'] ?? 'อื่นๆ') ?></p>
+                    <p class="font-semibold">฿<?= formatMoney($cat['total']) ?></p>
+                    <p class="text-xs opacity-60"><?= $cat['count'] ?> รายการ</p>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
