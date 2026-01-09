@@ -919,6 +919,9 @@ $featuredProductService = new FeaturedProductService($db, $lineAccountId);
     <!-- Contact Section with Operating Hours, Phone/LINE Links, and Map (Requirements: 7.1, 7.2, 7.3, 7.4, 7.5) -->
     <?php include 'includes/landing/contact-section.php'; ?>
     
+    <!-- Health Articles Section -->
+    <?php include 'includes/landing/health-articles.php'; ?>
+    
     <!-- CTA Section -->
     <?php if ($liffUrl): ?>
     <section class="cta-section">
@@ -955,6 +958,7 @@ $featuredProductService = new FeaturedProductService($db, $lineAccountId);
                 
                 <div class="footer-links">
                     <a href="#services">บริการ</a>
+                    <a href="articles.php">บทความ</a>
                     <a href="#contact">ติดต่อ</a>
                     <a href="privacy-policy.php">นโยบายความเป็นส่วนตัว</a>
                     <a href="terms-of-service.php">ข้อกำหนดการใช้งาน</a>

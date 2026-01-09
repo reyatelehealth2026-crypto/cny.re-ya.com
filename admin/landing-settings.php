@@ -19,9 +19,11 @@ require_once ADMIN_BASE_PATH . 'classes/TrustBadgeService.php';
 require_once ADMIN_BASE_PATH . 'classes/LandingSEOService.php';
 require_once ADMIN_BASE_PATH . 'classes/LandingBannerService.php';
 require_once ADMIN_BASE_PATH . 'classes/FeaturedProductService.php';
+require_once ADMIN_BASE_PATH . 'classes/HealthArticleService.php';
 
 $db = Database::getInstance()->getConnection();
 $currentBotId = $_SESSION['current_bot_id'] ?? null;
+$lineAccountId = $currentBotId; // Alias for includes
 
 // Initialize services
 $faqService = new FAQService($db, $currentBotId);
@@ -30,11 +32,13 @@ $trustBadgeService = new TrustBadgeService($db, $currentBotId);
 $seoService = new LandingSEOService($db, $currentBotId);
 $bannerService = new LandingBannerService($db, $currentBotId);
 $featuredProductService = new FeaturedProductService($db, $currentBotId);
+$articleService = new HealthArticleService($db, $currentBotId);
 
 // Tab configuration
 $tabs = [
     'banners' => ['label' => 'แบนเนอร์', 'icon' => 'fas fa-images', 'badge' => $bannerService->getCount()],
     'featured' => ['label' => 'สินค้าแนะนำ', 'icon' => 'fas fa-star', 'badge' => $featuredProductService->getCount()],
+    'articles' => ['label' => 'บทความ', 'icon' => 'fas fa-newspaper', 'badge' => $articleService->getCount()],
     'seo' => ['label' => 'SEO', 'icon' => 'fas fa-search'],
     'faq' => ['label' => 'FAQ', 'icon' => 'fas fa-question-circle'],
     'testimonials' => ['label' => 'รีวิว', 'icon' => 'fas fa-comments', 'badge' => $testimonialService->getPendingCount()],
@@ -291,6 +295,9 @@ echo getTabsStyles();
                 break;
             case 'featured':
                 include ADMIN_BASE_PATH . 'includes/landing/admin-featured.php';
+                break;
+            case 'articles':
+                include ADMIN_BASE_PATH . 'includes/landing/admin-articles.php';
                 break;
             case 'faq':
                 include ADMIN_BASE_PATH . 'includes/landing/admin-faq.php';
