@@ -2,6 +2,11 @@
 /**
  * Unified Inbox - Real-time Chat System
  * รวมระบบแชททั้งหมดเป็นหนึ่งเดียว พร้อม Real-time Updates
+ * 
+ * Tabs:
+ * - (default): Chat inbox
+ * - templates: Quick Reply Templates
+ * - analytics: Chat Analytics
  */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -19,14 +24,23 @@ require_once 'classes/ActivityLogger.php';
 require_once 'classes/InboxService.php';
 require_once 'classes/AnalyticsService.php';
 require_once 'classes/CustomerNoteService.php';
+require_once 'classes/TemplateService.php';
 
 $db = Database::getInstance()->getConnection();
 $currentBotId = $_SESSION['current_bot_id'] ?? 1;
 $activityLogger = ActivityLogger::getInstance($db);
 
+// Get current tab
+$currentTab = $_GET['tab'] ?? 'inbox';
+$validTabs = ['inbox', 'templates', 'analytics'];
+if (!in_array($currentTab, $validTabs)) {
+    $currentTab = 'inbox';
+}
+
 // Initialize services for conversation list
 $inboxService = new InboxService($db, $currentBotId);
 $analyticsService = new AnalyticsService($db, $currentBotId);
+$templateService = new TemplateService($db, $currentBotId);
 
 // Get all tags for filter dropdown
 $allTagsForFilter = [];
@@ -1016,6 +1030,8 @@ function formatThaiDateTime($datetime) {
 }
 </style>
 
+<?php if ($currentTab === 'inbox'): ?>
+<!-- INBOX TAB -->
 <div id="inboxContainer" class="h-screen flex bg-white overflow-hidden relative">
     
     <!-- LEFT: User List -->
@@ -4745,5 +4761,287 @@ document.getElementById('tagModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'tagModal') closeTagModal();
 });
 </script>
+
+<?php endif; // End inbox tab ?>
+
+<?php if ($currentTab === 'templates'): ?>
+<!-- TEMPLATES TAB - Quick Reply Templates -->
+<?php 
+$templates = $templateService->getTemplates();
+?>
+<div class="p-6 max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="inbox.php" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Quick Reply Templates</h1>
+                <p class="text-gray-500 text-sm">จัดการข้อความสำเร็จรูปสำหรับตอบแชท</p>
+            </div>
+        </div>
+        <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium flex items-center gap-2">
+            <i class="fas fa-plus"></i>
+            สร้าง Template
+        </button>
+    </div>
+    
+    <!-- Templates Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <?php if (empty($templates)): ?>
+        <div class="col-span-full text-center py-12 bg-gray-50 rounded-xl">
+            <i class="fas fa-file-alt text-4xl text-gray-300 mb-3"></i>
+            <p class="text-gray-500">ยังไม่มี Template</p>
+            <button onclick="openCreateTemplateModal()" class="mt-3 text-emerald-600 hover:text-emerald-700 font-medium">
+                <i class="fas fa-plus mr-1"></i> สร้าง Template แรก
+            </button>
+        </div>
+        <?php else: ?>
+        <?php foreach ($templates as $tpl): ?>
+        <div class="bg-white border rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-gray-800"><?= htmlspecialchars($tpl['name']) ?></h3>
+                <div class="flex gap-1">
+                    <button onclick="editTemplate(<?= $tpl['id'] ?>)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="deleteTemplate(<?= $tpl['id'] ?>)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-500">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <?php if ($tpl['category']): ?>
+            <span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full mb-2"><?= htmlspecialchars($tpl['category']) ?></span>
+            <?php endif; ?>
+            <p class="text-gray-600 text-sm line-clamp-3"><?= htmlspecialchars($tpl['content']) ?></p>
+            <div class="mt-3 pt-3 border-t flex items-center justify-between text-xs text-gray-400">
+                <span><i class="fas fa-chart-bar mr-1"></i> ใช้ <?= $tpl['usage_count'] ?> ครั้ง</span>
+                <?php if ($tpl['last_used_at']): ?>
+                <span>ใช้ล่าสุด <?= date('d/m/Y', strtotime($tpl['last_used_at'])) ?></span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Create/Edit Template Modal -->
+<div id="templateModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg">
+        <div class="p-4 border-b flex items-center justify-between">
+            <h3 class="font-bold text-lg" id="templateModalTitle">สร้าง Template</h3>
+            <button onclick="closeTemplateModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="templateForm" class="p-4 space-y-4">
+            <input type="hidden" id="templateId" value="">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ Template</label>
+                <input type="text" id="templateName" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="เช่น ทักทายลูกค้าใหม่" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
+                <input type="text" id="templateCategory" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="เช่น greeting, order, support">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">เนื้อหา</label>
+                <textarea id="templateContent" rows="4" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="พิมพ์ข้อความ... ใช้ {name}, {phone}, {email} สำหรับ placeholder" required></textarea>
+                <p class="text-xs text-gray-500 mt-1">Placeholders: {name}, {phone}, {email}, {order_id}</p>
+            </div>
+        </form>
+        <div class="p-4 border-t flex gap-2 justify-end">
+            <button onclick="closeTemplateModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">ยกเลิก</button>
+            <button onclick="saveTemplate()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg">บันทึก</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openCreateTemplateModal() {
+    document.getElementById('templateModalTitle').textContent = 'สร้าง Template';
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateName').value = '';
+    document.getElementById('templateCategory').value = '';
+    document.getElementById('templateContent').value = '';
+    document.getElementById('templateModal').classList.remove('hidden');
+}
+
+function closeTemplateModal() {
+    document.getElementById('templateModal').classList.add('hidden');
+}
+
+async function editTemplate(id) {
+    try {
+        const res = await fetch(`api/inbox.php?action=get_template&id=${id}`);
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('templateModalTitle').textContent = 'แก้ไข Template';
+            document.getElementById('templateId').value = data.data.id;
+            document.getElementById('templateName').value = data.data.name;
+            document.getElementById('templateCategory').value = data.data.category || '';
+            document.getElementById('templateContent').value = data.data.content;
+            document.getElementById('templateModal').classList.remove('hidden');
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาด');
+    }
+}
+
+async function saveTemplate() {
+    const id = document.getElementById('templateId').value;
+    const name = document.getElementById('templateName').value.trim();
+    const category = document.getElementById('templateCategory').value.trim();
+    const content = document.getElementById('templateContent').value.trim();
+    
+    if (!name || !content) {
+        alert('กรุณากรอกชื่อและเนื้อหา');
+        return;
+    }
+    
+    try {
+        const res = await fetch('api/inbox.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action: id ? 'update_template' : 'create_template',
+                id: id || undefined,
+                name, category, content
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'เกิดข้อผิดพลาด');
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาด');
+    }
+}
+
+async function deleteTemplate(id) {
+    if (!confirm('ต้องการลบ Template นี้?')) return;
+    
+    try {
+        const res = await fetch('api/inbox.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'delete_template', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'เกิดข้อผิดพลาด');
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาด');
+    }
+}
+</script>
+<?php endif; // End templates tab ?>
+
+<?php if ($currentTab === 'analytics'): ?>
+<!-- ANALYTICS TAB - Chat Analytics -->
+<?php
+$avgResponseTime = $analyticsService->getAverageResponseTime($currentBotId, 'week');
+$slaThreshold = 300; // 5 minutes
+$slaViolations = $analyticsService->getConversationsExceedingSLA($currentBotId, $slaThreshold);
+?>
+<div class="p-6 max-w-6xl mx-auto">
+    <div class="flex items-center gap-3 mb-6">
+        <a href="inbox.php" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Chat Analytics</h1>
+            <p class="text-gray-500 text-sm">สถิติการตอบแชทและประสิทธิภาพ</p>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white border rounded-xl p-5">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <i class="fas fa-clock text-blue-600 text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-500 text-sm">เวลาตอบเฉลี่ย (7 วัน)</p>
+                    <p class="text-2xl font-bold text-gray-800">
+                        <?php 
+                        if ($avgResponseTime < 60) {
+                            echo round($avgResponseTime) . ' วินาที';
+                        } elseif ($avgResponseTime < 3600) {
+                            echo round($avgResponseTime / 60, 1) . ' นาที';
+                        } else {
+                            echo round($avgResponseTime / 3600, 1) . ' ชม.';
+                        }
+                        ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white border rounded-xl p-5">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
+                    <i class="fas fa-exclamation-triangle text-orange-600 text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-500 text-sm">เกิน SLA (5 นาที)</p>
+                    <p class="text-2xl font-bold text-gray-800"><?= count($slaViolations) ?> แชท</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white border rounded-xl p-5">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                    <i class="fas fa-comments text-emerald-600 text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-500 text-sm">SLA Threshold</p>
+                    <p class="text-2xl font-bold text-gray-800">5 นาที</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- SLA Violations List -->
+    <?php if (!empty($slaViolations)): ?>
+    <div class="bg-white border rounded-xl">
+        <div class="p-4 border-b">
+            <h3 class="font-bold text-gray-800">แชทที่เกิน SLA</h3>
+        </div>
+        <div class="divide-y">
+            <?php foreach (array_slice($slaViolations, 0, 10) as $violation): ?>
+            <a href="inbox.php?user=<?= $violation['user_id'] ?>" class="flex items-center gap-3 p-4 hover:bg-gray-50">
+                <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                    <?php if (!empty($violation['picture_url'])): ?>
+                    <img src="<?= htmlspecialchars($violation['picture_url']) ?>" class="w-full h-full object-cover">
+                    <?php else: ?>
+                    <i class="fas fa-user text-gray-400"></i>
+                    <?php endif; ?>
+                </div>
+                <div class="flex-1">
+                    <p class="font-medium text-gray-800"><?= htmlspecialchars($violation['display_name'] ?? 'ไม่ระบุชื่อ') ?></p>
+                    <p class="text-sm text-gray-500">รอตอบ <?= round($violation['wait_time'] / 60) ?> นาที</p>
+                </div>
+                <span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">เกิน SLA</span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php else: ?>
+    <div class="bg-white border rounded-xl p-8 text-center">
+        <i class="fas fa-check-circle text-4xl text-emerald-500 mb-3"></i>
+        <p class="text-gray-600">ไม่มีแชทที่เกิน SLA</p>
+    </div>
+    <?php endif; ?>
+</div>
+<?php endif; // End analytics tab ?>
 
 <?php require_once 'includes/footer.php'; ?>
