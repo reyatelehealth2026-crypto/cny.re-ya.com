@@ -806,8 +806,10 @@ if (!$line) {
             }
             
             // ========== ตรวจสอบ Consent PDPA ==========
-            // ตรวจสอบว่าผู้ใช้ยินยอม PDPA แล้วหรือยัง (ส่ง line_user_id เพื่อเช็คข้ามบอทได้)
-            $hasConsent = checkUserConsent($db, $user['id'], $userId);
+            // ปิดการตรวจสอบ consent - ให้ถือว่า consent แล้วเสมอ
+            // ถ้าต้องการเปิดใช้งานใหม่ ให้ uncomment บรรทัดด้านล่าง
+            // $hasConsent = checkUserConsent($db, $user['id'], $userId);
+            $hasConsent = true; // ข้าม consent check
             
             // ดึงข้อมูล LIFF ID และ shop name
             $liffShopUrl = '';
@@ -852,7 +854,10 @@ if (!$line) {
                 }
             }
             
-            // ========== ถ้ายังไม่ได้ยินยอม PDPA - ส่งหน้า Consent ก่อน ==========
+            // ========== ปิดการส่ง Consent PDPA อัตโนมัติ ==========
+            // หมายเหตุ: ปิดการส่ง liff-consent.php เมื่อใช้งานครั้งแรก
+            // ถ้าต้องการเปิดใช้งานใหม่ ให้ uncomment โค้ดด้านล่าง
+            /*
             if (!$hasConsent && $sourceType === 'user') {
                 try {
                     $displayName = $user['display_name'] ?: 'คุณลูกค้า';
@@ -920,6 +925,7 @@ if (!$line) {
                     devLog($db, 'error', 'webhook', 'Consent request error: ' . $e->getMessage(), null, $userId);
                 }
             }
+            */
             
             // ========== LIFF Menu สำหรับข้อความแรก (หลังจาก consent แล้ว) ==========
             // ส่ง LIFF Menu เมื่อลูกค้าทักมาครั้งแรก
