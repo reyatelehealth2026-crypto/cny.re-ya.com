@@ -18,6 +18,7 @@ $checks = [
     'AI_before_pharmacy' => strpos($webhookContent, 'AI_before_pharmacy') !== false,
     'currentAIMode === sales' => strpos($webhookContent, "currentAIMode === 'sales'") !== false,
     'GeminiChat for sales' => strpos($webhookContent, 'พนักงานขาย AI') !== false,
+    'Sales mode return null' => strpos($webhookContent, "// Sales mode แต่ GeminiChat") !== false,
 ];
 
 echo "Debug Logs Present:\n";
@@ -25,25 +26,15 @@ foreach ($checks as $name => $found) {
     echo "  - {$name}: " . ($found ? "✅ YES" : "❌ NO") . "\n";
 }
 
-// Check checkAIChatbot function
-echo "\n=== checkAIChatbot Function ===\n";
-if (preg_match('/function checkAIChatbot\([^)]*\)\s*\{/', $webhookContent, $match, PREG_OFFSET_CAPTURE)) {
-    $startPos = $match[0][1];
-    $excerpt = substr($webhookContent, $startPos, 3000);
-    
-    // Check for sales mode logic
-    $hasSalesCheck = strpos($excerpt, "currentAIMode === 'sales'") !== false;
-    $hasGeminiChat = strpos($excerpt, 'GeminiChat') !== false;
-    
-    echo "  - Has sales mode check: " . ($hasSalesCheck ? "✅ YES" : "❌ NO") . "\n";
-    echo "  - Has GeminiChat: " . ($hasGeminiChat ? "✅ YES" : "❌ NO") . "\n";
-    
-    // Show first 500 chars of function
-    echo "\nFirst 500 chars of checkAIChatbot:\n";
-    echo "---\n";
-    echo substr($excerpt, 0, 500);
-    echo "\n---\n";
-}
+// Check checkAIChatbot function - search for sales mode logic
+echo "\n=== Sales Mode Logic ===\n";
+$hasSalesCheck = strpos($webhookContent, "in_array(\$commandMode, ['sales', 'support'])") !== false;
+$hasGeminiChat = strpos($webhookContent, "new GeminiChat(\$db, \$lineAccountId)") !== false;
+$hasReturnNull = strpos($webhookContent, "// Sales mode แต่ GeminiChat return null") !== false;
+
+echo "  - Has sales/support command check: " . ($hasSalesCheck ? "✅ YES" : "❌ NO") . "\n";
+echo "  - Has GeminiChat instantiation: " . ($hasGeminiChat ? "✅ YES" : "❌ NO") . "\n";
+echo "  - Has return null for sales mode: " . ($hasReturnNull ? "✅ YES" : "❌ NO") . "\n";
 
 // Check ai_settings query
 echo "\n=== AI Settings Query ===\n";
@@ -61,9 +52,5 @@ echo "Modified: " . date('Y-m-d H:i:s', filemtime($webhookPath)) . "\n";
 
 // Show git status
 echo "\n=== Git Status ===\n";
-$gitStatus = shell_exec('cd ' . dirname($webhookPath) . ' && git status webhook.php 2>&1');
-echo $gitStatus;
-
-echo "\n=== Git Log (last 3 commits) ===\n";
-$gitLog = shell_exec('cd ' . dirname($webhookPath) . ' && git log --oneline -3 webhook.php 2>&1');
+$gitLog = shell_exec('cd ' . dirname($webhookPath) . ' && git log --oneline -3 2>&1');
 echo $gitLog;
