@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
     try {
         $data = [
             'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
-            'model' => $_POST['ai_model'] ?? 'gemini-2.5-flash-preview-05-20',
+            'model' => $_POST['ai_model'] ?? 'gemini-2.0-flash',
             'is_enabled' => isset($_POST['ai_is_enabled']) ? 1 : 0,
             'system_prompt' => trim($_POST['ai_system_prompt'] ?? ''),
             'ai_mode' => $_POST['ai_mode'] ?? 'sales',
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
 // Default values
 $apiKey = $aiSettings['gemini_api_key'] ?? '';
 $isEnabled = ($aiSettings['is_enabled'] ?? 0) == 1;
-$model = $aiSettings['model'] ?? 'gemini-2.5-flash-preview-05-20';
+$model = $aiSettings['model'] ?? 'gemini-2.0-flash';
 $systemPrompt = $aiSettings['system_prompt'] ?? '';
 $aiMode = $aiSettings['ai_mode'] ?? 'sales';
 $businessInfo = $aiSettings['business_info'] ?? '';
@@ -211,8 +211,8 @@ $senderIcon = $aiSettings['sender_icon'] ?? '';
                         <div>
                             <label class="settings-label">Model</label>
                             <select name="ai_model" class="settings-input-field">
-                                <option value="gemini-2.5-flash-preview-05-20" <?= $model === 'gemini-2.5-flash-preview-05-20' ? 'selected' : '' ?>>⭐ Gemini 2.5 Flash (ใหม่ล่าสุด)</option>
-                                <option value="gemini-2.0-flash" <?= $model === 'gemini-2.0-flash' ? 'selected' : '' ?>>Gemini 2.0 Flash (แนะนำ)</option>
+                                <option value="gemini-2.0-flash" <?= $model === 'gemini-2.0-flash' ? 'selected' : '' ?>>⭐ Gemini 2.0 Flash (แนะนำ)</option>
+                                <option value="gemini-2.0-flash-lite" <?= $model === 'gemini-2.0-flash-lite' ? 'selected' : '' ?>>Gemini 2.0 Flash Lite (เร็ว)</option>
                                 <option value="gemini-1.5-pro" <?= $model === 'gemini-1.5-pro' ? 'selected' : '' ?>>Gemini 1.5 Pro</option>
                                 <option value="gemini-1.5-flash" <?= $model === 'gemini-1.5-flash' ? 'selected' : '' ?>>Gemini 1.5 Flash</option>
                             </select>
