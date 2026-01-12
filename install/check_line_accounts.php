@@ -23,12 +23,13 @@ try {
     
     echo "\n=== AI Settings by Line Account ===\n\n";
     
-    $stmt = $pdo->query("SELECT id, line_account_id, ai_mode, is_enabled FROM ai_settings ORDER BY id");
+    $stmt = $pdo->query("SELECT id, line_account_id, ai_mode, is_enabled, gemini_api_key FROM ai_settings ORDER BY id");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     foreach ($rows as $row) {
         $lineId = $row['line_account_id'] ?: 'NULL';
-        echo "ID: {$row['id']}, Line Account: {$lineId}, Mode: {$row['ai_mode']}, Enabled: {$row['is_enabled']}\n";
+        $hasKey = !empty($row['gemini_api_key']) ? 'YES' : 'NO';
+        echo "ID: {$row['id']}, Line: {$lineId}, Mode: {$row['ai_mode']}, Enabled: {$row['is_enabled']}, Has API Key: {$hasKey}\n";
     }
     
 } catch (PDOException $e) {
