@@ -4183,7 +4183,18 @@ async function sendProductAsFlex() {
             method: 'POST',
             body: formData
         });
-        const data = await res.json();
+        
+        // Debug: get raw text first
+        const text = await res.text();
+        console.log('Flex API Response:', text);
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseErr) {
+            showToast('API Error: ' + text.substring(0, 100), 'error');
+            return;
+        }
         
         if (data.success) {
             showToast('ส่ง Flex Message สำเร็จ', 'success');
