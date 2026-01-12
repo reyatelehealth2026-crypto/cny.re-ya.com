@@ -2120,6 +2120,14 @@ if (!$line) {
                 // ดึง AI mode จาก ai_settings - แต่ถ้า commandMode เป็น sales ให้ใช้ sales เลย
                 $currentAIMode = 'sales'; // default to sales
                 
+                // DEBUG: Log commandMode before check
+                devLog($db, 'debug', 'AI_section5', 'Entering section 5', [
+                    'commandMode' => $commandMode,
+                    'commandMode_type' => gettype($commandMode),
+                    'is_sales' => ($commandMode === 'sales') ? 'yes' : 'no',
+                    'in_array_result' => in_array($commandMode, ['sales', 'support']) ? 'yes' : 'no'
+                ], null);
+                
                 // ถ้า commandMode เป็น sales หรือ support → ใช้ GeminiChat
                 if (in_array($commandMode, ['sales', 'support'])) {
                     $currentAIMode = $commandMode;
