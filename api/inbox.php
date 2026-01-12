@@ -928,6 +928,12 @@ try {
                 ];
             }
             
+            // Validate image URL - LINE requires HTTPS
+            if ($imageUrl && strpos($imageUrl, 'http://') === 0) {
+                $imageUrl = str_replace('http://', 'https://', $imageUrl);
+                $flexMessage['contents']['hero']['url'] = $imageUrl;
+            }
+            
             // Send via LINE API
             require_once __DIR__ . '/../classes/LineAccountManager.php';
             $lineManager = new LineAccountManager($db);
@@ -935,14 +941,18 @@ try {
             
             $result = $line->pushMessage($user['line_user_id'], [$flexMessage]);
             
-            if ($result) {
+            // Check result - pushMessage returns ['code' => httpCode, 'body' => ...]
+            if ($result && $result['code'] == 200) {
                 // Save to messages table
                 $stmt = $db->prepare("INSERT INTO messages (user_id, line_account_id, direction, message_type, content, created_at) VALUES (?, ?, 'outgoing', 'flex', ?, NOW())");
                 $stmt->execute([$userId, $user['line_account_id'], '📦 ' . $product['name'] . ' - ฿' . $price]);
                 
                 echo json_encode(['success' => true, 'message' => 'Flex message sent']);
             } else {
-                throw new Exception('Failed to send message');
+                $errorMsg = isset($result['body']['message']) ? $result['body']['message'] : 'Unknown error';
+                $errorDetails = isset($result['body']['details']) ? json_encode($result['body']['details']) : '';
+                error_log('LINE Flex Error: ' . $errorMsg . ' ' . $errorDetails);
+                throw new Exception('LINE Error: ' . $errorMsg);
             }
             break;
             
