@@ -95,6 +95,7 @@ class GeminiChat
     public function generateResponse($userMessage, $userId = null, $conversationHistory = [])
     {
         if (!$this->isEnabled()) {
+            error_log("GeminiChat: Not enabled - is_enabled=" . ($this->settings['is_enabled'] ? 'true' : 'false') . ", apiKey=" . (empty($this->apiKey) ? 'empty' : 'set'));
             return null;
         }
         
@@ -444,6 +445,10 @@ class GeminiChat
         }
         
         $result = json_decode($response, true);
+        
+        // Log API response for debugging
+        error_log("GeminiChat API: httpCode={$httpCode}, hasCandidate=" . (isset($result['candidates'][0]) ? 'yes' : 'no'));
+        
         if ($httpCode === 200 && isset($result['candidates'][0]['content']['parts'][0]['text'])) {
             $text = trim($result['candidates'][0]['content']['parts'][0]['text']);
             $text = preg_replace('/^\*\*|\*\*$/m', '', $text);
