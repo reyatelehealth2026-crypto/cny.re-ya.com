@@ -936,6 +936,7 @@ try {
             
             // Send via LINE API
             try {
+                require_once __DIR__ . '/../classes/LineAPI.php';
                 require_once __DIR__ . '/../classes/LineAccountManager.php';
                 $lineManager = new LineAccountManager($db);
                 $line = $lineManager->getLineAPI($user['line_account_id']);
