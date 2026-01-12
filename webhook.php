@@ -2211,8 +2211,19 @@ if (!$line) {
                             'history_count' => count($history)
                         ], null);
                         
+                        // Extend timeout for AI processing
+                        set_time_limit(60);
+                        
                         $startTime = microtime(true);
-                        $response = $gemini->generateResponse($messageToProcess, $userId, $history);
+                        devLog($db, 'debug', 'AI_sales', 'Calling generateResponse...', [], null);
+                        
+                        try {
+                            $response = $gemini->generateResponse($messageToProcess, $userId, $history);
+                        } catch (Exception $e) {
+                            devLog($db, 'error', 'AI_sales', 'generateResponse exception: ' . $e->getMessage(), [], null);
+                            $response = null;
+                        }
+                        
                         $elapsed = round((microtime(true) - $startTime) * 1000);
                         
                         devLog($db, 'debug', 'AI_sales', 'GeminiChat response received', [
