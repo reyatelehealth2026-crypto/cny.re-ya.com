@@ -2384,11 +2384,17 @@ async function pollMessages() {
             
             // Update sidebar order from conversations data
             if (convData.success && convData.conversations) {
+                console.log('📋 Conversations from API:', convData.conversations.map(c => ({id: c.id, name: c.display_name, time: c.last_time})));
+                
+                // API already returns sorted by last_time DESC, but sort again to be sure
                 const sortedConvs = convData.conversations.sort((a, b) => {
                     const timeA = a.last_time ? new Date(a.last_time).getTime() : 0;
                     const timeB = b.last_time ? new Date(b.last_time).getTime() : 0;
                     return timeB - timeA;
                 });
+                
+                console.log('📋 Sorted conversations:', sortedConvs.map(c => ({id: c.id, name: c.display_name, time: c.last_time})));
+                
                 reorderSidebar(sortedConvs);
                 sortedConvs.forEach(conv => updateSidebarUser(conv));
                 
@@ -2579,21 +2585,44 @@ async function pollSidebar() {
 // Reorder sidebar items to match sorted conversations
 function reorderSidebar(sortedConvs) {
     const userList = document.getElementById('userList');
-    if (!userList) return;
+    if (!userList) {
+        console.log('❌ userList not found');
+        return;
+    }
     
-    sortedConvs.forEach((conv, index) => {
-        const item = userList.querySelector(`[data-user-id="${conv.id}"]`);
-        if (item) {
-            const currentIndex = Array.from(userList.children).indexOf(item);
-            if (currentIndex !== index) {
-                // Move item to correct position
-                const referenceNode = userList.children[index];
-                if (referenceNode && referenceNode !== item) {
-                    userList.insertBefore(item, referenceNode);
-                }
-            }
+    console.log('🔄 Reordering sidebar with', sortedConvs.length, 'conversations');
+    
+    // Create a document fragment for efficient DOM manipulation
+    const fragment = document.createDocumentFragment();
+    const existingItems = new Map();
+    
+    // Collect all existing items
+    userList.querySelectorAll('.user-item').forEach(item => {
+        const userId = item.dataset.userId;
+        if (userId) {
+            existingItems.set(userId, item);
         }
     });
+    
+    // Reorder items according to sortedConvs
+    sortedConvs.forEach((conv, index) => {
+        const item = existingItems.get(String(conv.id));
+        if (item) {
+            fragment.appendChild(item);
+            existingItems.delete(String(conv.id));
+        }
+    });
+    
+    // Append any remaining items (not in sortedConvs)
+    existingItems.forEach(item => {
+        fragment.appendChild(item);
+    });
+    
+    // Clear and re-append all items in correct order
+    userList.innerHTML = '';
+    userList.appendChild(fragment);
+    
+    console.log('✅ Sidebar reordered');
 }
 
 // ===== Conversation Caching - Requirements: 11.6 =====
