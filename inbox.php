@@ -2653,9 +2653,20 @@ async function fetchAndCacheConversation(convUserId) {
     }
 }
 
-// Update sidebar user item
+// Update sidebar user item and move to top if has new message
 function updateSidebarUser(conv) {
-    const item = document.querySelector(`[data-user-id="${conv.id}"]`);
+    let item = document.querySelector(`[data-user-id="${conv.id}"]`);
+    const userList = document.getElementById('userList');
+    
+    // If user doesn't exist in sidebar, create new item
+    if (!item && userList) {
+        item = createUserItem(conv);
+        userList.insertBefore(item, userList.firstChild);
+        item.classList.add('new-message-flash');
+        setTimeout(() => item.classList.remove('new-message-flash'), 1000);
+        return;
+    }
+    
     if (!item) return;
     
     // Update last message
@@ -2677,11 +2688,66 @@ function updateSidebarUser(conv) {
     // Update unread badge
     updateUserUnread(conv.id, conv.unread_count || 0);
     
-    // Flash animation
+    // Move to top of list if has new message (not current selected user)
+    if (userList && conv.last_message) {
+        const firstItem = userList.querySelector('.user-item');
+        if (firstItem && firstItem !== item) {
+            // Move item to top with animation
+            item.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            item.style.opacity = '0.5';
+            
+            setTimeout(() => {
+                userList.insertBefore(item, userList.firstChild);
+                item.style.opacity = '1';
+                item.classList.add('new-message-flash');
+                setTimeout(() => item.classList.remove('new-message-flash'), 1000);
+            }, 100);
+        }
+    }
+    
+    // Flash animation for unread
     if (conv.unread_count > 0) {
         item.classList.add('new-message-flash');
         setTimeout(() => item.classList.remove('new-message-flash'), 1000);
     }
+}
+
+// Create new user item for sidebar
+function createUserItem(conv) {
+    const a = document.createElement('a');
+    a.href = `?user=${conv.id}`;
+    a.className = 'user-item block p-3 border-b border-gray-50';
+    a.dataset.userId = conv.id;
+    a.dataset.name = (conv.display_name || '').toLowerCase();
+    
+    let preview = conv.last_message || '';
+    if (conv.last_type === 'image') preview = '📷 รูปภาพ';
+    else if (conv.last_type === 'sticker') preview = '😊 สติกเกอร์';
+    else if (preview.length > 30) preview = preview.substring(0, 30) + '...';
+    
+    const unreadBadge = conv.unread_count > 0 
+        ? `<div class="unread-badge absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold">${conv.unread_count > 9 ? '9+' : conv.unread_count}</div>` 
+        : '';
+    
+    a.innerHTML = `
+        <div class="flex items-center gap-3">
+            <div class="relative flex-shrink-0">
+                <img src="${conv.picture_url || 'https://via.placeholder.com/40'}" 
+                     class="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
+                     loading="lazy">
+                ${unreadBadge}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-baseline">
+                    <h3 class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(conv.display_name || 'Unknown')}</h3>
+                    <span class="last-time text-[10px] text-gray-400">${conv.last_time ? formatThaiTimeJS(new Date(conv.last_time)) : ''}</span>
+                </div>
+                <p class="last-msg text-xs text-gray-500 truncate">${escapeHtml(preview)}</p>
+            </div>
+        </div>
+    `;
+    
+    return a;
 }
 
 function stopPolling() {

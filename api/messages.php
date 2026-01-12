@@ -122,7 +122,9 @@ try {
             // Check for new conversations (users who sent first message)
             $stmt = $db->prepare("SELECT u.id, u.display_name, u.picture_url,
                                   (SELECT content FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_message,
-                                  (SELECT created_at FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_time
+                                  (SELECT message_type FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_type,
+                                  (SELECT created_at FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_time,
+                                  (SELECT COUNT(*) FROM messages WHERE user_id = u.id AND direction = 'incoming' AND is_read = 0) as unread_count
                                   FROM users u 
                                   WHERE u.line_account_id = ? 
                                   AND EXISTS (SELECT 1 FROM messages WHERE user_id = u.id AND id > ?)
