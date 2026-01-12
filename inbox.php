@@ -2023,6 +2023,7 @@ function formatThaiDateTime($datetime) {
 const userId = <?= $selectedUser ? $selectedUser['id'] : 'null' ?>;
 const currentUserName = '<?= $selectedUser ? htmlspecialchars($selectedUser['display_name']) : '' ?>';
 const currentUserPic = '<?= $selectedUser ? ($selectedUser['picture_url'] ?: 'https://via.placeholder.com/40') : '' ?>';
+const lineAccountId = <?= $currentBotId ?>;
 let lastMessageId = <?= !empty($messages) ? end($messages)['id'] ?? 0 : 0 ?>;
 let pollingInterval = null;
 let isPolling = false;
@@ -2030,7 +2031,7 @@ let sentMessageIds = new Set();
 let soundEnabled = localStorage.getItem('inboxSoundEnabled') !== 'false'; // default true
 
 // Debug: แสดงค่าเริ่มต้น
-console.log('🚀 Inbox initialized:', { userId, lastMessageId, currentUserName });
+console.log('🚀 Inbox initialized:', { userId, lastMessageId, currentUserName, lineAccountId });
 
 // Update sound icon on load
 document.addEventListener('DOMContentLoaded', () => {
@@ -4251,7 +4252,8 @@ async function loadConversations(replace = false) {
         const params = new URLSearchParams({
             action: 'get_conversations',
             page: currentPage,
-            limit: 50
+            limit: 50,
+            line_account_id: lineAccountId
         });
         
         if (currentFilters.search) params.append('search', currentFilters.search);
@@ -4649,23 +4651,23 @@ window.addEventListener('resize', function() {
 });
 
 // Mobile: Handle swipe gestures for navigation
-let touchStartX = 0;
-let touchEndX = 0;
+let inboxTouchStartX = 0;
+let inboxTouchEndX = 0;
 const SWIPE_THRESHOLD = 50;
 
 function handleTouchStart(e) {
-    touchStartX = e.changedTouches[0].screenX;
+    inboxTouchStartX = e.changedTouches[0].screenX;
 }
 
 function handleTouchEnd(e) {
-    touchEndX = e.changedTouches[0].screenX;
+    inboxTouchEndX = e.changedTouches[0].screenX;
     handleSwipeGesture();
 }
 
 function handleSwipeGesture() {
     if (window.innerWidth > 768) return; // Only on mobile
     
-    const swipeDistance = touchEndX - touchStartX;
+    const swipeDistance = inboxTouchEndX - inboxTouchStartX;
     
     // Swipe right to show chat list
     if (swipeDistance > SWIPE_THRESHOLD) {

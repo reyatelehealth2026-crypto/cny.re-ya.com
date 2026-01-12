@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'update_info') {
+        $displayName = trim($_POST['display_name'] ?? '');
         $realName = trim($_POST['real_name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $email = trim($_POST['email'] ?? '');
@@ -33,10 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $note = trim($_POST['note'] ?? '');
         
         $stmt = $db->prepare("UPDATE users SET 
-            real_name = ?, phone = ?, email = ?, birthday = ?, gender = ?,
+            display_name = ?, real_name = ?, phone = ?, email = ?, birthday = ?, gender = ?,
             address = ?, province = ?, postal_code = ?, note = ?
             WHERE id = ?");
-        $stmt->execute([$realName, $phone, $email, $birthday, $gender, $address, $province, $postalCode, $note, $userId]);
+        $stmt->execute([$displayName, $realName, $phone, $email, $birthday, $gender, $address, $province, $postalCode, $note, $userId]);
         
         header("Location: user-detail.php?id={$userId}&updated=1");
         exit;
@@ -306,15 +307,22 @@ try {
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
+                        <label class="block text-sm font-medium mb-1">ชื่อที่แสดง (Display Name)</label>
+                        <input type="text" name="display_name" value="<?= htmlspecialchars($user['display_name'] ?? '') ?>" 
+                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" placeholder="ชื่อที่แสดงในระบบ">
+                        <p class="text-xs text-gray-400 mt-1">ชื่อที่แสดงในระบบ (สามารถแก้ไขได้)</p>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium mb-1">ชื่อจริง</label>
                         <input type="text" name="real_name" value="<?= htmlspecialchars($user['real_name'] ?? '') ?>" 
                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" placeholder="ชื่อ-นามสกุล">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">เบอร์โทร</label>
-                        <input type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" 
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" placeholder="08x-xxx-xxxx">
-                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">เบอร์โทร</label>
+                    <input type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" 
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" placeholder="08x-xxx-xxxx">
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">

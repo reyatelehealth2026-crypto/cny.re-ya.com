@@ -13,31 +13,54 @@
  * 
  * Requirements: 2.4, 3.1, 4.5, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.4, 11.3
  */
+
+// Error handling
+set_error_handler(function($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 header('Content-Type: application/json; charset=utf-8');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../classes/InboxService.php';
-require_once __DIR__ . '/../classes/TemplateService.php';
-require_once __DIR__ . '/../classes/AnalyticsService.php';
-require_once __DIR__ . '/../classes/CustomerNoteService.php';
+try {
+    require_once __DIR__ . '/../config/config.php';
+    require_once __DIR__ . '/../config/database.php';
+    require_once __DIR__ . '/../classes/InboxService.php';
+    require_once __DIR__ . '/../classes/TemplateService.php';
+    require_once __DIR__ . '/../classes/AnalyticsService.php';
+    require_once __DIR__ . '/../classes/CustomerNoteService.php';
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Failed to load dependencies: ' . $e->getMessage()]);
+    exit;
+}
 
-$db = Database::getInstance()->getConnection();
+try {
+    $db = Database::getInstance()->getConnection();
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]);
+    exit;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 // Get LINE account ID from session or request
-$lineAccountId = $_SESSION['line_account_id'] ?? $_GET['line_account_id'] ?? $_POST['line_account_id'] ?? 1;
+$lineAccountId = $_SESSION['current_bot_id'] ?? $_SESSION['line_account_id'] ?? $_GET['line_account_id'] ?? $_POST['line_account_id'] ?? 1;
 $adminId = $_SESSION['admin_id'] ?? $_GET['admin_id'] ?? $_POST['admin_id'] ?? null;
 
 // Initialize services
-$inboxService = new InboxService($db, (int)$lineAccountId);
-$templateService = new TemplateService($db, (int)$lineAccountId);
-$analyticsService = new AnalyticsService($db, (int)$lineAccountId);
-$noteService = new CustomerNoteService($db);
+try {
+    $inboxService = new InboxService($db, (int)$lineAccountId);
+    $templateService = new TemplateService($db, (int)$lineAccountId);
+    $analyticsService = new AnalyticsService($db, (int)$lineAccountId);
+    $noteService = new CustomerNoteService($db);
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Failed to initialize services: ' . $e->getMessage()]);
+    exit;
+}
 
 try {
     // Route based on action parameter

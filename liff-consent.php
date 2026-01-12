@@ -165,6 +165,7 @@ $baseUrl = rtrim(BASE_URL, '/');
 
     <script>
     let userId = null;
+    
     const redirectUrl = '<?= htmlspecialchars($redirectUrl) ?>';
     const liffId = '<?= $liffId ?>';
     const closeAfterConsent = <?= $closeAfterConsent ? 'true' : 'false' ?>;
