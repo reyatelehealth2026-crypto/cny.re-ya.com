@@ -997,40 +997,59 @@ try {
             $symptoms = $_GET['symptoms'] ?? '';
             $type = $_GET['type'] ?? '';
             $message = $_GET['message'] ?? '';
-            $limit = (int)($_GET['limit'] ?? 5);
+            $limit = (int)($_GET['limit'] ?? 10); // Increased default limit
             
             if (!$userId) {
                 sendError('User ID is required');
             }
             
-            // If message is provided, search for drugs based on message content
-            if (!empty($message)) {
+            $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
+            
+            // Priority 1: Search from chat history (most accurate)
+            if ($consultationAnalyzer && $type === 'context') {
                 try {
-                    $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
+                    $matchedDrugs = $consultationAnalyzer->searchDrugsFromChatHistory($userId, $limit);
                     
-                    if ($consultationAnalyzer) {
-                        $matchedDrugs = $consultationAnalyzer->searchDrugsFromMessage($message);
-                        
-                        if (!empty($matchedDrugs)) {
-                            sendResponse([
-                                'success' => true,
-                                'data' => [
-                                    'recommendations' => $matchedDrugs,
-                                    'type' => 'message_search',
-                                    'userId' => $userId,
-                                    'message' => $message
-                                ]
-                            ]);
-                            break;
-                        }
+                    if (!empty($matchedDrugs)) {
+                        sendResponse([
+                            'success' => true,
+                            'data' => [
+                                'recommendations' => $matchedDrugs,
+                                'type' => 'chat_history',
+                                'userId' => $userId,
+                                'count' => count($matchedDrugs)
+                            ]
+                        ]);
+                        break;
                     }
                 } catch (Throwable $e) {
-                    error_log("Message search error: " . $e->getMessage());
-                    // Fall through to context/popular search
+                    error_log("Chat history search error: " . $e->getMessage());
                 }
             }
             
-            // If type=context, get popular/recent drugs from business_items instead of requiring symptoms
+            // Priority 2: Search from current message
+            if (!empty($message) && $consultationAnalyzer) {
+                try {
+                    $matchedDrugs = $consultationAnalyzer->searchDrugsFromMessage($message);
+                    
+                    if (!empty($matchedDrugs)) {
+                        sendResponse([
+                            'success' => true,
+                            'data' => [
+                                'recommendations' => $matchedDrugs,
+                                'type' => 'message_search',
+                                'userId' => $userId,
+                                'message' => $message
+                            ]
+                        ]);
+                        break;
+                    }
+                } catch (Throwable $e) {
+                    error_log("Message search error: " . $e->getMessage());
+                }
+            }
+            
+            // Priority 3: Get popular drugs as fallback
             if ($type === 'context' || empty($symptoms)) {
                 // Return popular drugs from business_items table
                 try {

@@ -3134,16 +3134,19 @@ function updateDrugRecommendationsWidget(data) {
     }
     
     content.innerHTML = `
-        <div class="space-y-2">
-            ${recommendations.slice(0, 5).map(drug => {
+        <div class="space-y-2 max-h-80 overflow-y-auto">
+            ${recommendations.slice(0, 10).map((drug, index) => {
                 const drugId = drug.id || drug.drugId || 0;
                 const drugNameSafe = escapeAttr(drug.name || '');
+                const matchBadge = drug.matchScore ? `<span class="text-[9px] bg-green-100 text-green-600 px-1 rounded">ตรงกัน</span>` : '';
                 return `
-                <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer"
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer border-l-2 ${index < 3 ? 'border-green-400' : 'border-transparent'}"
                      onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
                     <div class="flex-1 min-w-0">
-                        <div class="text-xs font-medium text-gray-800 truncate">${escapeHtml(drug.name || '')}</div>
-                        <div class="text-[10px] text-gray-500">${escapeHtml(drug.category || '')}</div>
+                        <div class="text-xs font-medium text-gray-800 truncate flex items-center gap-1">
+                            ${escapeHtml(drug.name || '')} ${matchBadge}
+                        </div>
+                        <div class="text-[10px] text-gray-500">${escapeHtml(drug.category || drug.sku || '')}</div>
                     </div>
                     <div class="text-right ml-2">
                         <div class="text-xs font-medium text-green-600">฿${(drug.price || 0).toLocaleString()}</div>
@@ -3154,6 +3157,7 @@ function updateDrugRecommendationsWidget(data) {
                 </div>
             `}).join('')}
         </div>
+        ${recommendations.length > 10 ? `<div class="text-center text-[10px] text-gray-400 mt-2">แสดง 10 จาก ${recommendations.length} รายการ</div>` : ''}
     `;
 }
 

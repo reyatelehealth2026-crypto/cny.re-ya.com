@@ -1016,6 +1016,157 @@ class ConsultationAnalyzerService
     }
     
     /**
+     * Search drugs from user's chat history
+     * Analyzes all recent messages to find drug names mentioned
+     * @param int $userId User ID
+     * @param int $limit Max number of drugs to return
+     * @return array Matched drugs with full data
+     */
+    public function searchDrugsFromChatHistory(int $userId, int $limit = 10): array
+    {
+        $drugs = [];
+        
+        try {
+            // Get recent messages from this user (last 50 messages)
+            $stmt = $this->db->prepare("
+                SELECT content, message_type 
+                FROM messages 
+                WHERE user_id = ? 
+                AND direction = 'incoming'
+                AND message_type = 'text'
+                ORDER BY created_at DESC 
+                LIMIT 50
+            ");
+            $stmt->execute([$userId]);
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (empty($messages)) {
+                return [];
+            }
+            
+            // Combine all messages into one text for analysis
+            $allText = '';
+            foreach ($messages as $msg) {
+                $allText .= ' ' . ($msg['content'] ?? '');
+            }
+            $allTextLower = mb_strtolower($allText);
+            
+            // Get all active products - check available columns first
+            $columnsStmt = $this->db->query("SHOW COLUMNS FROM business_items");
+            $columns = $columnsStmt->fetchAll(PDO::FETCH_COLUMN);
+            $hasGenericName = in_array('generic_name', $columns);
+            $hasActiveIngredient = in_array('active_ingredient', $columns);
+            
+            $selectCols = "id, name, sku, price, sale_price, stock, description, image_url";
+            if ($hasGenericName) $selectCols .= ", generic_name";
+            if ($hasActiveIngredient) $selectCols .= ", active_ingredient";
+            
+            $stmt = $this->db->prepare("
+                SELECT {$selectCols}
+                FROM business_items 
+                WHERE is_active = 1 
+                AND (line_account_id = ? OR line_account_id IS NULL)
+                ORDER BY stock DESC
+                LIMIT 1000
+            ");
+            $stmt->execute([$this->lineAccountId]);
+            $allProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $matchedProducts = [];
+            $matchScores = [];
+            
+            foreach ($allProducts as $product) {
+                $score = 0;
+                $productName = mb_strtolower($product['name']);
+                $productSku = mb_strtolower($product['sku'] ?? '');
+                $genericName = mb_strtolower($product['generic_name'] ?? '');
+                $activeIngredient = mb_strtolower($product['active_ingredient'] ?? '');
+                
+                // Extract words from product name
+                $nameWords = preg_split('/[\s\-\/\(\)\[\],\.]+/u', $productName);
+                
+                // Check each word
+                foreach ($nameWords as $word) {
+                    $word = trim($word);
+                    if (mb_strlen($word) >= 3) {
+                        // Count occurrences in chat
+                        $count = mb_substr_count($allTextLower, $word);
+                        if ($count > 0) {
+                            $score += $count * mb_strlen($word); // Longer words = higher score
+                        }
+                    }
+                }
+                
+                // Check SKU
+                if ($productSku && mb_strlen($productSku) >= 3) {
+                    if (mb_strpos($allTextLower, $productSku) !== false) {
+                        $score += 50;
+                    }
+                }
+                
+                // Check generic name
+                if ($genericName && mb_strlen($genericName) >= 3) {
+                    if (mb_strpos($allTextLower, $genericName) !== false) {
+                        $score += 30;
+                    }
+                }
+                
+                // Check active ingredient
+                if ($activeIngredient && mb_strlen($activeIngredient) >= 3) {
+                    $ingredients = preg_split('/[\s,\/]+/u', $activeIngredient);
+                    foreach ($ingredients as $ing) {
+                        $ing = trim($ing);
+                        if (mb_strlen($ing) >= 3 && mb_strpos($allTextLower, $ing) !== false) {
+                            $score += 20;
+                        }
+                    }
+                }
+                
+                if ($score > 0) {
+                    $matchedProducts[] = $product;
+                    $matchScores[$product['id']] = $score;
+                }
+            }
+            
+            // Sort by score (highest first)
+            usort($matchedProducts, function($a, $b) use ($matchScores) {
+                return ($matchScores[$b['id']] ?? 0) - ($matchScores[$a['id']] ?? 0);
+            });
+            
+            // Build result array
+            $seenIds = [];
+            foreach ($matchedProducts as $product) {
+                if (isset($seenIds[$product['id']])) continue;
+                $seenIds[$product['id']] = true;
+                
+                $price = (float)($product['sale_price'] ?? $product['price'] ?? 0);
+                $cost = $price * 0.7;
+                $margin = $price > 0 ? round((($price - $cost) / $price) * 100, 1) : null;
+                
+                $drugs[] = [
+                    'id' => (int)$product['id'],
+                    'drugId' => (int)$product['id'],
+                    'name' => $product['name'],
+                    'sku' => $product['sku'],
+                    'price' => $price,
+                    'originalPrice' => (float)($product['price'] ?? 0),
+                    'costPrice' => $cost,
+                    'margin' => $margin,
+                    'stock' => (int)($product['stock'] ?? 0),
+                    'category' => 'ยาทั่วไป',
+                    'dosage' => $product['description'] ?? '',
+                    'imageUrl' => $product['image_url'],
+                    'matchScore' => $matchScores[$product['id']] ?? 0
+                ];
+                
+                if (count($drugs) >= $limit) break;
+            }
+            
+        } catch (PDOException $e) {
+            error_log("ConsultationAnalyzer searchDrugsFromChatHistory error: " . $e->getMessage());
+        }
+        
+        return $drugs;
     }
     
     /**
