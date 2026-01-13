@@ -1053,6 +1053,21 @@ function formatThaiDateTime($datetime) {
     color: white;
 }
 
+/* Checkbox styles for product detection */
+.detected-drug-checkbox {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px;
+    accent-color: #10B981;
+    cursor: pointer;
+    border: 2px solid #D1D5DB;
+    border-radius: 4px;
+}
+.detected-drug-checkbox:checked {
+    background-color: #10B981;
+    border-color: #10B981;
+}
+
 /* Resizable textarea handle */
 .message-input-container {
     position: relative;
