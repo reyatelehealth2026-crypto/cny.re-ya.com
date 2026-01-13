@@ -506,22 +506,51 @@ try {
                 sendError('Drug ID is required');
             }
             
-            $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
-            
-            if (!$pricingEngine) {
-                sendError('Pricing engine service not available', 503);
+            try {
+                $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
+                
+                if (!$pricingEngine) {
+                    // Fallback: get pricing directly from business_items
+                    $stmt = $db->prepare("SELECT id, name, price, sale_price, cost_price FROM business_items WHERE id = ?");
+                    $stmt->execute([$drugId]);
+                    $drug = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$drug) {
+                        sendError('Drug not found', 404);
+                    }
+                    
+                    $cost = (float)($drug['cost_price'] ?? 0);
+                    $price = (float)($drug['sale_price'] ?? $drug['price'] ?? 0);
+                    $margin = $price - $cost;
+                    $marginPercent = $price > 0 ? (($price - $cost) / $price) * 100 : 0;
+                    
+                    sendResponse([
+                        'success' => true,
+                        'data' => [
+                            'drugId' => $drugId,
+                            'drugName' => $drug['name'],
+                            'cost' => round($cost, 2),
+                            'price' => round($price, 2),
+                            'margin' => round($margin, 2),
+                            'marginPercent' => round($marginPercent, 2)
+                        ]
+                    ]);
+                    break;
+                }
+                
+                if ($customPrice !== null) {
+                    $result = $pricingEngine->calculateMarginImpact($drugId, $customPrice);
+                } else {
+                    $result = $pricingEngine->calculateMargin($drugId);
+                }
+                
+                sendResponse([
+                    'success' => !isset($result['error']),
+                    'data' => $result
+                ]);
+            } catch (Exception $e) {
+                sendError('Pricing calculation error: ' . $e->getMessage(), 500);
             }
-            
-            if ($customPrice !== null) {
-                $result = $pricingEngine->calculateMarginImpact($drugId, $customPrice);
-            } else {
-                $result = $pricingEngine->calculateMargin($drugId);
-            }
-            
-            sendResponse([
-                'success' => !isset($result['error']),
-                'data' => $result
-            ]);
             break;
 
         // ============================================

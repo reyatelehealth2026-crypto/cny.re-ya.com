@@ -1988,6 +1988,21 @@ function escapeHtml(text) {
 }
 
 /**
+ * Escape string for use in HTML attributes (especially onclick)
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeAttr(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+}
+
+/**
  * Scroll chat to bottom
  */
 function scrollToBottom() {
@@ -2206,9 +2221,11 @@ function updateSymptomWidget(data) {
             data.recommendations.slice(0, 3).forEach(drug => {
                 const stockClass = drug.stock > 10 ? 'in-stock' : (drug.stock > 0 ? 'low-stock' : 'out-of-stock');
                 const stockText = drug.stock > 10 ? 'มีสินค้า' : (drug.stock > 0 ? `เหลือ ${drug.stock}` : 'หมด');
+                const drugId = drug.id || drug.drugId || 0;
+                const drugNameSafe = escapeAttr(drug.name || '');
                 
                 html += `
-                    <div class="recommended-drug" onclick="selectDrugForInfo(${drug.id || 0}, '${escapeHtml(drug.name || '')}')">
+                    <div class="recommended-drug" onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
                         <div>
                             <div class="text-xs font-medium text-gray-800">${escapeHtml(drug.name || 'ยา')}</div>
                             <div class="text-[10px] text-gray-500">${escapeHtml(drug.dosage || '')}</div>
@@ -3094,12 +3111,15 @@ function updateDrugRecommendationsWidget(data) {
     
     content.innerHTML = `
         <div class="space-y-2">
-            ${recommendations.slice(0, 5).map(drug => `
+            ${recommendations.slice(0, 5).map(drug => {
+                const drugId = drug.id || drug.drugId || 0;
+                const drugNameSafe = escapeAttr(drug.name || '');
+                return `
                 <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer"
-                     onclick="selectDrugForInfo(${drug.id || 0}, '${escapeHtml(drug.name || '')}')">
+                     onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
                     <div class="flex-1 min-w-0">
                         <div class="text-xs font-medium text-gray-800 truncate">${escapeHtml(drug.name || '')}</div>
-                        <div class="text-[10px] text-gray-500">${drug.category || ''}</div>
+                        <div class="text-[10px] text-gray-500">${escapeHtml(drug.category || '')}</div>
                     </div>
                     <div class="text-right ml-2">
                         <div class="text-xs font-medium text-green-600">฿${(drug.price || 0).toLocaleString()}</div>
@@ -3108,7 +3128,7 @@ function updateDrugRecommendationsWidget(data) {
                         </div>
                     </div>
                 </div>
-            `).join('')}
+            `}).join('')}
         </div>
     `;
 }
