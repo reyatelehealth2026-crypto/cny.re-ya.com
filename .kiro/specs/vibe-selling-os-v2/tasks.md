@@ -30,13 +30,8 @@
     - Implement `suggestAlternatives()` method
     - Implement `getCustomerLoyalty()` method
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
   - [x] 3.2 Write property test for margin calculation
-
-
-
-
-
-
     - **Property 1: Drug Margin Calculation Correctness**
     - **Validates: Requirements 3.1**
 
@@ -49,22 +44,11 @@
     - Implement `getHealthProfile()` method
     - Implement `getAllergies()` method
     - Implement `getMedications()` method
-
-
     - Implement `classifyCustomer()` method
     - Implement `getDraftStyle()` method
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-
-
-  - [x]* 4.2 Write property test for health profile classification
-
-
-
-
-
-
-
+  - [x] 4.2 Write property test for health profile classification
     - **Property 4: Health Profile Classification Completeness**
     - **Validates: Requirements 2.1**
 
@@ -75,12 +59,12 @@
 
 - [x] 6. Implement PharmacyImageAnalyzerService
   - [x] 6.1 Create `classes/PharmacyImageAnalyzerService.php`
-
     - Implement `analyzeSymptom()` method using Gemini Vision API
     - Implement `identifyDrug()` method
     - Implement `ocrPrescription()` method
     - Implement `checkUrgency()` method
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
   - [ ]* 6.2 Write property test for urgent symptom detection
     - **Property 13: Urgent Symptom Detection**
     - **Validates: Requirements 1.5**
@@ -95,12 +79,15 @@
     - Implement `generateDrugCard()` method
     - Implement `getSafeAlternatives()` method
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
+
   - [ ]* 7.2 Write property test for allergy check before recommendation
     - **Property 8: Allergy Check Before Recommendation**
     - **Validates: Requirements 2.6, 7.2**
+
   - [ ]* 7.3 Write property test for drug interaction detection
     - **Property 9: Drug Interaction Detection**
     - **Validates: Requirements 1.4, 7.2**
+
   - [ ]* 7.4 Write property test for out-of-stock exclusion
     - **Property 10: Recommendations Exclude Out-of-Stock Drugs**
     - **Validates: Requirements 10.2**
@@ -119,20 +106,10 @@
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
   - [x] 9.2 Write property test for ghost draft learning
-
-
-
-
-
     - **Property 11: Ghost Draft Learning Stores Edit Data**
     - **Validates: Requirements 6.5**
 
-
-
-  - [x]* 9.3 Write property test for prescription drug disclaimer
-
-
-
+  - [x] 9.3 Write property test for prescription drug disclaimer
     - **Property 12: Prescription Drug Disclaimer**
     - **Validates: Requirements 6.6**
 
@@ -140,45 +117,15 @@
   - [x] 10.1 Create `classes/ConsultationAnalyzerService.php`
     - Implement `detectStage()` method
     - Implement `getContextWidgets()` method
-
-
-
-
-
-
-
-
-
-
     - Implement `getQuickActions()` method
     - Implement `detectUrgency()` method
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-  - [x]* 10.2 Write property test for symptom keyword triggers widget
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  - [x] 10.2 Write property test for symptom keyword triggers widget
     - **Property 6: Symptom Keyword Triggers Drug Widget**
     - **Validates: Requirements 4.1**
 
-
-
-  - [x]* 10.3 Write property test for drug name triggers info widget
-
-
+  - [x] 10.3 Write property test for drug name triggers info widget
     - **Property 7: Drug Name Triggers Info Widget**
     - **Validates: Requirements 4.2**
 
@@ -227,58 +174,31 @@
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
 - [x] 15. Implement Ghost Draft UI JavaScript
-
-
-
-
-
-
   - [x] 15.1 Add ghost draft JavaScript functionality
-
     - Implement `generateGhostDraft()` function to call API
     - Show AI draft as faded text in input field
     - Tab to accept, type to replace
     - _Requirements: 6.2, 6.3, 6.4_
 
   - [x] 15.2 Add draft learning feedback
-
     - Track edits and send to learning API via `learnFromEdit()`
     - _Requirements: 6.5_
 
-
-
 - [x] 16. Implement Context-Aware Quick Actions
-
-
-
-
   - [x] 16.1 Add dynamic quick action buttons
-
     - Fetch actions from `/quick-actions` API based on consultation stage
     - Change based on consultation stage
     - Highlight urgent actions when needed
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
 - [x] 17. Implement HUD Widget JavaScript Interactivity
-
-
-
-
-
-
   - [x] 17.1 Add JavaScript for dynamic widget updates
-
     - Implement `refreshHUD()` function
     - Implement `toggleWidget()` function
     - Auto-update widgets based on message context via `/context-widgets` API
-
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-
-
 - [x] 18. Checkpoint - Ensure UI components work
-
-
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Phase 8: Image Analysis UI
@@ -288,28 +208,18 @@
     - Upload image → preview → send
     - _Requirements: 1.1_
 
-
 - [x] 20. Add specialized image analysis buttons
-
-
-
-
   - [x] 20.1 Add symptom image analysis button
-
-
     - Upload symptom image → call `/analyze-symptom` API → show results in HUD widget
     - _Requirements: 1.1, 1.5_
+
   - [x] 20.2 Add drug photo recognition button
-
     - Upload drug photo → call `/analyze-drug` API → show drug info in HUD widget
-
     - _Requirements: 1.2_
 
   - [x] 20.3 Add prescription OCR button
-
     - Upload prescription → call `/analyze-prescription` API → show drug list with interaction check
     - _Requirements: 1.3, 1.4_
-
 
 ## Phase 9: Voice Command (Optional)
 
@@ -318,6 +228,7 @@
     - Listen for "Vibe" wake word
     - Process voice commands
     - _Requirements: 5.1, 5.4, 5.5_
+
   - [ ]* 21.2 Add voice response (Text-to-Speech)
     - Respond with customer history summary
     - Warn about drug interactions verbally
@@ -325,32 +236,15 @@
 
 ## Phase 10: Analytics Dashboard
 
-
 - [x] 22. Create consultation analytics UI
-
-
-
-
-
   - [x] 22.1 Add analytics tab to inbox-v2.php
-
     - Show consultation success rate by symptom category
     - Show response time impact
     - Show AI suggestion acceptance rate
     - Fetch data from `/analytics` API endpoint
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-
 - [x] 23. Final Checkpoint - Full system test
-
-
-
-
-
-
-
-
-
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Phase 11: Integration & Polish
@@ -358,9 +252,11 @@
 - [x] 24. Integrate with existing pharmacy systems
   - [x] 24.1 Connect to existing drug_interactions table
     - _Requirements: 10.5_
+
   - [x] 24.2 Connect to users table for medical history
     - Use existing medical_conditions, drug_allergies, current_medications fields
     - _Requirements: 10.1, 10.4_
+
   - [x] 24.3 Connect to business_items for drug inventory
     - _Requirements: 10.2, 10.3_
 
