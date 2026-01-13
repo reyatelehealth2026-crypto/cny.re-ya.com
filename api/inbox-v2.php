@@ -147,13 +147,17 @@ try {
             }
             
             if (!$imageAnalyzer->isConfigured()) {
-                sendError('AI API key not configured', 503);
+                sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
             
             $result = $imageAnalyzer->analyzeSymptom($imageUrl);
             
+            if (!($result['success'] ?? false)) {
+                sendError($result['error'] ?? 'การวิเคราะห์อาการล้มเหลว');
+            }
+            
             sendResponse([
-                'success' => $result['success'] ?? false,
+                'success' => true,
                 'data' => $result
             ]);
             break;
@@ -181,13 +185,17 @@ try {
             }
             
             if (!$imageAnalyzer->isConfigured()) {
-                sendError('AI API key not configured', 503);
+                sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
             
             $result = $imageAnalyzer->identifyDrug($imageUrl);
             
+            if (!($result['success'] ?? false)) {
+                sendError($result['error'] ?? 'การวิเคราะห์รูปภาพล้มเหลว');
+            }
+            
             sendResponse([
-                'success' => $result['success'] ?? false,
+                'success' => true,
                 'data' => $result
             ]);
             break;
@@ -217,13 +225,17 @@ try {
             }
             
             if (!$imageAnalyzer->isConfigured()) {
-                sendError('AI API key not configured', 503);
+                sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
             
             $result = $imageAnalyzer->ocrPrescription($imageUrl, $userId ?: null);
             
+            if (!($result['success'] ?? false)) {
+                sendError($result['error'] ?? 'การอ่านใบสั่งยาล้มเหลว');
+            }
+            
             sendResponse([
-                'success' => $result['success'] ?? false,
+                'success' => true,
                 'data' => $result
             ]);
             break;
