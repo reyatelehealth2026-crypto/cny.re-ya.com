@@ -52,7 +52,15 @@ try {
 
 // Request parameters
 $method = $_SERVER['REQUEST_METHOD'];
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+// Get action from POST, GET, or JSON body
+$jsonBody = [];
+$rawInput = file_get_contents('php://input');
+if (!empty($rawInput)) {
+    $jsonBody = json_decode($rawInput, true) ?: [];
+}
+
+$action = $_POST['action'] ?? $_GET['action'] ?? $jsonBody['action'] ?? '';
 
 // Get LINE account ID and admin ID from session or request
 $lineAccountId = $_SESSION['current_bot_id'] ?? $_SESSION['line_account_id'] ?? $_GET['line_account_id'] ?? $_POST['line_account_id'] ?? 1;

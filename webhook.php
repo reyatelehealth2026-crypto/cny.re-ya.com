@@ -758,14 +758,32 @@ if (!$line) {
             }
             
             // ========== ตรวจสอบ Pending Order - ลูกค้าตอบ "ยืนยัน" ==========
+            // Debug: log user state
+            devLog($db, 'debug', 'webhook', 'Checking pending order state', [
+                'user_id' => $user['id'],
+                'has_state' => $userState ? 'yes' : 'no',
+                'state' => $userState['state'] ?? 'none',
+                'message' => mb_substr($messageText, 0, 30)
+            ], $userId);
+            
             if ($userState && $userState['state'] === 'pending_order') {
                 $confirmKeywords = ['ยืนยัน', 'ตกลง', 'ok', 'yes', 'confirm', 'สั่งเลย', 'เอา', 'ได้'];
                 $cancelKeywords = ['ยกเลิก', 'cancel', 'no', 'ไม่เอา', 'ไม่'];
                 
                 $textLowerTrim = mb_strtolower(trim($messageText));
                 
+                devLog($db, 'debug', 'webhook', 'Pending order - checking keywords', [
+                    'user_id' => $user['id'],
+                    'text_lower' => $textLowerTrim,
+                    'is_confirm' => in_array($textLowerTrim, $confirmKeywords) ? 'yes' : 'no'
+                ], $userId);
+                
                 if (in_array($textLowerTrim, $confirmKeywords)) {
                     // สร้าง Order จาก pending order
+                    devLog($db, 'info', 'webhook', 'Creating order from pending state', [
+                        'user_id' => $user['id']
+                    ], $userId);
+                    
                     $orderCreated = createOrderFromPendingState($db, $line, $user['id'], $userId, $userState, $replyToken, $lineAccountId);
                     if ($orderCreated) {
                         clearUserState($db, $user['id']);
