@@ -174,8 +174,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             case 'ai_reply':
                 require_once 'modules/AIChat/Autoloader.php';
                 $userId = intval($_POST['user_id'] ?? 0);
-                $lastMessage = $_POST['last_message'] ?? '';
+                $selectedMessage = $_POST['selected_message'] ?? $_POST['last_message'] ?? '';
+                $tone = $_POST['tone'] ?? 'friendly'; // friendly, formal, casual, empathetic, professional
+                $customInstruction = trim($_POST['custom_instruction'] ?? '');
+                $context = $_POST['context'] ?? '';
+                
                 if (!$userId) throw new Exception("User ID required");
+                if (empty($selectedMessage)) throw new Exception("กรุณาเลือกข้อความที่ต้องการให้ AI ช่วยคิดคำตอบ");
                 
                 $stmt = $db->prepare("SELECT line_user_id, line_account_id FROM users WHERE id = ?");
                 $stmt->execute([$userId]);
@@ -185,8 +190,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $adapter = new \Modules\AIChat\Adapters\GeminiChatAdapter($db, $user['line_account_id']);
                 if (!$adapter->isEnabled()) throw new Exception("AI ยังไม่ได้เปิดใช้งาน");
                 
-                $response = $adapter->generateResponse($lastMessage, $userId);
-                echo json_encode(['success' => true, 'message' => $response], JSON_UNESCAPED_UNICODE);
+                // Build tone instruction
+                $toneInstructions = [
+                    'friendly' => 'ตอบด้วยน้ำเสียงเป็นมิตร อบอุ่น ใช้ภาษาที่เข้าถึงง่าย',
+                    'formal' => 'ตอบด้วยน้ำเสียงทางการ สุภาพ เป็นทางการ',
+                    'casual' => 'ตอบด้วยน้ำเสียงสบายๆ เป็นกันเอง ใช้ภาษาพูดทั่วไป',
+                    'empathetic' => 'ตอบด้วยความเข้าใจ เห็นอกเห็นใจ แสดงความห่วงใย',
+                    'professional' => 'ตอบด้วยความเป็นมืออาชีพ ให้ข้อมูลที่ถูกต้องชัดเจน'
+                ];
+                $toneText = $toneInstructions[$tone] ?? $toneInstructions['friendly'];
+                
+                // Build enhanced prompt
+                $enhancedPrompt = "ข้อความจากลูกค้า: \"{$selectedMessage}\"\n\n";
+                $enhancedPrompt .= "คำแนะนำ: {$toneText}";
+                
+                if (!empty($customInstruction)) {
+                    $enhancedPrompt .= "\nคำแนะนำเพิ่มเติม: {$customInstruction}";
+                }
+                
+                if (!empty($context)) {
+                    $contextData = json_decode($context, true);
+                    if ($contextData && is_array($contextData)) {
+                        $enhancedPrompt .= "\n\nบริบทการสนทนา:\n";
+                        foreach (array_slice($contextData, -5) as $msg) {
+                            $role = $msg['role'] === 'customer' ? 'ลูกค้า' : 'เรา';
+                            $enhancedPrompt .= "- {$role}: {$msg['text']}\n";
+                        }
+                    }
+                }
+                
+                $response = $adapter->generateResponse($enhancedPrompt, $userId);
+                echo json_encode([
+                    'success' => true, 
+                    'message' => $response,
+                    'tone' => $tone,
+                    'selected_message' => $selectedMessage
+                ], JSON_UNESCAPED_UNICODE);
                 break;
                 
             case 'update_tags':
@@ -581,6 +620,29 @@ function formatThaiDateTime($datetime) {
 .sender-badge.admin { background: #DBEAFE; color: #1E40AF; }
 .sender-badge.ai { background: #E0E7FF; color: #4338CA; }
 .sender-badge.bot { background: #FEE2E2; color: #991B1B; }
+
+/* AI Panel Enhanced Styles */
+.tone-btn {
+    transition: all 0.2s ease;
+}
+.tone-btn:hover {
+    transform: translateY(-1px);
+}
+.tone-btn.active {
+    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+}
+#aiSelectedMessage {
+    transition: all 0.2s ease;
+}
+#aiSelectedMessage:hover {
+    border-color: #818CF8;
+}
+.message-picker-item {
+    transition: all 0.15s ease;
+}
+.message-picker-item:hover {
+    transform: translateX(4px);
+}
 
 /* Quick Reply Modal Styles - Requirements: 2.1, 2.2 */
 #quickReplyModal {
@@ -1436,20 +1498,97 @@ function formatThaiDateTime($datetime) {
             </div>
         </div>
 
-        <!-- AI Suggestion Panel -->
-        <div id="aiPanel" class="hidden border-t bg-indigo-50 p-3">
-            <div class="flex items-start gap-3">
-                <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-2">
+        <!-- AI Suggestion Panel - Enhanced with tone selection and message picker -->
+        <div id="aiPanel" class="hidden border-t bg-indigo-50">
+            <!-- AI Configuration Section -->
+            <div id="aiConfigSection" class="p-3 border-b border-indigo-100">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
                         <i class="fas fa-robot text-indigo-600"></i>
-                        <span class="text-sm font-medium text-indigo-700">AI แนะนำ:</span>
-                        <button onclick="closeAIPanel()" class="ml-auto text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                        <span class="text-sm font-medium text-indigo-700">AI ช่วยคิดคำตอบ</span>
                     </div>
-                    <p id="aiSuggestion" class="text-sm text-gray-700 bg-white rounded-lg p-3 border"></p>
+                    <button onclick="closeAIPanel()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
                 </div>
-                <button onclick="useAISuggestion()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
-                    <i class="fas fa-check mr-1"></i>ใช้
+                
+                <!-- Selected Message Display -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-500 mb-1 block">ข้อความที่เลือก:</label>
+                    <div id="aiSelectedMessage" class="bg-white rounded-lg p-2 border text-sm text-gray-700 min-h-[40px] cursor-pointer hover:border-indigo-300" onclick="openMessagePicker()">
+                        <span class="text-gray-400">คลิกเพื่อเลือกข้อความจากลูกค้า...</span>
+                    </div>
+                </div>
+                
+                <!-- Tone Selection -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-500 mb-1 block">โทนเสียง:</label>
+                    <div class="flex flex-wrap gap-2" id="toneSelector">
+                        <button type="button" data-tone="friendly" class="tone-btn active px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white">
+                            <i class="fas fa-smile mr-1"></i>เป็นมิตร
+                        </button>
+                        <button type="button" data-tone="formal" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <i class="fas fa-user-tie mr-1"></i>ทางการ
+                        </button>
+                        <button type="button" data-tone="casual" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <i class="fas fa-coffee mr-1"></i>สบายๆ
+                        </button>
+                        <button type="button" data-tone="empathetic" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <i class="fas fa-heart mr-1"></i>เข้าใจ
+                        </button>
+                        <button type="button" data-tone="professional" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+                            <i class="fas fa-briefcase mr-1"></i>มืออาชีพ
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Custom Instruction -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-500 mb-1 block">คำแนะนำเพิ่มเติม (ไม่บังคับ):</label>
+                    <input type="text" id="aiCustomInstruction" placeholder="เช่น แนะนำสินค้า, ให้ส่วนลด 10%, นัดหมาย..." 
+                           class="w-full px-3 py-2 bg-white rounded-lg border text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                
+                <!-- Generate Button -->
+                <button onclick="generateAIReplyEnhanced()" id="aiGenerateBtn" class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+                    <i class="fas fa-magic mr-1"></i>สร้างคำตอบ
                 </button>
+            </div>
+            
+            <!-- AI Result Section -->
+            <div id="aiResultSection" class="hidden p-3">
+                <div class="flex items-center gap-2 mb-2">
+                    <i class="fas fa-lightbulb text-yellow-500"></i>
+                    <span class="text-sm font-medium text-gray-700">AI แนะนำ:</span>
+                    <button onclick="regenerateAIReply()" class="ml-auto text-xs text-indigo-600 hover:text-indigo-700">
+                        <i class="fas fa-redo mr-1"></i>สร้างใหม่
+                    </button>
+                </div>
+                <textarea id="aiSuggestion" class="w-full text-sm text-gray-700 bg-white rounded-lg p-3 border min-h-[80px] resize-none focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="useAISuggestion()" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+                        <i class="fas fa-check mr-1"></i>ใช้คำตอบนี้
+                    </button>
+                    <button onclick="editAISuggestion()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
+                        <i class="fas fa-edit mr-1"></i>แก้ไข
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Message Picker Modal -->
+        <div id="messagePickerModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col">
+                <div class="p-3 border-b flex items-center justify-between bg-gray-50 rounded-t-xl">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-comments text-indigo-500"></i>
+                        <span class="font-medium text-gray-700">เลือกข้อความจากลูกค้า</span>
+                    </div>
+                    <button onclick="closeMessagePicker()" class="text-gray-400 hover:text-gray-600 p-1">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="messagePickerList" class="flex-1 overflow-y-auto chat-scroll p-2">
+                    <!-- Messages will be populated here -->
+                </div>
             </div>
         </div>
 
@@ -3074,11 +3213,20 @@ async function sendImage() {
     sendBtn.innerHTML = '<i class="fas fa-paper-plane mr-1"></i>ส่งรูป';
 }
 
-// ===== AI Reply =====
+// ===== AI Reply - Enhanced with tone selection and message picker =====
+let selectedAIMessage = '';
+let selectedAITone = 'friendly';
+let conversationContextForAI = [];
+
 async function generateAIReply() {
-    // Get last few messages for context
-    const messageItems = [...document.querySelectorAll('.message-item')].slice(-10);
-    let conversationContext = [];
+    // Open AI Panel and show config section
+    document.getElementById('aiPanel').classList.remove('hidden');
+    document.getElementById('aiConfigSection').classList.remove('hidden');
+    document.getElementById('aiResultSection').classList.add('hidden');
+    
+    // Get last customer messages for context
+    const messageItems = [...document.querySelectorAll('.message-item')].slice(-15);
+    conversationContextForAI = [];
     let lastCustomerMessage = '';
     
     messageItems.forEach(el => {
@@ -3086,28 +3234,111 @@ async function generateAIReply() {
         if (bubble) {
             const text = bubble.textContent.trim();
             if (el.querySelector('.chat-incoming')) {
-                conversationContext.push({ role: 'customer', text });
+                conversationContextForAI.push({ role: 'customer', text });
                 lastCustomerMessage = text;
             } else if (el.querySelector('.chat-outgoing')) {
-                conversationContext.push({ role: 'admin', text });
+                conversationContextForAI.push({ role: 'admin', text });
             }
         }
     });
     
-    if (!lastCustomerMessage) {
-        alert('ไม่พบข้อความจากลูกค้า');
+    // Auto-select last customer message
+    if (lastCustomerMessage) {
+        selectMessageForAI(lastCustomerMessage);
+    }
+    
+    // Scroll to AI panel
+    document.getElementById('aiPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function selectMessageForAI(message) {
+    selectedAIMessage = message;
+    const displayEl = document.getElementById('aiSelectedMessage');
+    displayEl.innerHTML = `<span class="text-gray-700">${escapeHtml(message)}</span>`;
+    displayEl.classList.add('border-indigo-300', 'bg-indigo-50');
+}
+
+function openMessagePicker() {
+    const modal = document.getElementById('messagePickerModal');
+    const listContainer = document.getElementById('messagePickerList');
+    
+    // Get all incoming messages
+    const messageItems = [...document.querySelectorAll('.message-item')];
+    const incomingMessages = [];
+    
+    messageItems.forEach(el => {
+        const bubble = el.querySelector('.chat-bubble');
+        if (bubble && el.querySelector('.chat-incoming')) {
+            const text = bubble.textContent.trim();
+            const timeEl = el.querySelector('.msg-meta span');
+            const time = timeEl ? timeEl.textContent : '';
+            incomingMessages.push({ text, time });
+        }
+    });
+    
+    // Render messages (newest first)
+    listContainer.innerHTML = incomingMessages.reverse().map((msg, idx) => `
+        <div class="message-picker-item p-3 border-b border-gray-100 cursor-pointer hover:bg-indigo-50 rounded-lg mb-1 ${selectedAIMessage === msg.text ? 'bg-indigo-100 border-indigo-300' : ''}" 
+             onclick="pickMessage(this, '${escapeHtml(msg.text).replace(/'/g, "\\'")}')">
+            <p class="text-sm text-gray-700">${escapeHtml(msg.text)}</p>
+            <span class="text-xs text-gray-400 mt-1 block">${msg.time}</span>
+        </div>
+    `).join('') || '<p class="text-center text-gray-400 py-4">ไม่พบข้อความจากลูกค้า</p>';
+    
+    modal.classList.remove('hidden');
+}
+
+function pickMessage(el, message) {
+    selectMessageForAI(message);
+    closeMessagePicker();
+}
+
+function closeMessagePicker() {
+    document.getElementById('messagePickerModal').classList.add('hidden');
+}
+
+// Tone selection
+document.addEventListener('DOMContentLoaded', function() {
+    const toneSelector = document.getElementById('toneSelector');
+    if (toneSelector) {
+        toneSelector.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tone-btn');
+            if (btn) {
+                // Remove active from all
+                toneSelector.querySelectorAll('.tone-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-indigo-600', 'text-white');
+                    b.classList.add('bg-gray-100', 'text-gray-600');
+                });
+                // Add active to clicked
+                btn.classList.add('active', 'bg-indigo-600', 'text-white');
+                btn.classList.remove('bg-gray-100', 'text-gray-600');
+                selectedAITone = btn.dataset.tone;
+            }
+        });
+    }
+});
+
+async function generateAIReplyEnhanced() {
+    if (!selectedAIMessage) {
+        alert('กรุณาเลือกข้อความที่ต้องการให้ AI ช่วยคิดคำตอบ');
         return;
     }
     
-    document.getElementById('aiPanel').classList.remove('hidden');
-    document.getElementById('aiSuggestion').innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI กำลังวิเคราะห์บริบทและคิดคำตอบ...';
+    const btn = document.getElementById('aiGenerateBtn');
+    const originalBtnText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>AI กำลังคิด...';
+    
+    const customInstruction = document.getElementById('aiCustomInstruction').value.trim();
     
     try {
         const formData = new FormData();
         formData.append('action', 'ai_reply');
         formData.append('user_id', userId);
-        formData.append('last_message', lastCustomerMessage);
-        formData.append('context', JSON.stringify(conversationContext));
+        formData.append('selected_message', selectedAIMessage);
+        formData.append('tone', selectedAITone);
+        formData.append('custom_instruction', customInstruction);
+        formData.append('context', JSON.stringify(conversationContextForAI));
         
         const res = await fetch('', {
             method: 'POST',
@@ -3117,25 +3348,49 @@ async function generateAIReply() {
         const data = await res.json();
         
         if (data.success && data.message) {
-            document.getElementById('aiSuggestion').textContent = data.message;
+            // Show result section
+            document.getElementById('aiConfigSection').classList.add('hidden');
+            document.getElementById('aiResultSection').classList.remove('hidden');
+            document.getElementById('aiSuggestion').value = data.message;
         } else {
-            document.getElementById('aiSuggestion').textContent = 'Error: ' + (data.error || 'ไม่สามารถสร้างคำตอบได้');
+            alert('Error: ' + (data.error || 'ไม่สามารถสร้างคำตอบได้'));
         }
     } catch (err) {
-        document.getElementById('aiSuggestion').textContent = 'Error: ' + err.message;
+        alert('Error: ' + err.message);
     }
+    
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
+}
+
+function regenerateAIReply() {
+    // Go back to config section
+    document.getElementById('aiConfigSection').classList.remove('hidden');
+    document.getElementById('aiResultSection').classList.add('hidden');
+}
+
+function editAISuggestion() {
+    // Focus on the textarea for editing
+    const textarea = document.getElementById('aiSuggestion');
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 }
 
 function useAISuggestion() {
-    const suggestion = document.getElementById('aiSuggestion').textContent;
+    const suggestion = document.getElementById('aiSuggestion').value.trim();
     if (suggestion && !suggestion.startsWith('Error:')) {
         document.getElementById('messageInput').value = suggestion;
+        autoResize(document.getElementById('messageInput'));
         closeAIPanel();
+        document.getElementById('messageInput').focus();
     }
 }
 
 function closeAIPanel() {
     document.getElementById('aiPanel').classList.add('hidden');
+    // Reset state
+    document.getElementById('aiConfigSection').classList.remove('hidden');
+    document.getElementById('aiResultSection').classList.add('hidden');
 }
 
 // ===== Tags =====
