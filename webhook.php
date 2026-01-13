@@ -3110,6 +3110,18 @@ if (!$line) {
                     return false;
                 }
                 
+                // Check if transactions table exists
+                try {
+                    $tableCheck = $db->query("SHOW TABLES LIKE 'transactions'")->fetch();
+                    if (!$tableCheck) {
+                        devLog($db, 'error', 'createOrderFromPendingState', 'transactions table does not exist', ['user_id' => $dbUserId]);
+                        return false;
+                    }
+                } catch (Exception $e) {
+                    devLog($db, 'error', 'createOrderFromPendingState', 'Error checking tables: ' . $e->getMessage(), ['user_id' => $dbUserId]);
+                    return false;
+                }
+                
                 // Generate order number
                 $orderNumber = 'ORD' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
                 
@@ -3121,19 +3133,27 @@ if (!$line) {
                 ]);
                 
                 // Create transaction - use only columns that definitely exist
-                $stmt = $db->prepare("INSERT INTO transactions 
-                    (line_account_id, order_number, user_id, total_amount, subtotal, discount, grand_total, status, payment_status, note) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?)");
-                $stmt->execute([
-                    $lineAccountId,
-                    $orderNumber,
-                    $dbUserId,
-                    $total,
-                    $subtotal,
-                    $discount,
-                    $total,
-                    'สร้างจากแชท - ลูกค้ายืนยัน'
-                ]);
+                try {
+                    $stmt = $db->prepare("INSERT INTO transactions 
+                        (line_account_id, order_number, user_id, total_amount, subtotal, discount, grand_total, status, payment_status, note) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?)");
+                    $stmt->execute([
+                        $lineAccountId,
+                        $orderNumber,
+                        $dbUserId,
+                        $total,
+                        $subtotal,
+                        $discount,
+                        $total,
+                        'สร้างจากแชท - ลูกค้ายืนยัน'
+                    ]);
+                } catch (PDOException $e) {
+                    devLog($db, 'error', 'createOrderFromPendingState', 'Failed to insert transaction: ' . $e->getMessage(), [
+                        'user_id' => $dbUserId,
+                        'sql_error' => $e->getCode()
+                    ]);
+                    return false;
+                }
                 
                 $transactionId = $db->lastInsertId();
                 
@@ -3141,20 +3161,35 @@ if (!$line) {
                     'transaction_id' => $transactionId
                 ]);
                 
-                // Insert transaction items
-                foreach ($items as $item) {
-                    $itemSubtotal = (float)($item['price'] ?? 0) * (int)($item['qty'] ?? 1);
-                    $stmt = $db->prepare("INSERT INTO transaction_items 
-                        (transaction_id, product_id, product_name, product_price, quantity, subtotal) 
-                        VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([
-                        $transactionId,
-                        $item['id'] ?? null,
-                        $item['name'] ?? 'Unknown',
-                        $item['price'] ?? 0,
-                        $item['qty'] ?? 1,
-                        $itemSubtotal
+                // Insert transaction items - check if table exists first
+                try {
+                    $itemTableCheck = $db->query("SHOW TABLES LIKE 'transaction_items'")->fetch();
+                    if ($itemTableCheck) {
+                        foreach ($items as $item) {
+                            $itemSubtotal = (float)($item['price'] ?? 0) * (int)($item['qty'] ?? 1);
+                            $stmt = $db->prepare("INSERT INTO transaction_items 
+                                (transaction_id, product_id, product_name, product_price, quantity, subtotal) 
+                                VALUES (?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([
+                                $transactionId,
+                                $item['id'] ?? null,
+                                $item['name'] ?? 'Unknown',
+                                $item['price'] ?? 0,
+                                $item['qty'] ?? 1,
+                                $itemSubtotal
+                            ]);
+                        }
+                    } else {
+                        devLog($db, 'warning', 'createOrderFromPendingState', 'transaction_items table does not exist, skipping items insert', [
+                            'transaction_id' => $transactionId
+                        ]);
+                    }
+                } catch (PDOException $e) {
+                    devLog($db, 'error', 'createOrderFromPendingState', 'Failed to insert transaction items: ' . $e->getMessage(), [
+                        'transaction_id' => $transactionId,
+                        'sql_error' => $e->getCode()
                     ]);
+                    // Continue anyway - transaction was created
                 }
                 
                 devLog($db, 'info', 'createOrderFromPendingState', 'Order created', [

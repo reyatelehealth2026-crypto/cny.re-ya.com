@@ -757,42 +757,39 @@ function formatThaiDateTime($datetime) {
     position: relative;
 }
 
-/* Quick Actions Bar Styles - Requirements: 9.1-9.5 */
+/* Quick Actions Bar Styles - Unified Design */
 #quickActionsBar {
     transition: all 0.3s ease;
 }
+/* Unified Action Button Style - All buttons look the same */
 .quick-action-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 11px;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
     font-weight: 500;
-    border: 1px solid #E5E7EB;
-    background: white;
-    color: #374151;
+    border: none;
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    color: white;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
 }
 .quick-action-btn:hover {
-    background: #F3F4F6;
-    border-color: #D1D5DB;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
 }
 .quick-action-btn:active {
     transform: translateY(0);
 }
 .quick-action-btn.urgent {
-    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
-    border-color: #F87171;
-    color: #DC2626;
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
     animation: urgentPulse 2s infinite;
 }
 .quick-action-btn.urgent:hover {
-    background: linear-gradient(135deg, #FECACA 0%, #FCA5A5 100%);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
 }
 @keyframes urgentPulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
@@ -800,14 +797,12 @@ function formatThaiDateTime($datetime) {
 }
 .quick-action-btn.primary {
     background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
-    border-color: #7C3AED;
-    color: white;
 }
 .quick-action-btn.primary:hover {
-    background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
 }
 .quick-action-btn .action-icon {
-    font-size: 12px;
+    font-size: 14px;
 }
 .quick-actions-stage-badge {
     display: inline-flex;
