@@ -1448,13 +1448,13 @@ function formatThaiDateTime($datetime) {
             </div>
             
             <!-- Customer Profile Widget -->
-            <?php if ($customerClassification): ?>
-            <div class="hud-widget" id="customerProfileWidget">
+            <div class="hud-widget" id="customerProfileWidget" data-widget="health-profile">
                 <div class="hud-widget-header" onclick="toggleWidget('customerProfileWidget')">
                     <h4><i class="fas fa-user-circle text-indigo-500"></i> โปรไฟล์ลูกค้า</h4>
                     <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
                 </div>
-                <div class="hud-widget-body">
+                <div class="hud-widget-body widget-content">
+                    <?php if ($customerClassification): ?>
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs text-gray-500">ประเภทการสื่อสาร</span>
                         <span class="customer-type-badge type-<?= strtolower($customerClassification['type'] ?? 'a') ?>">
@@ -1473,6 +1473,11 @@ function formatThaiDateTime($datetime) {
                         <div class="w-full bg-gray-200 rounded-full h-1.5">
                             <div class="bg-purple-500 h-1.5 rounded-full" style="width: <?= ($customerClassification['confidence'] ?? 0) * 100 ?>%"></div>
                         </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php else: ?>
+                    <div class="text-center text-gray-400 text-xs py-2">
+                        <p>กำลังโหลดข้อมูล...</p>
                     </div>
                     <?php endif; ?>
                     <?php if (!empty($customerClassification['tips'])): ?>
@@ -2930,11 +2935,140 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Initialize HUD with context from last customer message - Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
         const lastMessage = getLastCustomerMessage();
-        if (lastMessage) {
-            autoUpdateHUDWidgets(lastMessage);
-        }
+        initializeHUD(lastMessage || '');
     }
 });
+
+/**
+ * Initialize HUD Dashboard with user data
+ * Loads health profile, drug info, and recommendations
+ */
+async function initializeHUD(message = '') {
+    if (!ghostDraftState.userId) return;
+    
+    try {
+        // Load health profile
+        const healthParams = new URLSearchParams({
+            action: 'customer_health',
+            user_id: ghostDraftState.userId
+        });
+        const healthResponse = await fetch(`api/inbox-v2.php?${healthParams.toString()}`);
+        const healthResult = await healthResponse.json();
+        
+        if (healthResult.success && healthResult.data) {
+            updateHealthProfileWidget(healthResult.data);
+        }
+        
+        // Load context widgets if we have a message
+        if (message) {
+            autoUpdateHUDWidgets(message);
+        }
+        
+        // Load drug recommendations based on recent conversation
+        const recsParams = new URLSearchParams({
+            action: 'recommendations',
+            user_id: ghostDraftState.userId,
+            type: 'context'
+        });
+        const recsResponse = await fetch(`api/inbox-v2.php?${recsParams.toString()}`);
+        const recsResult = await recsResponse.json();
+        
+        if (recsResult.success && recsResult.data && recsResult.data.recommendations) {
+            updateDrugRecommendationsWidget(recsResult.data);
+        }
+        
+    } catch (error) {
+        console.error('Initialize HUD error:', error);
+    }
+}
+
+/**
+ * Update health profile widget in HUD
+ */
+function updateHealthProfileWidget(data) {
+    const container = document.querySelector('#hudDashboard [data-widget="health-profile"]');
+    if (!container) return;
+    
+    const content = container.querySelector('.widget-content');
+    if (!content) return;
+    
+    const profile = data.profile || data;
+    const commType = profile.communication_type || 'A';
+    const confidence = profile.confidence || 100;
+    
+    content.innerHTML = `
+        <div class="space-y-2">
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">ประเภทการสื่อสาร</span>
+                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                    ${commType === 'A' ? 'Direct' : commType === 'B' ? 'Detailed' : 'Casual'}
+                </span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">ความมั่นใจ</span>
+                <span class="text-xs font-medium">${confidence}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div class="bg-purple-500 h-1.5 rounded-full" style="width: ${confidence}%"></div>
+            </div>
+            ${profile.allergies && profile.allergies.length > 0 ? `
+            <div class="mt-2 p-2 bg-red-50 rounded text-xs">
+                <span class="text-red-600 font-medium">⚠️ แพ้ยา:</span>
+                <span class="text-red-700">${profile.allergies.join(', ')}</span>
+            </div>
+            ` : ''}
+            ${profile.conditions && profile.conditions.length > 0 ? `
+            <div class="mt-1 p-2 bg-yellow-50 rounded text-xs">
+                <span class="text-yellow-600 font-medium">📋 โรคประจำตัว:</span>
+                <span class="text-yellow-700">${profile.conditions.join(', ')}</span>
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Update drug recommendations widget in HUD
+ */
+function updateDrugRecommendationsWidget(data) {
+    const container = document.querySelector('#hudDashboard [data-widget="drug-recommendations"]');
+    if (!container) return;
+    
+    const content = container.querySelector('.widget-content');
+    if (!content) return;
+    
+    const recommendations = data.recommendations || [];
+    
+    if (recommendations.length === 0) {
+        content.innerHTML = `
+            <div class="text-center text-gray-400 py-2">
+                <i class="fas fa-pills text-2xl mb-1"></i>
+                <p class="text-xs">ยังไม่มีคำแนะนำยา</p>
+            </div>
+        `;
+        return;
+    }
+    
+    content.innerHTML = `
+        <div class="space-y-2">
+            ${recommendations.slice(0, 5).map(drug => `
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer"
+                     onclick="selectDrugForInfo(${drug.id || 0}, '${escapeHtml(drug.name || '')}')">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-medium text-gray-800 truncate">${escapeHtml(drug.name || '')}</div>
+                        <div class="text-[10px] text-gray-500">${drug.category || ''}</div>
+                    </div>
+                    <div class="text-right ml-2">
+                        <div class="text-xs font-medium text-green-600">฿${(drug.price || 0).toLocaleString()}</div>
+                        <div class="text-[10px] ${drug.stock > 10 ? 'text-green-500' : drug.stock > 0 ? 'text-yellow-500' : 'text-red-500'}">
+                            ${drug.stock > 10 ? 'มีสินค้า' : drug.stock > 0 ? 'เหลือ ' + drug.stock : 'หมด'}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
 
 /**
  * Quick Actions State and Functions
