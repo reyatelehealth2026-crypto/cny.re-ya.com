@@ -3122,6 +3122,7 @@ function updateDrugRecommendationsWidget(data) {
     if (!content) return;
     
     const recommendations = data.recommendations || [];
+    const dataType = data.type || 'unknown';
     
     if (recommendations.length === 0) {
         content.innerHTML = `
@@ -3133,22 +3134,64 @@ function updateDrugRecommendationsWidget(data) {
         return;
     }
     
+    // Helper function to get match badge based on type
+    const getMatchBadge = (drug) => {
+        if (!drug.matchScore && !drug.matchType) return '';
+        
+        const matchType = drug.matchType || 'partial';
+        const score = drug.matchScore || 0;
+        
+        if (matchType === 'exact' || score >= 200) {
+            return `<span class="text-[9px] bg-green-500 text-white px-1 rounded font-medium">✓ ตรงเป๊ะ</span>`;
+        } else if (matchType === 'recent' || score >= 100) {
+            return `<span class="text-[9px] bg-blue-500 text-white px-1 rounded">🕐 ล่าสุด</span>`;
+        } else if (score >= 50) {
+            return `<span class="text-[9px] bg-green-100 text-green-600 px-1 rounded">ตรงกัน</span>`;
+        } else {
+            return `<span class="text-[9px] bg-gray-100 text-gray-500 px-1 rounded">คล้าย</span>`;
+        }
+    };
+    
+    // Get border color based on match quality
+    const getBorderClass = (drug, index) => {
+        const matchType = drug.matchType || 'partial';
+        const score = drug.matchScore || 0;
+        
+        if (matchType === 'exact' || score >= 200) {
+            return 'border-green-500 bg-green-50';
+        } else if (matchType === 'recent' || score >= 100) {
+            return 'border-blue-400 bg-blue-50';
+        } else if (index < 3 && score >= 50) {
+            return 'border-green-300';
+        }
+        return 'border-transparent';
+    };
+    
     content.innerHTML = `
+        <div class="text-[10px] text-gray-400 mb-2 flex items-center justify-between">
+            <span>${dataType === 'chat_history' ? '📝 จากประวัติแชท' : dataType === 'message_search' ? '💬 จากข้อความ' : '📊 ยอดนิยม'}</span>
+            <span>${recommendations.length} รายการ</span>
+        </div>
         <div class="space-y-2 max-h-80 overflow-y-auto">
             ${recommendations.slice(0, 10).map((drug, index) => {
                 const drugId = drug.id || drug.drugId || 0;
                 const drugNameSafe = escapeAttr(drug.name || '');
-                const matchBadge = drug.matchScore ? `<span class="text-[9px] bg-green-100 text-green-600 px-1 rounded">ตรงกัน</span>` : '';
+                const matchBadge = getMatchBadge(drug);
+                const borderClass = getBorderClass(drug, index);
+                const reasons = drug.matchReasons || [];
+                const reasonText = reasons.length > 0 ? reasons.slice(0, 2).map(r => r.split(':')[1] || r).join(', ') : '';
+                
                 return `
-                <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer border-l-2 ${index < 3 ? 'border-green-400' : 'border-transparent'}"
-                     onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer border-l-3 ${borderClass}"
+                     onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')"
+                     title="${reasonText ? 'ตรงกับ: ' + reasonText : ''}">
                     <div class="flex-1 min-w-0">
                         <div class="text-xs font-medium text-gray-800 truncate flex items-center gap-1">
                             ${escapeHtml(drug.name || '')} ${matchBadge}
                         </div>
-                        <div class="text-[10px] text-gray-500">${escapeHtml(drug.category || drug.sku || '')}</div>
+                        <div class="text-[10px] text-gray-500 truncate">${escapeHtml(drug.sku || drug.category || '')}</div>
                     </div>
-                    <div class="text-right ml-2">
+                    <div class="text-right ml-2 flex-shrink-0">
                         <div class="text-xs font-medium text-green-600">฿${(drug.price || 0).toLocaleString()}</div>
                         <div class="text-[10px] ${drug.stock > 10 ? 'text-green-500' : drug.stock > 0 ? 'text-yellow-500' : 'text-red-500'}">
                             ${drug.stock > 10 ? 'มีสินค้า' : drug.stock > 0 ? 'เหลือ ' + drug.stock : 'หมด'}

@@ -1027,15 +1027,15 @@ class ConsultationAnalyzerService
         $drugs = [];
         
         try {
-            // Get recent messages from this user (last 50 messages)
+            // Get recent messages from this user (last 100 messages for better context)
             $stmt = $this->db->prepare("
-                SELECT content, message_type 
+                SELECT content, message_type, created_at
                 FROM messages 
                 WHERE user_id = ? 
                 AND direction = 'incoming'
                 AND message_type = 'text'
                 ORDER BY created_at DESC 
-                LIMIT 50
+                LIMIT 100
             ");
             $stmt->execute([$userId]);
             $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1044,12 +1044,25 @@ class ConsultationAnalyzerService
                 return [];
             }
             
-            // Combine all messages into one text for analysis
+            // Combine all messages - weight recent messages higher
             $allText = '';
-            foreach ($messages as $msg) {
-                $allText .= ' ' . ($msg['content'] ?? '');
+            $recentText = ''; // Last 10 messages
+            foreach ($messages as $idx => $msg) {
+                $content = $msg['content'] ?? '';
+                $allText .= ' ' . $content;
+                if ($idx < 10) {
+                    $recentText .= ' ' . $content;
+                }
             }
             $allTextLower = mb_strtolower($allText);
+            $recentTextLower = mb_strtolower($recentText);
+            
+            // Common words to ignore (Thai and English)
+            $ignoreWords = [
+                'ครับ', 'ค่ะ', 'นะ', 'จ้า', 'ได้', 'ไหม', 'มี', 'ไม่', 'อยาก', 'ต้องการ',
+                'สั่ง', 'ซื้อ', 'เอา', 'ขอ', 'หน่อย', 'ด้วย', 'กับ', 'และ', 'หรือ',
+                'the', 'and', 'for', 'with', 'this', 'that', 'have', 'from'
+            ];
             
             // Get all active products - check available columns first
             $columnsStmt = $this->db->query("SHOW COLUMNS FROM business_items");
@@ -1067,64 +1080,110 @@ class ConsultationAnalyzerService
                 WHERE is_active = 1 
                 AND (line_account_id = ? OR line_account_id IS NULL)
                 ORDER BY stock DESC
-                LIMIT 1000
+                LIMIT 2000
             ");
             $stmt->execute([$this->lineAccountId]);
             $allProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             $matchedProducts = [];
             $matchScores = [];
+            $matchReasons = [];
             
             foreach ($allProducts as $product) {
                 $score = 0;
-                $productName = mb_strtolower($product['name']);
+                $reasons = [];
+                $productName = $product['name'];
+                $productNameLower = mb_strtolower($productName);
                 $productSku = mb_strtolower($product['sku'] ?? '');
                 $genericName = mb_strtolower($product['generic_name'] ?? '');
                 $activeIngredient = mb_strtolower($product['active_ingredient'] ?? '');
                 
-                // Extract words from product name
-                $nameWords = preg_split('/[\s\-\/\(\)\[\],\.]+/u', $productName);
+                // === EXACT MATCH (highest priority) ===
+                // Check if full product name appears in chat
+                if (mb_strlen($productNameLower) >= 4 && mb_strpos($allTextLower, $productNameLower) !== false) {
+                    $score += 200;
+                    $reasons[] = 'exact_name';
+                    // Bonus if in recent messages
+                    if (mb_strpos($recentTextLower, $productNameLower) !== false) {
+                        $score += 100;
+                        $reasons[] = 'recent';
+                    }
+                }
                 
-                // Check each word
+                // === PARTIAL NAME MATCH ===
+                // Extract significant words from product name (4+ chars, not common words)
+                $nameWords = preg_split('/[\s\-\/\(\)\[\],\.0-9]+/u', $productNameLower);
+                $significantMatches = 0;
+                
                 foreach ($nameWords as $word) {
                     $word = trim($word);
-                    if (mb_strlen($word) >= 3) {
-                        // Count occurrences in chat
-                        $count = mb_substr_count($allTextLower, $word);
-                        if ($count > 0) {
-                            $score += $count * mb_strlen($word); // Longer words = higher score
+                    // Skip short words and common words
+                    if (mb_strlen($word) < 4 || in_array($word, $ignoreWords)) {
+                        continue;
+                    }
+                    
+                    // Check for word boundary match (more accurate)
+                    $pattern = '/\b' . preg_quote($word, '/') . '/ui';
+                    if (preg_match($pattern, $allText)) {
+                        $wordScore = mb_strlen($word) * 5;
+                        $score += $wordScore;
+                        $significantMatches++;
+                        
+                        // Bonus for recent match
+                        if (preg_match($pattern, $recentText)) {
+                            $score += $wordScore * 2;
+                            $reasons[] = 'word_recent:' . $word;
+                        } else {
+                            $reasons[] = 'word:' . $word;
                         }
+                    }
+                    
+                    // Fuzzy match for Thai (check if word is contained)
+                    if (mb_strpos($allTextLower, $word) !== false && !preg_match($pattern, $allText)) {
+                        $score += mb_strlen($word) * 2;
+                        $reasons[] = 'fuzzy:' . $word;
                     }
                 }
                 
-                // Check SKU
+                // Bonus for multiple word matches
+                if ($significantMatches >= 2) {
+                    $score += $significantMatches * 20;
+                    $reasons[] = 'multi_match';
+                }
+                
+                // === SKU MATCH ===
                 if ($productSku && mb_strlen($productSku) >= 3) {
                     if (mb_strpos($allTextLower, $productSku) !== false) {
-                        $score += 50;
+                        $score += 80;
+                        $reasons[] = 'sku';
                     }
                 }
                 
-                // Check generic name
-                if ($genericName && mb_strlen($genericName) >= 3) {
+                // === GENERIC NAME MATCH ===
+                if ($genericName && mb_strlen($genericName) >= 4) {
                     if (mb_strpos($allTextLower, $genericName) !== false) {
-                        $score += 30;
+                        $score += 60;
+                        $reasons[] = 'generic';
                     }
                 }
                 
-                // Check active ingredient
-                if ($activeIngredient && mb_strlen($activeIngredient) >= 3) {
-                    $ingredients = preg_split('/[\s,\/]+/u', $activeIngredient);
+                // === ACTIVE INGREDIENT MATCH ===
+                if ($activeIngredient && mb_strlen($activeIngredient) >= 4) {
+                    $ingredients = preg_split('/[\s,\/\+]+/u', $activeIngredient);
                     foreach ($ingredients as $ing) {
                         $ing = trim($ing);
-                        if (mb_strlen($ing) >= 3 && mb_strpos($allTextLower, $ing) !== false) {
-                            $score += 20;
+                        if (mb_strlen($ing) >= 4 && mb_strpos($allTextLower, $ing) !== false) {
+                            $score += 40;
+                            $reasons[] = 'ingredient:' . $ing;
                         }
                     }
                 }
                 
-                if ($score > 0) {
+                // Only include if score is significant enough
+                if ($score >= 20) {
                     $matchedProducts[] = $product;
                     $matchScores[$product['id']] = $score;
+                    $matchReasons[$product['id']] = $reasons;
                 }
             }
             
@@ -1142,6 +1201,16 @@ class ConsultationAnalyzerService
                 $price = (float)($product['sale_price'] ?? $product['price'] ?? 0);
                 $cost = $price * 0.7;
                 $margin = $price > 0 ? round((($price - $cost) / $price) * 100, 1) : null;
+                $score = $matchScores[$product['id']] ?? 0;
+                $reasons = $matchReasons[$product['id']] ?? [];
+                
+                // Determine match type for UI
+                $matchType = 'partial';
+                if (in_array('exact_name', $reasons)) {
+                    $matchType = 'exact';
+                } elseif (in_array('recent', $reasons) || count(array_filter($reasons, fn($r) => strpos($r, 'recent') !== false)) > 0) {
+                    $matchType = 'recent';
+                }
                 
                 $drugs[] = [
                     'id' => (int)$product['id'],
@@ -1156,14 +1225,16 @@ class ConsultationAnalyzerService
                     'category' => 'ยาทั่วไป',
                     'dosage' => $product['description'] ?? '',
                     'imageUrl' => $product['image_url'],
-                    'matchScore' => $matchScores[$product['id']] ?? 0
+                    'matchScore' => $score,
+                    'matchType' => $matchType,
+                    'matchReasons' => array_slice($reasons, 0, 3) // Top 3 reasons
                 ];
                 
                 if (count($drugs) >= $limit) break;
             }
             
         } catch (PDOException $e) {
-            error_log("ConsultationAnalyzer searchDrugsFromChatHistory error: " . $e->getMessage());
+            error_log("ConsultationAnalyzerService searchDrugsFromChatHistory error: " . $e->getMessage());
         }
         
         return $drugs;
