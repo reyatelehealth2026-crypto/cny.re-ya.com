@@ -2493,31 +2493,44 @@ function updateSymptomWidget(data) {
                 </div>
             `;
             
-            // Show found items in list format
+            // Show found items with checkboxes
             if (found.length > 0) {
-                html += `<div class="space-y-1.5 max-h-64 overflow-y-auto">`;
-                found.slice(0, 10).forEach(drug => {
+                html += `<div class="space-y-1.5 max-h-64 overflow-y-auto" id="detectedProductsList">`;
+                found.slice(0, 10).forEach((drug, index) => {
                     const drugId = drug.id || drug.drugId || 0;
                     const drugNameSafe = escapeAttr(drug.name || '');
+                    const drugPriceSafe = drug.price || 0;
                     const matchBadge = getMatchBadge(drug);
                     const borderClass = getBorderClass(drug);
                     const stockClass = drug.stock > 10 ? 'text-green-500' : 'text-yellow-500';
                     const subText = drug.sku || drug.nameEn || drug.category || '';
+                    const score = drug.matchScore || 0;
                     
                     html += `
-                        <div class="flex items-center justify-between p-2 rounded hover:bg-gray-100 cursor-pointer ${borderClass}"
-                             onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
-                            <div class="flex-1 min-w-0">
+                        <div class="flex items-center p-2 rounded hover:bg-gray-100 ${borderClass}">
+                            <input type="checkbox" 
+                                   id="drug_check_${drugId}" 
+                                   class="detected-drug-checkbox w-4 h-4 mr-2 accent-emerald-500 cursor-pointer"
+                                   data-drug-id="${drugId}"
+                                   data-drug-name="${drugNameSafe}"
+                                   data-drug-price="${drugPriceSafe}"
+                                   checked
+                                   onchange="updateSelectedTotal()">
+                            <div class="flex-1 min-w-0 cursor-pointer" onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
                                 <div class="text-xs font-medium text-gray-800 truncate flex items-center gap-1">
                                     ${escapeHtml(drug.name || '')} ${matchBadge}
                                 </div>
                                 <div class="text-[10px] text-gray-500 truncate">${escapeHtml(subText)}</div>
                             </div>
                             <div class="text-right ml-2 flex-shrink-0">
-                                <div class="text-xs font-medium text-green-600">฿${(drug.price || 0).toLocaleString()}</div>
+                                <div class="text-xs font-medium text-green-600">฿${drugPriceSafe.toLocaleString()}</div>
                                 <div class="text-[10px] ${stockClass}">
                                     ${drug.stock > 10 ? 'มีสินค้า' : 'เหลือ ' + drug.stock}
                                 </div>
+                            </div>
+                            <div class="ml-2 text-right flex-shrink-0" title="คะแนนความตรงกัน">
+                                <div class="text-[10px] font-bold ${score >= 100 ? 'text-green-600' : score >= 50 ? 'text-blue-500' : 'text-gray-400'}">${score}</div>
+                                <div class="text-[8px] text-gray-400">คะแนน</div>
                             </div>
                         </div>
                     `;
@@ -2537,17 +2550,24 @@ function updateSymptomWidget(data) {
                 `;
             }
             
-            // Add to order button
+            // Add selected to order button
             if (found.length > 0) {
                 html += `
-                    <div class="mt-2 flex justify-between items-center">
-                        <span class="text-[10px] text-gray-500">${found.length} รายการ | ฿${found.reduce((sum, d) => sum + (d.price || 0), 0).toLocaleString()}</span>
-                        <button onclick="addDetectedToOrder()" class="text-[10px] px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-medium">
-                            <i class="fas fa-cart-plus mr-1"></i>เพิ่มทั้งหมด
+                    <div class="mt-2 p-2 bg-gray-50 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="flex items-center text-[10px] text-gray-600 cursor-pointer">
+                                <input type="checkbox" id="selectAllProducts" class="mr-1 accent-emerald-500" checked onchange="toggleSelectAll(this)">
+                                เลือกทั้งหมด
+                            </label>
+                            <span id="selectedTotal" class="text-[10px] font-medium text-emerald-600">${found.length} รายการ | ฿${found.reduce((sum, d) => sum + (d.price || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <button onclick="addSelectedToOrder()" class="w-full text-[11px] px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium">
+                            <i class="fas fa-cart-plus mr-1"></i>เพิ่มที่เลือกในออเดอร์
                         </button>
                     </div>
                 `;
                 // Store detected drugs for adding to order
+                window.detectedDrugs = found;
                 window.detectedDrugs = found;
             }
             
@@ -2615,7 +2635,69 @@ function addDetectedToOrder() {
 }
 
 /**
- * Add all checked items to order
+ * Add selected (checked) items to order
+ */
+function addSelectedToOrder() {
+    const checkboxes = document.querySelectorAll('.detected-drug-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        showNotification('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ', 'warning');
+        return;
+    }
+    
+    checkboxes.forEach(cb => {
+        const drugId = parseInt(cb.dataset.drugId);
+        const drugName = cb.dataset.drugName;
+        const drugPrice = parseFloat(cb.dataset.drugPrice);
+        
+        if (drugId && drugName) {
+            addDrugToOrder(drugId, drugName, drugPrice);
+        }
+    });
+    
+    showNotification(`เพิ่ม ${checkboxes.length} รายการในออเดอร์แล้ว`, 'success');
+}
+
+/**
+ * Toggle select all checkboxes
+ */
+function toggleSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.detected-drug-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCheckbox.checked;
+    });
+    updateSelectedTotal();
+}
+
+/**
+ * Update selected total display
+ */
+function updateSelectedTotal() {
+    const checkboxes = document.querySelectorAll('.detected-drug-checkbox:checked');
+    let total = 0;
+    let count = 0;
+    
+    checkboxes.forEach(cb => {
+        total += parseFloat(cb.dataset.drugPrice) || 0;
+        count++;
+    });
+    
+    const totalEl = document.getElementById('selectedTotal');
+    if (totalEl) {
+        totalEl.textContent = `${count} รายการ | ฿${total.toLocaleString()}`;
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.detected-drug-checkbox');
+    const selectAllEl = document.getElementById('selectAllProducts');
+    if (selectAllEl && allCheckboxes.length > 0) {
+        selectAllEl.checked = checkboxes.length === allCheckboxes.length;
+        selectAllEl.indeterminate = checkboxes.length > 0 && checkboxes.length < allCheckboxes.length;
+    }
+}
+
+/**
+ * Add all checked items to order (legacy function)
  */
 function addAllCheckedToOrder() {
     const checkboxes = document.querySelectorAll('.drug-want-checkbox:checked');
