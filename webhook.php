@@ -3135,14 +3135,13 @@ if (!$line) {
                 // Create transaction - use only columns that definitely exist
                 try {
                     $stmt = $db->prepare("INSERT INTO transactions 
-                        (line_account_id, order_number, user_id, total_amount, subtotal, discount, grand_total, status, payment_status, note) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?)");
+                        (line_account_id, order_number, user_id, total_amount, discount, grand_total, status, payment_status, note) 
+                        VALUES (?, ?, ?, ?, ?, ?, 'pending', 'pending', ?)");
                     $stmt->execute([
                         $lineAccountId,
                         $orderNumber,
                         $dbUserId,
                         $total,
-                        $subtotal,
                         $discount,
                         $total,
                         'สร้างจากแชท - ลูกค้ายืนยัน'
