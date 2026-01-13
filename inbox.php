@@ -621,18 +621,78 @@ function formatThaiDateTime($datetime) {
 .sender-badge.ai { background: #E0E7FF; color: #4338CA; }
 .sender-badge.bot { background: #FEE2E2; color: #991B1B; }
 
-/* AI Panel Enhanced Styles */
+/* AI Panel - Draggable & Resizable Floating Card */
+#aiPanel {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 320px;
+    min-width: 280px;
+    max-width: 500px;
+    z-index: 100;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    overflow: hidden;
+    animation: popIn 0.25s ease-out;
+    resize: both;
+    min-height: 200px;
+    max-height: 80vh;
+}
+#aiPanel.dragging {
+    opacity: 0.9;
+    cursor: grabbing;
+}
+#aiPanel.minimized {
+    width: 200px !important;
+    height: auto !important;
+    min-height: auto;
+}
+#aiPanel.minimized #aiConfigSection,
+#aiPanel.minimized #aiResultSection {
+    display: none;
+}
+@keyframes popIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+#aiPanel.closing {
+    animation: popOut 0.2s ease-in forwards;
+}
+@keyframes popOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9) translateY(20px); }
+}
+#aiConfigSection {
+    padding: 12px !important;
+    max-height: calc(100% - 40px);
+    overflow-y: auto;
+}
+#aiResultSection {
+    padding: 12px !important;
+    max-height: calc(100% - 40px);
+    overflow-y: auto;
+}
+#aiSuggestion {
+    min-height: 80px;
+    resize: vertical;
+    font-size: 13px;
+}
 .tone-btn {
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
+    padding: 6px 8px !important;
+    font-size: 10px !important;
 }
 .tone-btn:hover {
-    transform: translateY(-1px);
+    transform: scale(1.02);
 }
 .tone-btn.active {
     box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
 }
 #aiSelectedMessage {
     transition: all 0.2s ease;
+    max-height: 50px;
+    overflow-y: auto;
+    font-size: 12px;
 }
 #aiSelectedMessage:hover {
     border-color: #818CF8;
@@ -641,7 +701,56 @@ function formatThaiDateTime($datetime) {
     transition: all 0.15s ease;
 }
 .message-picker-item:hover {
-    transform: translateX(4px);
+    background: #EEF2FF;
+}
+/* AI Panel Header - Draggable */
+.ai-panel-header {
+    padding: 8px 10px;
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: grab;
+    user-select: none;
+}
+.ai-panel-header:active {
+    cursor: grabbing;
+}
+.ai-panel-header h3 {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+}
+.ai-panel-controls {
+    display: flex;
+    gap: 4px;
+}
+.ai-panel-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    font-size: 10px;
+}
+.ai-panel-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+/* Backdrop for mobile */
+@media (max-width: 768px) {
+    #aiPanel {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 0;
+    }
 }
 
 /* Quick Reply Modal Styles - Requirements: 2.1, 2.2 */
@@ -1498,91 +1607,77 @@ function formatThaiDateTime($datetime) {
             </div>
         </div>
 
-        <!-- AI Suggestion Panel - Enhanced with tone selection and message picker -->
-        <div id="aiPanel" class="hidden border-t bg-indigo-50">
-            <!-- AI Configuration Section -->
-            <div id="aiConfigSection" class="p-3 border-b border-indigo-100">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-robot text-indigo-600"></i>
-                        <span class="text-sm font-medium text-indigo-700">AI ช่วยคิดคำตอบ</span>
-                    </div>
-                    <button onclick="closeAIPanel()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        <!-- AI Suggestion Panel - Draggable & Resizable -->
+        <div id="aiPanel" class="hidden bg-white">
+            <!-- Panel Header - Drag Handle -->
+            <div class="ai-panel-header" id="aiPanelHeader">
+                <h3><i class="fas fa-robot mr-1"></i>AI ช่วยคิดคำตอบ</h3>
+                <div class="ai-panel-controls">
+                    <button onclick="toggleAIPanelSize()" class="ai-panel-btn" title="ย่อ/ขยาย"><i class="fas fa-compress-alt" id="aiSizeIcon"></i></button>
+                    <button onclick="closeAIPanel()" class="ai-panel-btn" title="ปิด"><i class="fas fa-times"></i></button>
                 </div>
-                
+            </div>
+            
+            <!-- AI Configuration Section -->
+            <div id="aiConfigSection" class="p-3 bg-gray-50">
                 <!-- Selected Message Display -->
                 <div class="mb-3">
-                    <label class="text-xs text-gray-500 mb-1 block">ข้อความที่เลือก:</label>
-                    <div id="aiSelectedMessage" class="bg-white rounded-lg p-2 border text-sm text-gray-700 min-h-[40px] cursor-pointer hover:border-indigo-300" onclick="openMessagePicker()">
-                        <span class="text-gray-400">คลิกเพื่อเลือกข้อความจากลูกค้า...</span>
+                    <label class="text-[10px] font-medium text-gray-500 mb-1 block">ข้อความที่เลือก:</label>
+                    <div id="aiSelectedMessage" class="bg-white rounded-lg p-2 border border-dashed border-gray-300 text-xs text-gray-700 min-h-[36px] cursor-pointer hover:border-indigo-400 transition-all" onclick="openMessagePicker()">
+                        <span class="text-gray-400">คลิกเพื่อเลือก...</span>
                     </div>
                 </div>
                 
-                <!-- Tone Selection -->
+                <!-- Tone Selection - Compact -->
                 <div class="mb-3">
-                    <label class="text-xs text-gray-500 mb-1 block">โทนเสียง:</label>
-                    <div class="flex flex-wrap gap-2" id="toneSelector">
-                        <button type="button" data-tone="friendly" class="tone-btn active px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-600 text-white">
-                            <i class="fas fa-smile mr-1"></i>เป็นมิตร
-                        </button>
-                        <button type="button" data-tone="formal" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-                            <i class="fas fa-user-tie mr-1"></i>ทางการ
-                        </button>
-                        <button type="button" data-tone="casual" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-                            <i class="fas fa-coffee mr-1"></i>สบายๆ
-                        </button>
-                        <button type="button" data-tone="empathetic" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-                            <i class="fas fa-heart mr-1"></i>เข้าใจ
-                        </button>
-                        <button type="button" data-tone="professional" class="tone-btn px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
-                            <i class="fas fa-briefcase mr-1"></i>มืออาชีพ
-                        </button>
+                    <label class="text-[10px] font-medium text-gray-500 mb-1 block">โทนเสียง:</label>
+                    <div class="flex flex-wrap gap-1" id="toneSelector">
+                        <button type="button" data-tone="friendly" class="tone-btn active px-2 py-1 rounded text-[10px] font-medium bg-indigo-600 text-white">😊 เป็นมิตร</button>
+                        <button type="button" data-tone="formal" class="tone-btn px-2 py-1 rounded text-[10px] font-medium bg-white border text-gray-600">👔 ทางการ</button>
+                        <button type="button" data-tone="casual" class="tone-btn px-2 py-1 rounded text-[10px] font-medium bg-white border text-gray-600">☕ สบายๆ</button>
+                        <button type="button" data-tone="empathetic" class="tone-btn px-2 py-1 rounded text-[10px] font-medium bg-white border text-gray-600">❤️ เข้าใจ</button>
+                        <button type="button" data-tone="professional" class="tone-btn px-2 py-1 rounded text-[10px] font-medium bg-white border text-gray-600">💼 มืออาชีพ</button>
                     </div>
                 </div>
                 
                 <!-- Custom Instruction -->
                 <div class="mb-3">
-                    <label class="text-xs text-gray-500 mb-1 block">คำแนะนำเพิ่มเติม (ไม่บังคับ):</label>
-                    <input type="text" id="aiCustomInstruction" placeholder="เช่น แนะนำสินค้า, ให้ส่วนลด 10%, นัดหมาย..." 
-                           class="w-full px-3 py-2 bg-white rounded-lg border text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <input type="text" id="aiCustomInstruction" placeholder="คำแนะนำเพิ่มเติม (ไม่บังคับ)..." 
+                           class="w-full px-2 py-1.5 bg-white rounded border text-xs focus:ring-1 focus:ring-indigo-500 outline-none">
                 </div>
                 
                 <!-- Generate Button -->
-                <button onclick="generateAIReplyEnhanced()" id="aiGenerateBtn" class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+                <button onclick="generateAIReplyEnhanced()" id="aiGenerateBtn" class="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold">
                     <i class="fas fa-magic mr-1"></i>สร้างคำตอบ
                 </button>
             </div>
             
             <!-- AI Result Section -->
-            <div id="aiResultSection" class="hidden p-3">
+            <div id="aiResultSection" class="hidden p-3 bg-white">
                 <div class="flex items-center gap-2 mb-2">
-                    <i class="fas fa-lightbulb text-yellow-500"></i>
-                    <span class="text-sm font-medium text-gray-700">AI แนะนำ:</span>
-                    <button onclick="regenerateAIReply()" class="ml-auto text-xs text-indigo-600 hover:text-indigo-700">
-                        <i class="fas fa-redo mr-1"></i>สร้างใหม่
+                    <span class="text-xs font-semibold text-gray-700">💡 AI แนะนำ:</span>
+                    <button onclick="regenerateAIReply()" class="ml-auto text-[10px] text-indigo-600 hover:text-indigo-700">
+                        <i class="fas fa-redo"></i> ใหม่
                     </button>
                 </div>
-                <textarea id="aiSuggestion" class="w-full text-sm text-gray-700 bg-white rounded-lg p-3 border min-h-[80px] resize-none focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                <textarea id="aiSuggestion" class="w-full text-xs text-gray-700 bg-gray-50 rounded p-2 border focus:ring-1 focus:ring-indigo-500 outline-none resize-none"></textarea>
                 <div class="flex gap-2 mt-2">
-                    <button onclick="useAISuggestion()" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
-                        <i class="fas fa-check mr-1"></i>ใช้คำตอบนี้
+                    <button onclick="useAISuggestion()" class="flex-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold">
+                        <i class="fas fa-check mr-1"></i>ใช้
                     </button>
-                    <button onclick="editAISuggestion()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
-                        <i class="fas fa-edit mr-1"></i>แก้ไข
+                    <button onclick="regenerateAIReply()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">
+                        <i class="fas fa-redo"></i>
                     </button>
                 </div>
             </div>
         </div>
         
         <!-- Message Picker Modal -->
-        <div id="messagePickerModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col">
-                <div class="p-3 border-b flex items-center justify-between bg-gray-50 rounded-t-xl">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-comments text-indigo-500"></i>
-                        <span class="font-medium text-gray-700">เลือกข้อความจากลูกค้า</span>
-                    </div>
-                    <button onclick="closeMessagePicker()" class="text-gray-400 hover:text-gray-600 p-1">
+        <div id="messagePickerModal" class="hidden fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm max-h-[60vh] flex flex-col">
+                <div class="p-2 border-b flex items-center justify-between bg-indigo-600 rounded-t-xl">
+                    <span class="text-white text-sm font-medium"><i class="fas fa-comments mr-1"></i>เลือกข้อความ</span>
+                    <button onclick="closeMessagePicker()" class="text-white/80 hover:text-white p-1">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -3307,11 +3402,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Remove active from all
                 toneSelector.querySelectorAll('.tone-btn').forEach(b => {
                     b.classList.remove('active', 'bg-indigo-600', 'text-white');
-                    b.classList.add('bg-gray-100', 'text-gray-600');
+                    b.classList.add('bg-white', 'text-gray-600', 'border');
                 });
                 // Add active to clicked
                 btn.classList.add('active', 'bg-indigo-600', 'text-white');
-                btn.classList.remove('bg-gray-100', 'text-gray-600');
+                btn.classList.remove('bg-white', 'text-gray-600', 'border');
                 selectedAITone = btn.dataset.tone;
             }
         });
@@ -3392,6 +3487,98 @@ function closeAIPanel() {
     document.getElementById('aiConfigSection').classList.remove('hidden');
     document.getElementById('aiResultSection').classList.add('hidden');
 }
+
+// ===== AI Panel Drag & Resize =====
+let aiPanelMinimized = false;
+
+function toggleAIPanelSize() {
+    const panel = document.getElementById('aiPanel');
+    const icon = document.getElementById('aiSizeIcon');
+    aiPanelMinimized = !aiPanelMinimized;
+    
+    if (aiPanelMinimized) {
+        panel.classList.add('minimized');
+        icon.className = 'fas fa-expand-alt';
+    } else {
+        panel.classList.remove('minimized');
+        icon.className = 'fas fa-compress-alt';
+    }
+}
+
+// Drag functionality
+(function() {
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const header = document.getElementById('aiPanelHeader');
+        const panel = document.getElementById('aiPanel');
+        
+        if (!header || !panel) return;
+        
+        header.addEventListener('mousedown', startDrag);
+        header.addEventListener('touchstart', startDrag, { passive: false });
+        
+        function startDrag(e) {
+            // Don't drag if clicking on buttons
+            if (e.target.closest('.ai-panel-btn') || e.target.closest('.ai-panel-controls')) return;
+            
+            isDragging = true;
+            panel.classList.add('dragging');
+            
+            const rect = panel.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            dragOffsetX = clientX - rect.left;
+            dragOffsetY = clientY - rect.top;
+            
+            // Switch to top/left positioning
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.left = rect.left + 'px';
+            panel.style.top = rect.top + 'px';
+            
+            e.preventDefault();
+        }
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            let newX = clientX - dragOffsetX;
+            let newY = clientY - dragOffsetY;
+            
+            // Keep within viewport
+            const maxX = window.innerWidth - panel.offsetWidth;
+            const maxY = window.innerHeight - panel.offsetHeight;
+            
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+            
+            panel.style.left = newX + 'px';
+            panel.style.top = newY + 'px';
+            
+            e.preventDefault();
+        }
+        
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
+        
+        function stopDrag() {
+            if (isDragging) {
+                isDragging = false;
+                panel.classList.remove('dragging');
+            }
+        }
+    });
+})();
 
 // ===== Tags =====
 async function addTag(tagId) {

@@ -25,6 +25,7 @@ $tabs = [
     'line' => ['label' => 'LINE Accounts', 'icon' => 'fab fa-line'],
     'welcome' => ['label' => 'ข้อความต้อนรับ', 'icon' => 'fas fa-hand-sparkles'],
     'liff' => ['label' => 'LIFF Settings', 'icon' => 'fas fa-mobile-alt'],
+    'vibe-selling' => ['label' => 'Vibe Selling v2', 'icon' => 'fas fa-brain'],
     'telegram' => ['label' => 'Telegram', 'icon' => 'fab fa-telegram'],
     'email' => ['label' => 'Email/SMTP', 'icon' => 'fas fa-envelope'],
     'notifications' => ['label' => 'การแจ้งเตือน', 'icon' => 'fas fa-bell'],
@@ -409,6 +410,9 @@ echo getTabsStyles();
                 break;
             case 'liff':
                 include 'includes/settings/liff.php';
+                break;
+            case 'vibe-selling':
+                include 'includes/settings/vibe-selling.php';
                 break;
             case 'telegram':
                 include 'includes/settings/telegram.php';

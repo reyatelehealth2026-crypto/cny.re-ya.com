@@ -23,6 +23,9 @@
         <testsuite name="InboxChat Tests">
             <directory>tests/InboxChat</directory>
         </testsuite>
+        <testsuite name="VibeSelling Tests">
+            <directory>tests/VibeSelling</directory>
+        </testsuite>
     </testsuites>
     <coverage>
         <include>
