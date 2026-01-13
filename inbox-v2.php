@@ -577,10 +577,10 @@ function formatThaiDateTime($datetime) {
 /* HUD Dashboard Styles - Requirements: 4.1-4.6 */
 .hud-dashboard {
     position: fixed;
-    top: 60px;
+    top: 0;
     right: 0;
     width: 320px;
-    height: calc(100vh - 60px);
+    height: 100vh;
     background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
     border-left: 1px solid #E2E8F0;
     overflow-y: auto;
@@ -1531,20 +1531,6 @@ function formatThaiDateTime($datetime) {
                 </div>
             </div>
             
-            <!-- Interaction Checker Widget - Requirements: 4.3 -->
-            <div class="hud-widget interaction-widget" id="interactionWidget">
-                <div class="hud-widget-header" onclick="toggleWidget('interactionWidget')">
-                    <h4><i class="fas fa-exchange-alt text-orange-500"></i> ตรวจสอบปฏิกิริยายา</h4>
-                    <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
-                </div>
-                <div class="hud-widget-body">
-                    <div id="interactionContent" class="text-center text-gray-400 text-xs py-4">
-                        <i class="fas fa-check-circle text-green-400 text-2xl mb-2"></i>
-                        <p>ไม่พบปฏิกิริยาระหว่างยา</p>
-                    </div>
-                </div>
-            </div>
-            
             <!-- Product Detection Widget - Wholesale Mode -->
             <div class="hud-widget symptom-widget" id="symptomWidget">
                 <div class="hud-widget-header" onclick="toggleWidget('symptomWidget')">
@@ -1573,7 +1559,7 @@ function formatThaiDateTime($datetime) {
                 </div>
             </div>
             
-            <!-- Customer Profile Widget -->
+            <!-- Customer Profile Widget with Emotion -->
             <div class="hud-widget" id="customerProfileWidget" data-widget="health-profile">
                 <div class="hud-widget-header" onclick="toggleWidget('customerProfileWidget')">
                     <h4><i class="fas fa-user-circle text-indigo-500"></i> โปรไฟล์ลูกค้า</h4>
@@ -1581,6 +1567,30 @@ function formatThaiDateTime($datetime) {
                 </div>
                 <div class="hud-widget-body widget-content">
                     <?php if ($customerClassification): ?>
+                    <!-- Customer Emotion Display -->
+                    <div class="mb-3 p-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-500">อารมณ์ลูกค้า</span>
+                            <span id="customerEmotion" class="text-sm font-medium">
+                                <?php 
+                                // Default emotion - will be updated by JS
+                                $emotion = $customerClassification['emotion'] ?? 'neutral';
+                                $emotionLabels = [
+                                    'angry' => '😠 โมโห',
+                                    'frustrated' => '😤 หงุดหงิด',
+                                    'happy' => '😊 ปลาบปลื้ม',
+                                    'satisfied' => '😌 พอใจ',
+                                    'neutral' => '😐 ปกติ',
+                                    'confused' => '😕 สับสน',
+                                    'worried' => '😟 กังวล',
+                                    'urgent' => '⚡ เร่งด่วน'
+                                ];
+                                echo $emotionLabels[$emotion] ?? '😐 ปกติ';
+                                ?>
+                            </span>
+                        </div>
+                    </div>
+                    
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs text-gray-500">รูปแบบการสื่อสาร</span>
                         <span class="customer-type-badge type-<?= strtolower($customerClassification['type'] ?? 'a') ?>">
@@ -1620,6 +1630,20 @@ function formatThaiDateTime($datetime) {
                         <p>กำลังโหลดข้อมูล...</p>
                     </div>
                     <?php endif; ?>
+                </div>
+            </div>
+            
+            <!-- Interaction Checker Widget - Requirements: 4.3 (Moved to bottom) -->
+            <div class="hud-widget interaction-widget" id="interactionWidget">
+                <div class="hud-widget-header" onclick="toggleWidget('interactionWidget')">
+                    <h4><i class="fas fa-exchange-alt text-orange-500"></i> ตรวจสอบปฏิกิริยายา</h4>
+                    <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                </div>
+                <div class="hud-widget-body">
+                    <div id="interactionContent" class="text-center text-gray-400 text-xs py-4">
+                        <i class="fas fa-check-circle text-green-400 text-2xl mb-2"></i>
+                        <p>ไม่พบปฏิกิริยาระหว่างยา</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2504,7 +2528,6 @@ function updateSymptomWidget(data) {
                     const borderClass = getBorderClass(drug);
                     const stockClass = drug.stock > 10 ? 'text-green-500' : 'text-yellow-500';
                     const subText = drug.sku || drug.nameEn || drug.category || '';
-                    const score = drug.matchScore || 0;
                     
                     html += `
                         <div class="flex items-center p-2 rounded hover:bg-gray-100 ${borderClass}">
@@ -2527,10 +2550,6 @@ function updateSymptomWidget(data) {
                                 <div class="text-[10px] ${stockClass}">
                                     ${drug.stock > 10 ? 'มีสินค้า' : 'เหลือ ' + drug.stock}
                                 </div>
-                            </div>
-                            <div class="ml-2 text-right flex-shrink-0" title="คะแนนความตรงกัน">
-                                <div class="text-[10px] font-bold ${score >= 100 ? 'text-green-600' : score >= 50 ? 'text-blue-500' : 'text-gray-400'}">${score}</div>
-                                <div class="text-[8px] text-gray-400">คะแนน</div>
                             </div>
                         </div>
                     `;
@@ -3113,6 +3132,9 @@ async function autoUpdateHUDWidgets(message) {
         return;
     }
     
+    // Update customer emotion immediately (no API call needed)
+    updateCustomerEmotion(message);
+    
     // Debounce to avoid too many API calls
     if (hudState.refreshDebounceTimer) {
         clearTimeout(hudState.refreshDebounceTimer);
@@ -3637,16 +3659,49 @@ function updateHealthProfileWidget(data) {
     const profile = data.profile || data;
     const commType = profile.communication_type || 'A';
     const confidence = profile.confidence || 100;
+    const emotion = profile.emotion || 'neutral';
     
     // Communication type labels in Thai
     const typeLabels = {
         'A': '⚡ ตรงไปตรงมา',
-        'B': '💝 ใส่ใจรายละเอียด',
+        'B': '� ใส่ใๆจรายละเอียด',
         'C': '📊 สบายๆ ค่อยๆคุย'
+    };
+    
+    // Emotion labels in Thai
+    const emotionLabels = {
+        'angry': '😠 โมโห',
+        'frustrated': '😤 หงุดหงิด',
+        'happy': '😊 ปลาบปลื้ม',
+        'satisfied': '😌 พอใจ',
+        'neutral': '😐 ปกติ',
+        'confused': '😕 สับสน',
+        'worried': '😟 กังวล',
+        'urgent': '⚡ เร่งด่วน'
+    };
+    
+    // Emotion background colors
+    const emotionBgClass = {
+        'angry': 'from-red-50 to-red-100 border-red-200',
+        'frustrated': 'from-orange-50 to-orange-100 border-orange-200',
+        'happy': 'from-green-50 to-green-100 border-green-200',
+        'satisfied': 'from-emerald-50 to-emerald-100 border-emerald-200',
+        'neutral': 'from-gray-50 to-gray-100 border-gray-200',
+        'confused': 'from-yellow-50 to-yellow-100 border-yellow-200',
+        'worried': 'from-amber-50 to-amber-100 border-amber-200',
+        'urgent': 'from-purple-50 to-purple-100 border-purple-200'
     };
     
     content.innerHTML = `
         <div class="space-y-2">
+            <!-- Customer Emotion -->
+            <div class="p-2 bg-gradient-to-r ${emotionBgClass[emotion] || emotionBgClass['neutral']} rounded-lg border">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500">อารมณ์ลูกค้า</span>
+                    <span class="text-sm font-medium">${emotionLabels[emotion] || '😐 ปกติ'}</span>
+                </div>
+            </div>
+            
             <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500">รูปแบบการสื่อสาร</span>
                 <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
@@ -3675,6 +3730,94 @@ function updateHealthProfileWidget(data) {
             ` : ''}
         </div>
     `;
+}
+
+/**
+ * Detect customer emotion from message
+ * @param {string} message Customer message
+ * @returns {string} Detected emotion
+ */
+function detectCustomerEmotion(message) {
+    if (!message) return 'neutral';
+    
+    const msg = message.toLowerCase();
+    
+    // Angry keywords
+    if (/โกรธ|โมโห|หัวร้อน|บ้า|เวร|ห่า|สัตว์|ไอ้|อี|แม่ง|เหี้ย|!{2,}/.test(msg)) {
+        return 'angry';
+    }
+    
+    // Frustrated keywords
+    if (/หงุดหงิด|รำคาญ|เบื่อ|ช้า|นาน|รอ|ทำไม|ไม่ได้|ไม่ดี|แย่/.test(msg)) {
+        return 'frustrated';
+    }
+    
+    // Happy keywords
+    if (/ขอบคุณ|ดีมาก|เยี่ยม|สุดยอด|ชอบ|รัก|ปลื้ม|ดีใจ|😊|😄|🥰|❤️|👍/.test(msg)) {
+        return 'happy';
+    }
+    
+    // Satisfied keywords
+    if (/โอเค|ได้|ดี|เข้าใจ|ตกลง|ok|okay/.test(msg)) {
+        return 'satisfied';
+    }
+    
+    // Confused keywords
+    if (/งง|ไม่เข้าใจ|อะไร|ยังไง|หมายความว่า|\?{2,}|สับสน/.test(msg)) {
+        return 'confused';
+    }
+    
+    // Worried keywords
+    if (/กังวล|กลัว|เป็นห่วง|ไม่แน่ใจ|อันตราย|ผลข้างเคียง/.test(msg)) {
+        return 'worried';
+    }
+    
+    // Urgent keywords
+    if (/ด่วน|เร่ง|รีบ|ตอนนี้|ทันที|asap|urgent/.test(msg)) {
+        return 'urgent';
+    }
+    
+    return 'neutral';
+}
+
+/**
+ * Update customer emotion display
+ * @param {string} message Latest customer message
+ */
+function updateCustomerEmotion(message) {
+    const emotion = detectCustomerEmotion(message);
+    const emotionEl = document.getElementById('customerEmotion');
+    
+    if (emotionEl) {
+        const emotionLabels = {
+            'angry': '😠 โมโห',
+            'frustrated': '😤 หงุดหงิด',
+            'happy': '😊 ปลาบปลื้ม',
+            'satisfied': '😌 พอใจ',
+            'neutral': '😐 ปกติ',
+            'confused': '😕 สับสน',
+            'worried': '😟 กังวล',
+            'urgent': '⚡ เร่งด่วน'
+        };
+        emotionEl.textContent = emotionLabels[emotion] || '😐 ปกติ';
+        
+        // Update background color
+        const emotionBox = emotionEl.closest('.bg-gradient-to-r');
+        if (emotionBox) {
+            emotionBox.className = emotionBox.className.replace(/from-\w+-50 to-\w+-50 border-\w+-100/g, '');
+            const bgClasses = {
+                'angry': 'from-red-50 to-red-100 border-red-200',
+                'frustrated': 'from-orange-50 to-orange-100 border-orange-200',
+                'happy': 'from-green-50 to-green-100 border-green-200',
+                'satisfied': 'from-emerald-50 to-emerald-100 border-emerald-200',
+                'neutral': 'from-amber-50 to-orange-50 border-amber-100',
+                'confused': 'from-yellow-50 to-yellow-100 border-yellow-200',
+                'worried': 'from-amber-50 to-amber-100 border-amber-200',
+                'urgent': 'from-purple-50 to-purple-100 border-purple-200'
+            };
+            emotionBox.classList.add(...(bgClasses[emotion] || bgClasses['neutral']).split(' '));
+        }
+    }
 }
 
 /**
