@@ -2730,10 +2730,42 @@ async function insertDrugToMessage(drugId) {
             const messageInput = document.getElementById('messageInput');
             
             if (messageInput) {
-                const drugText = `💊 ${drug.name}\n` +
-                    `${drug.description ? drug.description + '\n' : ''}` +
-                    `ราคา: ฿${(drug.price || 0).toLocaleString()}` +
-                    `${drug.isPrescription ? '\n⚠️ ยาตามใบสั่งแพทย์' : ''}`;
+                // Build detailed drug text
+                let drugLines = [];
+                
+                // ชื่อสินค้า (Thai name)
+                drugLines.push(`💊 ${drug.name}`);
+                
+                // ชื่อภาษาอังกฤษ (English name) - if available
+                if (drug.nameEn) {
+                    drugLines.push(`   ${drug.nameEn}`);
+                }
+                
+                // ชื่อสามัญ / Generic Name - if available
+                if (drug.genericName) {
+                    drugLines.push(`📋 ชื่อสามัญ: ${drug.genericName}`);
+                }
+                
+                // ผู้ผลิต (Manufacturer) - if available
+                if (drug.manufacturer) {
+                    drugLines.push(`🏭 ผู้ผลิต: ${drug.manufacturer}`);
+                }
+                
+                // หน่วย และ จำนวนคงเหลือ
+                const unit = drug.unit || 'ชิ้น';
+                const stock = drug.stock || 0;
+                drugLines.push(`📦 หน่วย: ${unit} | คงเหลือ: ${stock} ${unit}`);
+                
+                // ราคา
+                const price = drug.effectivePrice || drug.salePrice || drug.price || 0;
+                drugLines.push(`💰 ราคา: ฿${price.toLocaleString()}`);
+                
+                // คำเตือนยาตามใบสั่งแพทย์
+                if (drug.isPrescription) {
+                    drugLines.push(`⚠️ ยาตามใบสั่งแพทย์`);
+                }
+                
+                const drugText = drugLines.join('\n');
                 
                 // Append to existing text or replace
                 if (messageInput.value.trim()) {

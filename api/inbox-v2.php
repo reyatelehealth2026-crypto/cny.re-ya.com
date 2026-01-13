@@ -463,15 +463,25 @@ try {
                     }
                 }
                 
+                // Get effective price (sale_price if available, otherwise price)
+                $effectivePrice = (float)($drug['sale_price'] ?? 0) > 0 
+                    ? (float)$drug['sale_price'] 
+                    : (float)($drug['price'] ?? 0);
+                
                 sendResponse([
                     'success' => true,
                     'data' => [
                         'id' => (int)$drug['id'],
                         'name' => $drug['name'],
+                        'nameEn' => $drug['name_en'] ?? null,
+                        'genericName' => $drug['generic_name'] ?? null,
+                        'manufacturer' => $drug['manufacturer'] ?? null,
+                        'unit' => $drug['unit'] ?? $drug['base_unit'] ?? null,
                         'sku' => $drug['sku'] ?? null,
                         'description' => $drug['description'] ?? null,
                         'price' => (float)($drug['price'] ?? 0),
                         'salePrice' => (float)($drug['sale_price'] ?? 0),
+                        'effectivePrice' => $effectivePrice,
                         'category' => $drug['category_name'] ?? null,
                         'imageUrl' => $drug['image_url'] ?? null,
                         'stock' => (int)($drug['stock'] ?? 0),
@@ -479,6 +489,10 @@ try {
                         'isPrescription' => (bool)($drug['is_prescription'] ?? false),
                         'contraindications' => $drug['contraindications'] ?? null,
                         'dosage' => $drug['dosage'] ?? null,
+                        'usageInstructions' => $drug['usage_instructions'] ?? null,
+                        'activeIngredient' => $drug['active_ingredient'] ?? null,
+                        'dosageForm' => $drug['dosage_form'] ?? null,
+                        'barcode' => $drug['barcode'] ?? null,
                         'pricing' => $pricing
                     ]
                 ]);
