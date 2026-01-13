@@ -2439,7 +2439,7 @@ async function updateWidgetByType(widget) {
 
 /**
  * Update Symptom Widget - Requirements: 4.1
- * Enhanced: Show summary of customer needs, match status, and search box
+ * Enhanced: Checklist format - admin can tick items customer wants
  * @param {Object} data Widget data
  */
 function updateSymptomWidget(data) {
@@ -2452,67 +2452,74 @@ function updateSymptomWidget(data) {
     
     setTimeout(() => {
         if (data.recommendations && data.recommendations.length > 0) {
-            // Count available vs unavailable
-            const available = data.recommendations.filter(d => d.stock > 0);
-            const unavailable = data.recommendations.filter(d => d.stock <= 0);
-            
             let html = `
-                <div class="mb-2">
-                    <span class="symptom-tag">${escapeHtml(data.keyword || data.category || 'ค้นหา')}</span>
-                    <span class="ml-2 text-[10px] text-gray-500">
-                        ✅ มี ${available.length} | ❌ ไม่มี ${unavailable.length}
-                    </span>
+                <div class="mb-2 flex justify-between items-center">
+                    <span class="text-[11px] font-medium text-gray-700">📋 รายการที่ลูกค้าต้องการ</span>
+                    <button onclick="addAllCheckedToOrder()" class="text-[10px] px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded">
+                        <i class="fas fa-cart-plus mr-1"></i>เพิ่มที่เลือก
+                    </button>
                 </div>
+                <div class="space-y-1.5" id="customerWantsList">
             `;
             
-            // Summary section
-            if (available.length > 0) {
-                html += `<div class="text-[10px] text-emerald-600 mb-2 bg-emerald-50 px-2 py-1 rounded">
-                    ✅ พบสินค้าที่มี: ${available.slice(0, 3).map(d => d.name).join(', ')}
-                </div>`;
-            }
-            if (unavailable.length > 0) {
-                html += `<div class="text-[10px] text-red-500 mb-2 bg-red-50 px-2 py-1 rounded">
-                    ❌ ไม่พบ/หมด: ${unavailable.slice(0, 2).map(d => d.name).join(', ')}
-                </div>`;
-            }
-            
-            html += '<div class="space-y-2">';
-            
-            // Show available items first
-            available.slice(0, 3).forEach(drug => {
-                const stockClass = drug.stock > 10 ? 'in-stock' : 'low-stock';
-                const stockText = drug.stock > 10 ? 'มีสินค้า' : `เหลือ ${drug.stock}`;
+            data.recommendations.forEach((drug, index) => {
+                const hasStock = drug.stock > 0;
+                const stockClass = hasStock ? (drug.stock > 10 ? 'text-emerald-500' : 'text-yellow-500') : 'text-red-500';
+                const stockText = hasStock ? `มี ${drug.stock}` : 'หมด';
                 const drugId = drug.id || drug.drugId || 0;
                 const drugNameSafe = escapeAttr(drug.name || '');
-                const nameEn = drug.nameEn ? `<div class="text-[9px] text-gray-400">${escapeHtml(drug.nameEn)}</div>` : '';
-                const genericName = drug.genericName ? `<div class="text-[9px] text-blue-400">${escapeHtml(drug.genericName)}</div>` : '';
+                const checkboxId = `drug_check_${drugId}`;
                 
                 html += `
-                    <div class="recommended-drug" onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')">
-                        <div class="flex-1">
-                            <div class="text-xs font-medium text-gray-800">${escapeHtml(drug.name || 'ยา')}</div>
-                            ${nameEn}${genericName}
-                            <div class="text-[10px] text-gray-500">${escapeHtml(drug.dosage || drug.unit || '')}</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-xs font-bold text-emerald-600">฿${(drug.price || 0).toLocaleString()}</div>
-                            <span class="drug-stock ${stockClass}">${stockText}</span>
-                        </div>
+                    <div class="flex items-center gap-2 p-2 rounded-lg ${hasStock ? 'bg-white border border-gray-100 hover:border-emerald-200' : 'bg-gray-50 border border-gray-100 opacity-60'}">
+                        <input type="checkbox" id="${checkboxId}" 
+                            data-drug-id="${drugId}" 
+                            data-drug-name="${drugNameSafe}" 
+                            data-drug-price="${drug.price || 0}"
+                            data-has-stock="${hasStock}"
+                            class="drug-want-checkbox w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-400"
+                            ${hasStock ? 'checked' : 'disabled'}>
+                        <label for="${checkboxId}" class="flex-1 cursor-pointer">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="text-[11px] font-medium ${hasStock ? 'text-gray-800' : 'text-gray-400'}">${escapeHtml(drug.name || 'ยา')}</div>
+                                    ${drug.nameEn ? `<div class="text-[9px] text-gray-400">${escapeHtml(drug.nameEn)}</div>` : ''}
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-[10px] font-bold ${hasStock ? 'text-emerald-600' : 'text-gray-400'}">฿${(drug.price || 0).toLocaleString()}</div>
+                                    <span class="text-[9px] ${stockClass}">${stockText}</span>
+                                </div>
+                            </div>
+                        </label>
+                        ${hasStock ? `
+                        <button onclick="selectDrugForInfo(${drugId}, '${drugNameSafe}')" class="text-gray-400 hover:text-emerald-500 p-1" title="ดูรายละเอียด">
+                            <i class="fas fa-info-circle text-xs"></i>
+                        </button>
+                        ` : ''}
                     </div>
                 `;
             });
             
             html += '</div>';
             
+            // Summary of checked items
+            html += `
+                <div id="checkedSummary" class="mt-2 p-2 bg-emerald-50 rounded-lg hidden">
+                    <div class="text-[10px] text-emerald-700">
+                        <span id="checkedCount">0</span> รายการ | รวม ฿<span id="checkedTotal">0</span>
+                    </div>
+                </div>
+            `;
+            
             // Add search box for admin to search more
             html += `
                 <div class="mt-3 pt-2 border-t border-gray-100">
+                    <div class="text-[10px] text-gray-500 mb-1">🔍 ค้นหาเพิ่มเติม (ถ้าไม่พบในรายการ)</div>
                     <div class="flex gap-1">
-                        <input type="text" id="drugSearchInput" placeholder="🔍 ค้นหายาเพิ่มเติม..." 
+                        <input type="text" id="drugSearchInput" placeholder="พิมพ์ชื่อยา..." 
                             class="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-emerald-400"
                             onkeypress="if(event.key==='Enter') searchDrugManual()">
-                        <button onclick="searchDrugManual()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg">
+                        <button onclick="searchDrugManual()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg">
                             <i class="fas fa-search"></i>
                         </button>
                     </div>
@@ -2521,18 +2528,25 @@ function updateSymptomWidget(data) {
             `;
             
             content.innerHTML = html;
+            
+            // Add event listeners for checkboxes
+            document.querySelectorAll('.drug-want-checkbox').forEach(cb => {
+                cb.addEventListener('change', updateCheckedSummary);
+            });
+            updateCheckedSummary();
         } else {
             content.innerHTML = `
                 <div class="text-center text-gray-400 text-xs py-2">
                     <i class="fas fa-comment-medical mb-2"></i>
-                    <p>รอวิเคราะห์อาการจากการสนทนา</p>
+                    <p>รอวิเคราะห์จากการสนทนา</p>
                 </div>
                 <div class="mt-3 pt-2 border-t border-gray-100">
+                    <div class="text-[10px] text-gray-500 mb-1">🔍 ค้นหายา</div>
                     <div class="flex gap-1">
-                        <input type="text" id="drugSearchInput" placeholder="🔍 ค้นหายา..." 
+                        <input type="text" id="drugSearchInput" placeholder="พิมพ์ชื่อยา..." 
                             class="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-emerald-400"
                             onkeypress="if(event.key==='Enter') searchDrugManual()">
-                        <button onclick="searchDrugManual()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg">
+                        <button onclick="searchDrugManual()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg">
                             <i class="fas fa-search"></i>
                         </button>
                     </div>
@@ -2544,6 +2558,56 @@ function updateSymptomWidget(data) {
         // Fade in animation - Requirements: 4.6
         content.style.opacity = '1';
     }, 150);
+}
+
+/**
+ * Update summary of checked items
+ */
+function updateCheckedSummary() {
+    const checkboxes = document.querySelectorAll('.drug-want-checkbox:checked');
+    const summaryDiv = document.getElementById('checkedSummary');
+    const countSpan = document.getElementById('checkedCount');
+    const totalSpan = document.getElementById('checkedTotal');
+    
+    if (!summaryDiv || !countSpan || !totalSpan) return;
+    
+    let total = 0;
+    checkboxes.forEach(cb => {
+        total += parseFloat(cb.dataset.drugPrice || 0);
+    });
+    
+    countSpan.textContent = checkboxes.length;
+    totalSpan.textContent = total.toLocaleString();
+    
+    if (checkboxes.length > 0) {
+        summaryDiv.classList.remove('hidden');
+    } else {
+        summaryDiv.classList.add('hidden');
+    }
+}
+
+/**
+ * Add all checked items to order
+ */
+function addAllCheckedToOrder() {
+    const checkboxes = document.querySelectorAll('.drug-want-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        showToast('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ', 'warning');
+        return;
+    }
+    
+    checkboxes.forEach(cb => {
+        const drugId = parseInt(cb.dataset.drugId);
+        const drugName = cb.dataset.drugName;
+        const drugPrice = parseFloat(cb.dataset.drugPrice);
+        
+        if (drugId && drugName) {
+            addDrugToOrder(drugId, drugName, drugPrice);
+        }
+    });
+    
+    showToast(`เพิ่ม ${checkboxes.length} รายการในออเดอร์แล้ว`, 'success');
 }
 
 /**
