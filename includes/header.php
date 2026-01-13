@@ -129,6 +129,18 @@ try {
 
 $currentBotId = $currentBot['id'] ?? null;
 
+// Initialize Vibe Selling Helper for v2 toggle (Requirements: 10.6)
+$vibeSellingHelper = null;
+$inboxUrl = '/inbox';
+try {
+    require_once __DIR__ . '/../classes/VibeSellingHelper.php';
+    $vibeSellingHelper = VibeSellingHelper::getInstance($db);
+    $inboxUrl = $vibeSellingHelper->isV2Enabled($currentBotId) ? '/inbox-v2' : '/inbox';
+} catch (Exception $e) {
+    // Fallback to v1 if helper fails
+    $inboxUrl = '/inbox';
+}
+
 // Get unread counts
 $unreadMessages = 0;
 $pendingOrders = 0;
@@ -165,9 +177,9 @@ try {
 // Note: Items without 'roles' key are accessible to all staff (per Requirements 9.1, 9.2, 9.3)
 $quickAccessMenus = [
     // ==================== Clinical Station - Unified Care Chat ====================
-    'messages' => ['icon' => 'fa-inbox', 'label' => 'กล่องข้อความ', 'url' => '/inbox', 'page' => 'inbox', 'badge' => $unreadMessages, 'color' => 'green', 'roles' => ['owner', 'admin', 'pharmacist', 'staff']],
-    'quick-reply' => ['icon' => 'fa-reply-all', 'label' => 'Quick Reply', 'url' => '/inbox?tab=templates', 'page' => 'inbox', 'color' => 'blue', 'roles' => ['owner', 'admin', 'pharmacist', 'staff']],
-    'chat-analytics' => ['icon' => 'fa-chart-bar', 'label' => 'สถิติแชท', 'url' => '/inbox?tab=analytics', 'page' => 'inbox', 'color' => 'purple', 'roles' => ['owner', 'admin']],
+    'messages' => ['icon' => 'fa-inbox', 'label' => 'กล่องข้อความ', 'url' => $inboxUrl, 'page' => 'inbox', 'badge' => $unreadMessages, 'color' => 'green', 'roles' => ['owner', 'admin', 'pharmacist', 'staff']],
+    'quick-reply' => ['icon' => 'fa-reply-all', 'label' => 'Quick Reply', 'url' => $inboxUrl . '?tab=templates', 'page' => 'inbox', 'color' => 'blue', 'roles' => ['owner', 'admin', 'pharmacist', 'staff']],
+    'chat-analytics' => ['icon' => 'fa-chart-bar', 'label' => 'สถิติแชท', 'url' => $inboxUrl . '?tab=analytics', 'page' => 'inbox', 'color' => 'purple', 'roles' => ['owner', 'admin']],
     'video-call' => ['icon' => 'fa-video', 'label' => 'Video Call', 'url' => '/video-call', 'page' => 'video-call', 'color' => 'red', 'roles' => ['pharmacist', 'staff']],
     'auto-reply' => ['icon' => 'fa-robot', 'label' => 'ตอบอัตโนมัติ', 'url' => '/auto-reply', 'page' => 'auto-reply', 'color' => 'pink', 'roles' => ['pharmacist', 'staff']],
     
@@ -315,9 +327,9 @@ $menuGroups = [
         'group_icon' => '👥',
         'roles' => ['owner', 'admin', 'marketing', 'staff'],
         'menus' => [
-            ['title' => 'กล่องข้อความ', 'icon' => '💬', 'href' => '/inbox', 'badge' => $unreadMessages],
-            ['title' => 'Quick Reply', 'icon' => '⚡', 'href' => '/inbox?tab=templates'],
-            ['title' => 'สถิติแชท', 'icon' => '📊', 'href' => '/inbox?tab=analytics'],
+            ['title' => 'กล่องข้อความ', 'icon' => '💬', 'href' => $inboxUrl, 'badge' => $unreadMessages],
+            ['title' => 'Quick Reply', 'icon' => '⚡', 'href' => $inboxUrl . '?tab=templates'],
+            ['title' => 'สถิติแชท', 'icon' => '📊', 'href' => $inboxUrl . '?tab=analytics'],
             ['title' => 'รายชื่อลูกค้า', 'icon' => '📇', 'href' => '/users'],
             ['title' => 'บรอดแคสต์', 'icon' => '📢', 'href' => '/broadcast'],
             ['title' => 'ระบบสมาชิก', 'icon' => '💳', 'href' => '/membership'],
@@ -346,6 +358,7 @@ $menuGroups = [
             ['title' => 'ข้อมูลร้าน', 'icon' => '🏪', 'href' => '/shop/settings'],
             ['title' => 'Landing Page', 'icon' => '🏠', 'href' => '/admin/landing-settings'],
             ['title' => 'Rich Menu', 'icon' => '🎨', 'href' => '/rich-menu'],
+            ['title' => 'เช็คสถานะระบบ', 'icon' => '🔍', 'href' => '/system-status'],
         ]
     ],
 ];
@@ -1397,10 +1410,13 @@ $menuGroups = [
                     </div>
                     
                     <!-- Quick Actions -->
-                    <a href="<?= $baseUrl ?>inbox.php" class="header-btn" title="Inbox (Real-time)">
+                    <a href="<?= $baseUrl ?><?= ltrim($inboxUrl, '/') ?>.php" class="header-btn" title="Inbox<?= ($vibeSellingHelper && $vibeSellingHelper->shouldShowV2Badge($currentBotId)) ? ' V2' : '' ?>">
                         <i class="fas fa-inbox"></i>
                         <?php if ($unreadMessages > 0): ?>
                         <span class="badge"><?= $unreadMessages > 99 ? '99+' : $unreadMessages ?></span>
+                        <?php endif; ?>
+                        <?php if ($vibeSellingHelper && $vibeSellingHelper->shouldShowV2Badge($currentBotId)): ?>
+                        <span class="absolute -top-1 -right-1 text-[8px] bg-purple-500 text-white px-1 rounded">V2</span>
                         <?php endif; ?>
                     </a>
                     
