@@ -1616,6 +1616,76 @@ try {
             break;
 
         // ============================================
+        // POST /save_pending_order - Save pending order to user state
+        // ============================================
+        case 'save_pending_order':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+            
+            $body = getJsonBody();
+            $userId = (int)($body['user_id'] ?? 0);
+            $items = $body['items'] ?? [];
+            $subtotal = (float)($body['subtotal'] ?? 0);
+            $discount = (float)($body['discount'] ?? 0);
+            $total = (float)($body['total'] ?? 0);
+            
+            if (!$userId) {
+                sendError('User ID is required');
+            }
+            
+            if (empty($items)) {
+                sendError('Items are required');
+            }
+            
+            // Save pending order to user_states table
+            $pendingOrderData = [
+                'items' => $items,
+                'subtotal' => $subtotal,
+                'discount' => $discount,
+                'total' => $total,
+                'created_at' => date('Y-m-d H:i:s'),
+                'line_account_id' => $lineAccountId
+            ];
+            
+            $expiresAt = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+            
+            try {
+                // Check if user_states has user_id as PRIMARY KEY
+                $stmt = $db->query("SHOW KEYS FROM user_states WHERE Key_name = 'PRIMARY'");
+                $primaryKey = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($primaryKey && $primaryKey['Column_name'] === 'user_id') {
+                    $stmt = $db->prepare("INSERT INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?) 
+                                        ON DUPLICATE KEY UPDATE state = ?, state_data = ?, expires_at = ?");
+                    $stmt->execute([
+                        $userId, 
+                        'pending_order', 
+                        json_encode($pendingOrderData), 
+                        $expiresAt,
+                        'pending_order',
+                        json_encode($pendingOrderData),
+                        $expiresAt
+                    ]);
+                } else {
+                    $stmt = $db->prepare("DELETE FROM user_states WHERE user_id = ?");
+                    $stmt->execute([$userId]);
+                    
+                    $stmt = $db->prepare("INSERT INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$userId, 'pending_order', json_encode($pendingOrderData), $expiresAt]);
+                }
+                
+                sendResponse([
+                    'success' => true,
+                    'message' => 'Pending order saved',
+                    'expires_at' => $expiresAt
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to save pending order: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
         // Default - Unknown action
         // ============================================
         default:

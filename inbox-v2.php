@@ -4134,15 +4134,49 @@ function confirmCreateOrder() {
             orderMsg += `${i + 1}. ${item.name}\n   ฿${item.price.toLocaleString()} x ${item.qty} = ฿${(item.price * item.qty).toLocaleString()}\n`;
         });
         orderMsg += `\n💰 รวมทั้งหมด: ฿${orderState.total.toLocaleString()}\n`;
-        orderMsg += `\n✅ กรุณายืนยันรายการสั่งซื้อค่ะ`;
+        orderMsg += `\n✅ ตอบ "ยืนยัน" เพื่อสร้างออเดอร์ค่ะ`;
         
         messageInput.value = orderMsg;
         autoResize(messageInput);
         messageInput.focus();
+        
+        // Save pending order to user state via API
+        savePendingOrder();
     }
     
     closeModal('createOrderModal');
-    showNotification('สรุปออเดอร์พร้อมส่ง', 'success');
+    showNotification('สรุปออเดอร์พร้อมส่ง - รอลูกค้าตอบ "ยืนยัน"', 'success');
+}
+
+/**
+ * Save pending order to user state
+ */
+async function savePendingOrder() {
+    if (!ghostDraftState.userId || orderState.items.length === 0) return;
+    
+    try {
+        const response = await fetch('api/inbox-v2.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'save_pending_order',
+                user_id: ghostDraftState.userId,
+                items: orderState.items,
+                subtotal: orderState.subtotal,
+                discount: orderState.discount,
+                total: orderState.total
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            console.log('Pending order saved:', result);
+        } else {
+            console.error('Failed to save pending order:', result.error);
+        }
+    } catch (error) {
+        console.error('Save pending order error:', error);
+    }
 }
 
 /**

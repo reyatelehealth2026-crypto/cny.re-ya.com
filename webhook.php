@@ -757,6 +757,33 @@ if (!$line) {
                 return; // Don't process non-text further, just notify via Telegram
             }
             
+            // ========== ตรวจสอบ Pending Order - ลูกค้าตอบ "ยืนยัน" ==========
+            if ($userState && $userState['state'] === 'pending_order') {
+                $confirmKeywords = ['ยืนยัน', 'ตกลง', 'ok', 'yes', 'confirm', 'สั่งเลย', 'เอา', 'ได้'];
+                $cancelKeywords = ['ยกเลิก', 'cancel', 'no', 'ไม่เอา', 'ไม่'];
+                
+                $textLowerTrim = mb_strtolower(trim($messageText));
+                
+                if (in_array($textLowerTrim, $confirmKeywords)) {
+                    // สร้าง Order จาก pending order
+                    $orderCreated = createOrderFromPendingState($db, $line, $user['id'], $userId, $userState, $replyToken, $lineAccountId);
+                    if ($orderCreated) {
+                        clearUserState($db, $user['id']);
+                        return;
+                    }
+                } elseif (in_array($textLowerTrim, $cancelKeywords)) {
+                    // ยกเลิก pending order
+                    clearUserState($db, $user['id']);
+                    $cancelMessage = [
+                        'type' => 'text',
+                        'text' => "❌ ยกเลิกรายการสั่งซื้อแล้วค่ะ\n\nหากต้องการสั่งซื้อใหม่ สามารถแจ้งได้เลยค่ะ 🙏"
+                    ];
+                    $line->replyMessage($replyToken, [$cancelMessage]);
+                    saveOutgoingMessage($db, $user['id'], json_encode($cancelMessage), 'system', 'text');
+                    return;
+                }
+            }
+            
             // ========== ตรวจสอบ Consent PDPA ==========
             // ปิดการตรวจสอบ consent - ให้ถือว่า consent แล้วเสมอ
             // ถ้าต้องการเปิดใช้งานใหม่ ให้ uncomment บรรทัดด้านล่าง
@@ -3046,6 +3073,135 @@ if (!$line) {
                 $stmt->execute([$userId]);
             } catch (Exception $e) {
                 // Table doesn't exist, ignore
+            }
+        }
+
+        /**
+         * Create order from pending state when customer confirms
+         */
+        function createOrderFromPendingState($db, $line, $dbUserId, $lineUserId, $userState, $replyToken, $lineAccountId) {
+            try {
+                $stateData = json_decode($userState['state_data'] ?? '{}', true);
+                $items = $stateData['items'] ?? [];
+                $total = $stateData['total'] ?? 0;
+                $subtotal = $stateData['subtotal'] ?? $total;
+                $discount = $stateData['discount'] ?? 0;
+                
+                if (empty($items)) {
+                    devLog($db, 'error', 'createOrderFromPendingState', 'No items in pending order', ['user_id' => $dbUserId]);
+                    return false;
+                }
+                
+                // Generate order number
+                $orderNumber = 'ORD' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                
+                // Create transaction
+                $stmt = $db->prepare("INSERT INTO transactions 
+                    (line_account_id, order_number, user_id, transaction_type, total_amount, subtotal, discount_amount, grand_total, status, payment_status, note, created_at) 
+                    VALUES (?, ?, ?, 'purchase', ?, ?, ?, ?, 'pending', 'pending', ?, NOW())");
+                $stmt->execute([
+                    $lineAccountId,
+                    $orderNumber,
+                    $dbUserId,
+                    $total,
+                    $subtotal,
+                    $discount,
+                    $total,
+                    'สร้างจากแชท - ลูกค้ายืนยัน'
+                ]);
+                
+                $transactionId = $db->lastInsertId();
+                
+                // Insert transaction items
+                foreach ($items as $item) {
+                    $itemSubtotal = ($item['price'] ?? 0) * ($item['qty'] ?? 1);
+                    $stmt = $db->prepare("INSERT INTO transaction_items 
+                        (transaction_id, product_id, product_name, product_price, price, quantity, subtotal, total) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([
+                        $transactionId,
+                        $item['id'] ?? null,
+                        $item['name'] ?? 'Unknown',
+                        $item['price'] ?? 0,
+                        $item['price'] ?? 0,
+                        $item['qty'] ?? 1,
+                        $itemSubtotal,
+                        $itemSubtotal
+                    ]);
+                }
+                
+                devLog($db, 'info', 'createOrderFromPendingState', 'Order created', [
+                    'user_id' => $dbUserId,
+                    'order_number' => $orderNumber,
+                    'transaction_id' => $transactionId,
+                    'total' => $total,
+                    'items_count' => count($items)
+                ]);
+                
+                // Build confirmation message
+                $itemsList = '';
+                foreach ($items as $i => $item) {
+                    $itemTotal = ($item['price'] ?? 0) * ($item['qty'] ?? 1);
+                    $itemsList .= ($i + 1) . ". {$item['name']}\n   ฿" . number_format($item['price'] ?? 0) . " x {$item['qty']} = ฿" . number_format($itemTotal) . "\n";
+                }
+                
+                $confirmMessage = [
+                    'type' => 'flex',
+                    'altText' => "✅ สร้างออเดอร์สำเร็จ #{$orderNumber}",
+                    'contents' => [
+                        'type' => 'bubble',
+                        'size' => 'mega',
+                        'header' => [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'backgroundColor' => '#10B981',
+                            'paddingAll' => '15px',
+                            'contents' => [
+                                ['type' => 'text', 'text' => '✅ สร้างออเดอร์สำเร็จ', 'color' => '#FFFFFF', 'size' => 'lg', 'weight' => 'bold', 'align' => 'center']
+                            ]
+                        ],
+                        'body' => [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'paddingAll' => '15px',
+                            'contents' => [
+                                ['type' => 'text', 'text' => "เลขที่: #{$orderNumber}", 'size' => 'md', 'weight' => 'bold', 'color' => '#10B981'],
+                                ['type' => 'separator', 'margin' => 'md'],
+                                ['type' => 'text', 'text' => '📦 รายการสินค้า', 'size' => 'sm', 'weight' => 'bold', 'margin' => 'md'],
+                                ['type' => 'text', 'text' => $itemsList, 'size' => 'xs', 'color' => '#666666', 'wrap' => true, 'margin' => 'sm'],
+                                ['type' => 'separator', 'margin' => 'md'],
+                                ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'md', 'contents' => [
+                                    ['type' => 'text', 'text' => '💰 รวมทั้งหมด', 'size' => 'md', 'weight' => 'bold'],
+                                    ['type' => 'text', 'text' => '฿' . number_format($total), 'size' => 'lg', 'weight' => 'bold', 'color' => '#10B981', 'align' => 'end']
+                                ]],
+                                ['type' => 'text', 'text' => '📱 กรุณาชำระเงินและส่งสลิปมาค่ะ', 'size' => 'sm', 'color' => '#666666', 'wrap' => true, 'margin' => 'lg']
+                            ]
+                        ]
+                    ]
+                ];
+                
+                $line->replyMessage($replyToken, [$confirmMessage]);
+                saveOutgoingMessage($db, $dbUserId, json_encode($confirmMessage), 'system', 'flex');
+                
+                // Set user state to waiting for slip
+                setUserState($db, $dbUserId, 'waiting_slip', ['order_id' => $transactionId, 'order_number' => $orderNumber], 60);
+                
+                return true;
+                
+            } catch (Exception $e) {
+                devLog($db, 'error', 'createOrderFromPendingState', 'Error: ' . $e->getMessage(), [
+                    'user_id' => $dbUserId,
+                    'trace' => $e->getTraceAsString()
+                ]);
+                
+                // Send error message
+                $errorMessage = [
+                    'type' => 'text',
+                    'text' => "❌ ขออภัยค่ะ เกิดข้อผิดพลาดในการสร้างออเดอร์\n\nกรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่ค่ะ 🙏"
+                ];
+                $line->replyMessage($replyToken, [$errorMessage]);
+                
+                return false;
             }
         }
 
