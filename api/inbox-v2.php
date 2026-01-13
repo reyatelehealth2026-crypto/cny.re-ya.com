@@ -422,59 +422,70 @@ try {
                 sendError('Drug ID or name is required');
             }
             
-            // Get drug from business_items
-            if ($drugId) {
-                $stmt = $db->prepare("
-                    SELECT bi.*, ic.name as category_name
-                    FROM business_items bi
-                    LEFT JOIN item_categories ic ON bi.category_id = ic.id
-                    WHERE bi.id = ?
-                ");
-                $stmt->execute([$drugId]);
-            } else {
-                $stmt = $db->prepare("
-                    SELECT bi.*, ic.name as category_name
-                    FROM business_items bi
-                    LEFT JOIN item_categories ic ON bi.category_id = ic.id
-                    WHERE bi.name LIKE ? OR bi.sku LIKE ?
-                    AND (bi.line_account_id = ? OR bi.line_account_id IS NULL)
-                    LIMIT 1
-                ");
-                $searchTerm = '%' . $drugName . '%';
-                $stmt->execute([$searchTerm, $searchTerm, $lineAccountId]);
+            try {
+                // Get drug from business_items
+                if ($drugId) {
+                    $stmt = $db->prepare("
+                        SELECT bi.*, ic.name as category_name
+                        FROM business_items bi
+                        LEFT JOIN item_categories ic ON bi.category_id = ic.id
+                        WHERE bi.id = ?
+                    ");
+                    $stmt->execute([$drugId]);
+                } else {
+                    $stmt = $db->prepare("
+                        SELECT bi.*, ic.name as category_name
+                        FROM business_items bi
+                        LEFT JOIN item_categories ic ON bi.category_id = ic.id
+                        WHERE (bi.name LIKE ? OR bi.sku LIKE ?)
+                        AND (bi.line_account_id = ? OR bi.line_account_id IS NULL)
+                        LIMIT 1
+                    ");
+                    $searchTerm = '%' . $drugName . '%';
+                    $stmt->execute([$searchTerm, $searchTerm, $lineAccountId]);
+                }
+                
+                $drug = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$drug) {
+                    sendError('Drug not found', 404);
+                }
+                
+                // Get pricing info
+                $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
+                $pricing = null;
+                
+                if ($pricingEngine) {
+                    try {
+                        $pricing = $pricingEngine->calculateMargin((int)$drug['id']);
+                    } catch (Exception $e) {
+                        // Pricing calculation failed, continue without it
+                        $pricing = null;
+                    }
+                }
+                
+                sendResponse([
+                    'success' => true,
+                    'data' => [
+                        'id' => (int)$drug['id'],
+                        'name' => $drug['name'],
+                        'sku' => $drug['sku'] ?? null,
+                        'description' => $drug['description'] ?? null,
+                        'price' => (float)($drug['price'] ?? 0),
+                        'salePrice' => (float)($drug['sale_price'] ?? 0),
+                        'category' => $drug['category_name'] ?? null,
+                        'imageUrl' => $drug['image_url'] ?? null,
+                        'stock' => (int)($drug['stock'] ?? 0),
+                        'isActive' => (bool)($drug['is_active'] ?? true),
+                        'isPrescription' => (bool)($drug['is_prescription'] ?? false),
+                        'contraindications' => $drug['contraindications'] ?? null,
+                        'dosage' => $drug['dosage'] ?? null,
+                        'pricing' => $pricing
+                    ]
+                ]);
+            } catch (PDOException $e) {
+                sendError('Database error: ' . $e->getMessage(), 500);
             }
-            
-            $drug = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$drug) {
-                sendError('Drug not found', 404);
-            }
-            
-            // Get pricing info
-            $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
-            $pricing = null;
-            
-            if ($pricingEngine) {
-                $pricing = $pricingEngine->calculateMargin((int)$drug['id']);
-            }
-            
-            sendResponse([
-                'success' => true,
-                'data' => [
-                    'id' => (int)$drug['id'],
-                    'name' => $drug['name'],
-                    'sku' => $drug['sku'],
-                    'description' => $drug['description'] ?? null,
-                    'price' => (float)($drug['price'] ?? 0),
-                    'salePrice' => (float)($drug['sale_price'] ?? 0),
-                    'category' => $drug['category_name'],
-                    'imageUrl' => $drug['image_url'] ?? null,
-                    'stock' => (int)($drug['stock_quantity'] ?? 0),
-                    'isActive' => (bool)($drug['is_active'] ?? true),
-                    'isPrescription' => (bool)($drug['is_prescription'] ?? false),
-                    'pricing' => $pricing
-                ]
-            ]);
             break;
 
         // ============================================
