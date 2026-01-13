@@ -2601,6 +2601,8 @@ function addDetectedToOrder() {
     
     showToast(`เพิ่ม ${drugs.length} รายการในออเดอร์แล้ว`, 'success');
 }
+
+/**
  * Add all checked items to order
  */
 function addAllCheckedToOrder() {
