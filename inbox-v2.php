@@ -1814,7 +1814,7 @@ function formatThaiDateTime($datetime) {
 </audio>
 
 <!-- Real-time Updates Script -->
-<script src="assets/js/inbox-realtime.js"></script>
+<script src="assets/js/inbox-realtime.js?v=<?= time() ?>"></script>
 <script>
 /**
  * Real-time Inbox Updates - Auto-refresh conversations and messages
