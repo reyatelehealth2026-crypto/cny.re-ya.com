@@ -5974,8 +5974,6 @@ function updateQuickReplyJSON() {
     
     document.getElementById('templateQuickReply').value = buttons.length > 0 ? JSON.stringify(buttons) : '';
 }
-    document.getElementById('templateModal').classList.remove('hidden');
-}
 
 function closeTemplateModal() {
     document.getElementById('templateModal').classList.add('hidden');
