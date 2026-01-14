@@ -1830,6 +1830,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     InboxRealtime.init({
         userId: <?= $selectedUser ? $selectedUser['id'] : 'null' ?>,
+        lineAccountId: <?= $currentBotId ?>,
         pollInterval: 3000, // Poll every 3 seconds
         enableSound: true,
         enableDesktopNotification: true,

@@ -29,6 +29,7 @@ const InboxRealtime = (function() {
         pollTimer: null,
         lastCheck: null,
         currentUserId: null,
+        lineAccountId: null,
         lastMessageId: null,
         retryCount: 0,
         onNewMessage: null,
@@ -45,6 +46,7 @@ const InboxRealtime = (function() {
      */
     function init(options = {}) {
         state.currentUserId = options.userId || null;
+        state.lineAccountId = options.lineAccountId || null;
         state.onNewMessage = options.onNewMessage || null;
         state.onConversationUpdate = options.onConversationUpdate || null;
         state.onError = options.onError || null;
@@ -64,7 +66,7 @@ const InboxRealtime = (function() {
             Notification.requestPermission();
         }
         
-        console.log('[InboxRealtime] Initialized', { userId: state.currentUserId });
+        console.log('[InboxRealtime] Initialized', { userId: state.currentUserId, lineAccountId: state.lineAccountId });
     }
     
     /**
@@ -147,6 +149,11 @@ const InboxRealtime = (function() {
                 last_check: state.lastCheck,
                 current_user: state.currentUserId || 0
             });
+            
+            // Add line_account_id if available
+            if (state.lineAccountId) {
+                params.append('line_account_id', state.lineAccountId);
+            }
             
             const response = await fetch(`${config.apiEndpoint}?${params}`);
             const data = await response.json();

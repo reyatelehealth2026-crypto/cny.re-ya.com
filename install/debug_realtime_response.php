@@ -18,6 +18,23 @@ echo "<p>jame.ver line_account_id: " . ($jameUser['line_account_id'] ?? 'NULL') 
 $lineAccountId = $jameUser['line_account_id'] ?? 1;
 echo "<p>Using line_account_id: {$lineAccountId}</p>";
 
+// Show actual latest messages for jame.ver
+echo "<h3>Latest 5 messages for jame.ver (ID 15):</h3>";
+$stmt = $db->query("SELECT id, content, message_type, direction, created_at FROM messages WHERE user_id = 15 ORDER BY created_at DESC LIMIT 5");
+$latestMsgs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+echo "<table border='1' cellpadding='5'>";
+echo "<tr><th>ID</th><th>Content</th><th>Type</th><th>Direction</th><th>Created At</th></tr>";
+foreach ($latestMsgs as $m) {
+    echo "<tr>";
+    echo "<td>{$m['id']}</td>";
+    echo "<td>" . htmlspecialchars(mb_substr($m['content'] ?? '', 0, 50)) . "</td>";
+    echo "<td>{$m['message_type']}</td>";
+    echo "<td>{$m['direction']}</td>";
+    echo "<td>{$m['created_at']}</td>";
+    echo "</tr>";
+}
+echo "</table>";
+
 // Same query as API
 $stmt = $db->prepare("
     SELECT 
@@ -34,18 +51,19 @@ $stmt = $db->prepare("
     WHERE u.line_account_id = ?
     AND EXISTS (SELECT 1 FROM messages WHERE user_id = u.id)
     ORDER BY last_time DESC
-    LIMIT 10
+    LIMIT 20
 ");
 $stmt->execute([$lineAccountId]);
 $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-echo "<h3>Raw Query Results:</h3>";
+echo "<h3>API Query Results (line_account_id = {$lineAccountId}):</h3>";
 echo "<table border='1' cellpadding='5'>";
 echo "<tr><th>ID</th><th>Name</th><th>Last Message</th><th>Type</th><th>Time</th><th>Direction</th></tr>";
 
 foreach ($conversations as $conv) {
     $msg = htmlspecialchars(mb_substr($conv['last_message'] ?? '', 0, 50));
-    echo "<tr>";
+    $highlight = ($conv['id'] == 15) ? "style='background:yellow;'" : "";
+    echo "<tr {$highlight}>";
     echo "<td>{$conv['id']}</td>";
     echo "<td>{$conv['display_name']}</td>";
     echo "<td>{$msg}</td>";
