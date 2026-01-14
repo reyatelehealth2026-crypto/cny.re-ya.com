@@ -2344,6 +2344,98 @@ try {
             break;
 
         // ============================================
+        // POST /mark_as_read_on_line - Mark messages as read on LINE
+        // Uses LINE Messaging API to show "Read" status to user
+        // ============================================
+        case 'mark_as_read_on_line':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+            
+            $userId = intval($_POST['user_id'] ?? 0);
+            
+            if (!$userId) {
+                sendError('User ID is required');
+            }
+            
+            try {
+                // Get LINE account credentials
+                $stmt = $db->prepare("SELECT channel_access_token FROM line_accounts WHERE id = ?");
+                $stmt->execute([$lineAccountId]);
+                $account = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$account || empty($account['channel_access_token'])) {
+                    sendError('LINE account not configured');
+                }
+                
+                // Get unread messages with mark_as_read_token
+                $stmt = $db->prepare("
+                    SELECT id, mark_as_read_token 
+                    FROM messages 
+                    WHERE user_id = ? 
+                    AND line_account_id = ? 
+                    AND direction = 'incoming' 
+                    AND is_read = 0 
+                    AND mark_as_read_token IS NOT NULL 
+                    AND (is_read_on_line = 0 OR is_read_on_line IS NULL)
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                ");
+                $stmt->execute([$userId, $lineAccountId]);
+                $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (empty($messages)) {
+                    // No messages to mark, just update is_read
+                    $stmt = $db->prepare("UPDATE messages SET is_read = 1 WHERE user_id = ? AND line_account_id = ? AND direction = 'incoming' AND is_read = 0");
+                    $stmt->execute([$userId, $lineAccountId]);
+                    
+                    sendResponse([
+                        'success' => true,
+                        'message' => 'No messages with markAsReadToken to process',
+                        'marked_count' => 0
+                    ]);
+                }
+                
+                // Load LineAPI
+                require_once __DIR__ . '/../classes/LineAPI.php';
+                $lineApi = new LineAPI($account['channel_access_token']);
+                
+                $markedCount = 0;
+                $errors = [];
+                
+                // Mark each message as read on LINE (only need to mark the latest one)
+                // According to LINE API, marking one message marks all previous messages as read
+                $latestMessage = $messages[0];
+                $result = $lineApi->markAsRead($latestMessage['mark_as_read_token']);
+                
+                if ($result['success']) {
+                    // Update all messages as read on LINE
+                    $messageIds = array_column($messages, 'id');
+                    $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+                    $stmt = $db->prepare("UPDATE messages SET is_read = 1, is_read_on_line = 1 WHERE id IN ($placeholders)");
+                    $stmt->execute($messageIds);
+                    $markedCount = count($messageIds);
+                } else {
+                    $errors[] = $result['error'] ?? 'Unknown error';
+                    // Still mark as read locally even if LINE API fails
+                    $stmt = $db->prepare("UPDATE messages SET is_read = 1 WHERE user_id = ? AND line_account_id = ? AND direction = 'incoming' AND is_read = 0");
+                    $stmt->execute([$userId, $lineAccountId]);
+                }
+                
+                sendResponse([
+                    'success' => true,
+                    'message' => 'Messages marked as read',
+                    'marked_count' => $markedCount,
+                    'line_api_success' => empty($errors),
+                    'errors' => $errors
+                ]);
+                
+            } catch (Exception $e) {
+                sendError('Failed to mark as read: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
         // Default - Unknown action
         // ============================================
         default:

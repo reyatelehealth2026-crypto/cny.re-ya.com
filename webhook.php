@@ -611,6 +611,9 @@ if (!$line) {
             $messageContent = $messageText;
             $sourceType = $event['source']['type'] ?? 'user';
             $groupId = $event['source']['groupId'] ?? $event['source']['roomId'] ?? null;
+            
+            // Get markAsReadToken from message event (for LINE Mark as Read feature)
+            $markAsReadToken = $event['message']['markAsReadToken'] ?? null;
 
             // Get or create user - ตรวจสอบและบันทึกผู้ใช้เสมอ (ไม่ว่าจะมาจากกลุ่มหรือแชทส่วนตัว)
             $user = getOrCreateUser($db, $line, $userId, $lineAccountId, $groupId);
@@ -700,15 +703,24 @@ if (!$line) {
                 $messageContent = "[location] {$address} ({$lat}, {$lng})";
             }
 
-            // Save incoming message พร้อม line_account_id และ is_read = 0
+            // Save incoming message พร้อม line_account_id, is_read = 0, และ mark_as_read_token
             try {
                 $stmt = $db->query("SHOW COLUMNS FROM messages LIKE 'line_account_id'");
                 if ($stmt->rowCount() > 0) {
+                    // Check if mark_as_read_token column exists
+                    $stmt3 = $db->query("SHOW COLUMNS FROM messages LIKE 'mark_as_read_token'");
+                    $hasMarkAsReadToken = $stmt3->rowCount() > 0;
+                    
                     // Check if is_read column exists
                     $stmt2 = $db->query("SHOW COLUMNS FROM messages LIKE 'is_read'");
                     if ($stmt2->rowCount() > 0) {
-                        $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, reply_token, is_read) VALUES (?, ?, 'incoming', ?, ?, ?, 0)");
-                        $stmt->execute([$lineAccountId, $user['id'], $messageType, $messageContent, $replyToken]);
+                        if ($hasMarkAsReadToken) {
+                            $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, reply_token, is_read, mark_as_read_token) VALUES (?, ?, 'incoming', ?, ?, ?, 0, ?)");
+                            $stmt->execute([$lineAccountId, $user['id'], $messageType, $messageContent, $replyToken, $markAsReadToken]);
+                        } else {
+                            $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, reply_token, is_read) VALUES (?, ?, 'incoming', ?, ?, ?, 0)");
+                            $stmt->execute([$lineAccountId, $user['id'], $messageType, $messageContent, $replyToken]);
+                        }
                     } else {
                         $stmt = $db->prepare("INSERT INTO messages (line_account_id, user_id, direction, message_type, content, reply_token) VALUES (?, ?, 'incoming', ?, ?, ?)");
                         $stmt->execute([$lineAccountId, $user['id'], $messageType, $messageContent, $replyToken]);

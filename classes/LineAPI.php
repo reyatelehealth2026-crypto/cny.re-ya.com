@@ -998,5 +998,62 @@ class LineAPI {
 
         return json_decode($response, true) ?: [];
     }
-}
     
+    /**
+     * Mark messages as read on LINE
+     * Uses the markAsReadToken from webhook message event
+     * This will show "Read" status to the user in LINE chat
+     * 
+     * @param string $markAsReadToken The token from webhook message event
+     * @return array Response with success status
+     */
+    public function markAsRead($markAsReadToken) {
+        if (empty($markAsReadToken)) {
+            return ['success' => false, 'error' => 'markAsReadToken is required'];
+        }
+        
+        $url = 'https://api.line.me/v2/bot/chat/markAsRead';
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->channelAccessToken
+        ];
+        
+        $data = ['markAsReadToken' => $markAsReadToken];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($httpCode === 200) {
+            return ['success' => true];
+        }
+        
+        return [
+            'success' => false,
+            'error' => $error ?: 'HTTP ' . $httpCode,
+            'response' => json_decode($response, true)
+        ];
+    }
+    
+    /**
+     * Mark multiple messages as read
+     * 
+     * @param array $tokens Array of markAsReadTokens
+     * @return array Results for each token
+     */
+    public function markMultipleAsRead(array $tokens) {
+        $results = [];
+        foreach ($tokens as $token) {
+            $results[] = $this->markAsRead($token);
+        }
+        return $results;
+    }
+}

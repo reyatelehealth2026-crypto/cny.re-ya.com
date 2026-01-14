@@ -2152,6 +2152,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Only initialize for inbox tab
     <?php if ($currentTab === 'inbox'): ?>
     
+    // Mark messages as read on LINE when chat is opened
+    <?php if ($selectedUser): ?>
+    markMessagesAsReadOnLine(<?= $selectedUser['id'] ?>);
+    <?php endif; ?>
+    
     // DEBUG: Add MutationObserver to track what's changing .last-msg for user 15
     const jameItem = document.querySelector('a[href*="user=15"]');
     if (jameItem) {
@@ -3020,6 +3025,35 @@ function scrollToBottom() {
     const chatBox = document.getElementById('chatBox');
     if (chatBox) {
         chatBox.scrollTop = chatBox.scrollHeight;
+    }
+}
+
+/**
+ * Mark messages as read on LINE
+ * This calls LINE Messaging API to show "Read" status to the user
+ * @param {number} userId User ID to mark messages as read
+ */
+async function markMessagesAsReadOnLine(userId) {
+    if (!userId) return;
+    
+    try {
+        const formData = new FormData();
+        formData.append('action', 'mark_as_read_on_line');
+        formData.append('user_id', userId);
+        formData.append('line_account_id', window.currentBotId || <?= $currentBotId ?>);
+        
+        const response = await fetch('api/inbox-v2.php', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.marked_count > 0) {
+            console.log('[MarkAsRead] Marked', result.marked_count, 'messages as read on LINE');
+        }
+    } catch (error) {
+        console.error('[MarkAsRead] Error:', error);
     }
 }
 
