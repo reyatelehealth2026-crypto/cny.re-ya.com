@@ -10,7 +10,13 @@ $db = Database::getInstance()->getConnection();
 
 echo "<h2>Debug Realtime API Response</h2>";
 
-$lineAccountId = 1;
+// Check jame.ver's line_account_id first
+$stmt = $db->query("SELECT id, display_name, line_account_id FROM users WHERE id = 15");
+$jameUser = $stmt->fetch(PDO::FETCH_ASSOC);
+echo "<p>jame.ver line_account_id: " . ($jameUser['line_account_id'] ?? 'NULL') . "</p>";
+
+$lineAccountId = $jameUser['line_account_id'] ?? 1;
+echo "<p>Using line_account_id: {$lineAccountId}</p>";
 
 // Same query as API
 $stmt = $db->prepare("
