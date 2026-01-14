@@ -783,29 +783,109 @@ class PharmacyImageAnalyzerService
      */
     private function getImageData(string $imageUrl): array
     {
+        // Handle base64 data URLs directly
+        if (strpos($imageUrl, 'data:image/') === 0) {
+            if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $imageUrl, $matches)) {
+                $mimeType = 'image/' . $matches[1];
+                $base64Data = $matches[2];
+                return [
+                    'success' => true,
+                    'base64' => $base64Data,
+                    'mimeType' => $mimeType
+                ];
+            }
+            return [
+                'success' => false,
+                'error' => 'รูปแบบ data URL ไม่ถูกต้อง'
+            ];
+        }
+        
         // Handle LINE content URLs
         if (strpos($imageUrl, 'api-data.line.me') !== false) {
             return $this->getLineImageData($imageUrl);
         }
         
-        // Handle regular URLs
+        // Handle local file paths (relative or absolute)
+        if (strpos($imageUrl, 'http') !== 0) {
+            // It's a local path
+            $localPath = $imageUrl;
+            if (strpos($localPath, '/') === 0) {
+                // Absolute path from web root
+                $localPath = $_SERVER['DOCUMENT_ROOT'] . $localPath;
+            }
+            
+            if (file_exists($localPath)) {
+                $imageContent = file_get_contents($localPath);
+                if ($imageContent !== false) {
+                    $mimeType = $this->detectMimeType($imageContent, mime_content_type($localPath));
+                    return [
+                        'success' => true,
+                        'base64' => base64_encode($imageContent),
+                        'mimeType' => $mimeType
+                    ];
+                }
+            }
+            
+            return [
+                'success' => false,
+                'error' => 'ไม่พบไฟล์รูปภาพ: ' . basename($imageUrl)
+            ];
+        }
+        
+        // Check if it's a local server URL - try to read directly
+        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+        if (!empty($currentHost) && strpos($imageUrl, $currentHost) !== false) {
+            // Extract path from URL
+            $parsedUrl = parse_url($imageUrl);
+            $localPath = $_SERVER['DOCUMENT_ROOT'] . ($parsedUrl['path'] ?? '');
+            
+            if (file_exists($localPath)) {
+                $imageContent = file_get_contents($localPath);
+                if ($imageContent !== false) {
+                    $mimeType = $this->detectMimeType($imageContent, mime_content_type($localPath));
+                    return [
+                        'success' => true,
+                        'base64' => base64_encode($imageContent),
+                        'mimeType' => $mimeType
+                    ];
+                }
+            }
+        }
+        
+        // Handle regular URLs via HTTP
         $ch = curl_init($imageUrl);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT => 15,
-            CURLOPT_SSL_VERIFYPEER => true
+            CURLOPT_SSL_VERIFYPEER => false, // Allow self-signed certs for local dev
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; PharmacyImageAnalyzer/1.0)'
         ]);
         
         $imageContent = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $curlError = curl_error($ch);
         curl_close($ch);
+        
+        if ($curlError) {
+            return [
+                'success' => false,
+                'error' => 'ไม่สามารถเชื่อมต่อเพื่อดาวน์โหลดรูปภาพ: ' . $curlError
+            ];
+        }
+        
+        if ($httpCode === 404) {
+            return [
+                'success' => false,
+                'error' => 'ไม่พบไฟล์รูปภาพ (404): ' . basename($imageUrl)
+            ];
+        }
         
         if ($httpCode !== 200 || empty($imageContent)) {
             return [
                 'success' => false,
-                'error' => 'Failed to download image'
+                'error' => 'ดาวน์โหลดรูปภาพไม่สำเร็จ (HTTP ' . $httpCode . ')'
             ];
         }
         

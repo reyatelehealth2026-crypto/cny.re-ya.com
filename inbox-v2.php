@@ -423,6 +423,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 }
                 break;
             
+            case 'upload_for_analysis':
+                $userId = intval($_POST['user_id'] ?? 0);
+                if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+                    throw new Exception("No image uploaded");
+                }
+                
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                $fileType = $_FILES['image']['type'];
+                if (!in_array($fileType, $allowedTypes)) {
+                    throw new Exception("Invalid image type");
+                }
+                
+                if ($_FILES['image']['size'] > 10 * 1024 * 1024) {
+                    throw new Exception("Image too large. Max 10MB");
+                }
+                
+                $uploadDir = __DIR__ . '/uploads/analysis_images/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION) ?: 'jpg';
+                $filename = 'analysis_' . time() . '_' . uniqid() . '.' . $ext;
+                $filepath = $uploadDir . $filename;
+                
+                if (!move_uploaded_file($_FILES['image']['tmp_name'], $filepath)) {
+                    throw new Exception("Failed to save image");
+                }
+                
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+                $host = $_SERVER['HTTP_HOST'];
+                $imageUrl = $protocol . $host . '/uploads/analysis_images/' . $filename;
+                
+                echo json_encode([
+                    'success' => true,
+                    'image_url' => $imageUrl,
+                    'filename' => $filename
+                ]);
+                break;
+            
             case 'send_pdf':
                 $userId = intval($_POST['user_id'] ?? 0);
                 if (!$userId) throw new Exception("User ID required");
