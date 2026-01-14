@@ -89,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             case 'send_message':
                 $userId = intval($_POST['user_id'] ?? 0);
                 $message = trim($_POST['message'] ?? '');
+                $quickReply = $_POST['quick_reply'] ?? null;
                 if (!$userId || !$message) throw new Exception("Invalid data");
                 
                 $stmt = $db->prepare("SELECT line_user_id, line_account_id, reply_token, reply_token_expires FROM users WHERE id = ?");
@@ -99,10 +100,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $lineManager = new LineAccountManager($db);
                 $line = $lineManager->getLineAPI($user['line_account_id']);
 
+                // Build message object with optional quick reply
+                $messageObj = ['type' => 'text', 'text' => $message];
+                if ($quickReply) {
+                    $quickReplyItems = json_decode($quickReply, true);
+                    if ($quickReplyItems && is_array($quickReplyItems)) {
+                        $messageObj['quickReply'] = ['items' => $quickReplyItems];
+                    }
+                }
+
                 if (method_exists($line, 'sendMessage')) {
-                    $result = $line->sendMessage($user['line_user_id'], $message, $user['reply_token'] ?? null, $user['reply_token_expires'] ?? null, $db, $userId);
+                    $result = $line->sendMessage($user['line_user_id'], [$messageObj], $user['reply_token'] ?? null, $user['reply_token_expires'] ?? null, $db, $userId);
                 } else {
-                    $result = $line->pushMessage($user['line_user_id'], [['type' => 'text', 'text' => $message]]);
+                    $result = $line->pushMessage($user['line_user_id'], [$messageObj]);
                     $result['method'] = 'push';
                 }
                 
@@ -3164,6 +3174,11 @@ async function sendMessage(e) {
         formData.append('user_id', userId);
         formData.append('message', message);
         
+        // Add quick reply buttons if available
+        if (pendingQuickReply) {
+            formData.append('quick_reply', pendingQuickReply);
+        }
+        
         const res = await fetch('', {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -3179,6 +3194,7 @@ async function sendMessage(e) {
         if (data.success) {
             input.value = '';
             autoResize(input);
+            pendingQuickReply = null; // Clear after sending
             
             const msgId = data.message_id || Date.now();
             sentMessageIds.add(msgId); // Track this message
@@ -4690,9 +4706,14 @@ function selectHighlightedQuickReply() {
 }
 
 // Select quick reply and fill placeholders - Requirements: 2.2, 2.3
+let pendingQuickReply = null; // Store quick reply buttons for next message
+
 async function selectQuickReply(index) {
     const template = filteredTemplates[index];
     if (!template) return;
+    
+    // Store quick reply buttons if available
+    pendingQuickReply = template.quick_reply || null;
     
     // Get customer data for placeholder filling - Requirements: 2.3
     const customerData = {
