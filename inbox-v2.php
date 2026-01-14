@@ -1895,12 +1895,18 @@ function updateConversationListUI(conversations) {
     
     console.log('[updateConversationListUI] Container found, updating', conversations.length, 'conversations');
     
+    // Debug: Log API data for jame.ver (id=15)
+    const jameData = conversations.find(c => c.id === 15);
+    if (jameData) {
+        console.log('[updateConversationListUI] API DATA for jame.ver:', JSON.stringify(jameData));
+    }
+    
     conversations.forEach((conv, index) => {
         const existingItem = container.querySelector(`a[href*="user=${conv.id}"]`);
         
         // Debug: log for first 3 conversations
         if (index < 3) {
-            console.log(`[updateConversationListUI] Conv ${conv.id} (${conv.display_name}): element found = ${!!existingItem}`);
+            console.log(`[updateConversationListUI] Conv ${conv.id} (${conv.display_name}): element found = ${!!existingItem}, API last_message = "${conv.last_message}"`);
         }
         
         if (existingItem) {
@@ -1912,7 +1918,7 @@ function updateConversationListUI(conversations) {
                 
                 // Debug: log if jame.ver (id=15) or Kratae (id=492)
                 if (conv.id === 15 || conv.id === 492) {
-                    console.log(`[updateConversationListUI] ${conv.display_name} (${conv.id}): "${lastMsgEl.textContent}" -> "${newText}"`);
+                    console.log(`[updateConversationListUI] ${conv.display_name} (${conv.id}): DOM="${lastMsgEl.textContent}" -> API="${newText}" (raw: "${conv.last_message}")`);
                 }
                 
                 lastMsgEl.textContent = newText;
