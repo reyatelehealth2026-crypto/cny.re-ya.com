@@ -1473,20 +1473,8 @@ function formatThaiDateTime($datetime) {
                         <i class="fas fa-bars"></i>
                         ส่งเมนู
                     </button>
-                    <!-- Consultation Actions -->
-                    <button type="button" onclick="askFollowupSymptoms()" class="quick-action-btn">
-                        <span class="action-icon">❓</span>
-                        ถามอาการเพิ่มเติม
-                    </button>
-                    <button type="button" onclick="suggestOTC()" class="quick-action-btn">
-                        <span class="action-icon">💊</span>
-                        แนะนำยา OTC
-                    </button>
-                    <button type="button" onclick="viewCustomerHistory()" class="quick-action-btn">
-                        <span class="action-icon">📋</span>
-                        ดูประวัติ
-                    </button>
-                    <button type="button" onclick="toggleImageAnalysisMenu()" class="quick-action-btn">
+                    <!-- Image Analysis Button -->
+                    <button type="button" onclick="showQuickImageAnalysisMenu(event)" class="quick-action-btn">
                         <span class="action-icon">📷</span>
                         วิเคราะห์รูป
                     </button>
@@ -4945,6 +4933,77 @@ function toggleImageAnalysisMenu() {
     const menu = document.getElementById('imageAnalysisMenu');
     if (menu) {
         menu.classList.toggle('hidden');
+    }
+}
+
+/**
+ * Show quick image analysis menu from Quick Actions bar
+ * @param {Event} event Click event
+ */
+function showQuickImageAnalysisMenu(event) {
+    event.stopPropagation();
+    
+    // Create floating menu near the button
+    let menu = document.getElementById('quickImageAnalysisMenu');
+    if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'quickImageAnalysisMenu';
+        menu.className = 'fixed bg-white rounded-xl shadow-2xl border border-gray-100 py-2 min-w-[200px] z-50';
+        menu.innerHTML = `
+            <div class="px-3 py-1 text-[10px] text-gray-400 font-medium uppercase tracking-wider">วิเคราะห์รูปภาพ AI</div>
+            <button type="button" onclick="triggerSymptomAnalysis(); closeQuickImageMenu();" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                <span class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-500">
+                    <i class="fas fa-stethoscope"></i>
+                </span>
+                <div>
+                    <div class="font-medium">วิเคราะห์อาการ</div>
+                    <div class="text-[10px] text-gray-400">ผื่น, บาดแผล, อาการผิดปกติ</div>
+                </div>
+            </button>
+            <button type="button" onclick="triggerDrugAnalysis(); closeQuickImageMenu();" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-500">
+                    <i class="fas fa-pills"></i>
+                </span>
+                <div>
+                    <div class="font-medium">ระบุยาจากรูป</div>
+                    <div class="text-[10px] text-gray-400">ชื่อยา, สรรพคุณ, ข้อควรระวัง</div>
+                </div>
+            </button>
+            <button type="button" onclick="triggerPrescriptionAnalysis(); closeQuickImageMenu();" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                <span class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-500">
+                    <i class="fas fa-file-prescription"></i>
+                </span>
+                <div>
+                    <div class="font-medium">อ่านใบสั่งยา</div>
+                    <div class="text-[10px] text-gray-400">OCR + ตรวจยาตีกัน</div>
+                </div>
+            </button>
+        `;
+        document.body.appendChild(menu);
+        
+        // Close when clicking outside
+        document.addEventListener('click', function closeHandler(e) {
+            if (!menu.contains(e.target) && e.target.closest('.quick-action-btn') === null) {
+                menu.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Position menu above the button
+    const btn = event.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+    menu.classList.remove('hidden');
+}
+
+/**
+ * Close quick image analysis menu
+ */
+function closeQuickImageMenu() {
+    const menu = document.getElementById('quickImageAnalysisMenu');
+    if (menu) {
+        menu.classList.add('hidden');
     }
 }
 
