@@ -1433,9 +1433,9 @@ function formatThaiDateTime($datetime) {
                 <?php if (!$isMe): ?>
                 <img src="<?= $selectedUser['picture_url'] ?: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 28 28%22%3E%3Ccircle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M14 15.4c2.3 0 4.2-1.9 4.2-4.2s-1.9-4.2-4.2-4.2-4.2 1.9-4.2 4.2 1.9 4.2 4.2 4.2zm0 2.1c-2.8 0-8.4 1.4-8.4 4.2v2.1h16.8v-2.1c0-2.8-5.6-4.2-8.4-4.2z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E' ?>" class="w-8 h-8 rounded-full self-end mr-2 flex-shrink-0" onerror="this.style.display='none'">
                 <?php endif; ?>
-                <div class="flex flex-col <?= $isMe ? 'items-end' : 'items-start' ?>">
+                <div class="msg-content-wrapper" style="max-width: 70%; display: flex; flex-direction: column; <?= $isMe ? 'align-items: flex-end;' : 'align-items: flex-start;' ?>">
                     <?php if ($type === 'text'): ?>
-                        <div class="chat-bubble <?= $isMe ? 'chat-outgoing' : 'chat-incoming' ?>">
+                        <div class="chat-bubble <?= $isMe ? 'chat-outgoing' : 'chat-incoming' ?>" style="display: inline-block; width: auto;">
                             <?= nl2br(htmlspecialchars($content ?? '')) ?>
                         </div>
                     <?php elseif ($type === 'image'): ?>
@@ -2252,10 +2252,10 @@ function appendNewMessageToChat(msg) {
     }
     
     const messageHtml = `
-        <div class="flex gap-2 ${alignClass}" data-msg-id="${msg.id}" style="animation: fadeIn 0.3s ease-out;">
+        <div class="message-item flex gap-2 ${alignClass}" data-msg-id="${msg.id}" style="animation: fadeIn 0.3s ease-out;">
             ${isIncoming ? `<img src="<?= $selectedUser ? htmlspecialchars($selectedUser['picture_url'] ?: '') : '' ?>" class="w-7 h-7 rounded-full self-end" onerror="this.style.display='none'">` : ''}
-            <div class="flex flex-col ${isIncoming ? 'items-start' : 'items-end'}" style="max-width:70%">
-                <div class="${bgClass} rounded-2xl ${roundedClass} px-4 py-2 shadow-sm">
+            <div class="msg-content-wrapper" style="max-width:70%; display:flex; flex-direction:column; ${isIncoming ? 'align-items:flex-start;' : 'align-items:flex-end;'}">
+                <div class="chat-bubble ${isIncoming ? 'chat-incoming' : 'chat-outgoing'}" style="display:inline-block; width:auto;">
                     ${contentHtml}
                 </div>
                 <div class="msg-meta flex items-center gap-1 text-[10px] ${isIncoming ? 'text-gray-500' : 'text-gray-400'} mt-1">
@@ -2882,8 +2882,8 @@ function appendMessage(content, isOutgoing, time, sentBy) {
     }
     
     msgDiv.innerHTML = `
-        <div class="flex flex-col ${isOutgoing ? 'items-end' : 'items-start'}">
-            <div class="chat-bubble ${isOutgoing ? 'chat-outgoing' : 'chat-incoming'}">
+        <div class="msg-content-wrapper" style="max-width:70%; display:flex; flex-direction:column; ${isOutgoing ? 'align-items:flex-end;' : 'align-items:flex-start;'}">
+            <div class="chat-bubble ${isOutgoing ? 'chat-outgoing' : 'chat-incoming'}" style="display:inline-block; width:auto;">
                 ${escapeHtml(content).replace(/\n/g, '<br>')}
             </div>
             <div class="msg-meta flex items-center gap-1 mt-1">
@@ -4189,7 +4189,7 @@ function appendImageMessage(imageUrl, time, sentBy) {
     }
     
     msgDiv.innerHTML = `
-        <div class="flex flex-col items-end" style="max-width:70%">
+        <div class="msg-content-wrapper" style="max-width:70%; display:flex; flex-direction:column; align-items:flex-end;">
             <img src="${escapeHtml(imageUrl)}" class="rounded-xl max-w-[200px] border shadow-sm cursor-pointer hover:opacity-90" onclick="openImage(this.src)">
             <div class="msg-meta flex items-center gap-1 text-[10px] text-white/70 mt-1">
                 <span>${time || new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute: '2-digit'})} น.</span>
@@ -4325,7 +4325,7 @@ function appendPdfMessage(fileUrl, fileName, time, sentBy) {
     }
     
     msgDiv.innerHTML = `
-        <div class="flex flex-col items-end" style="max-width:70%">
+        <div class="msg-content-wrapper" style="max-width:70%; display:flex; flex-direction:column; align-items:flex-end;">
             <a href="${escapeHtml(fileUrl)}" target="_blank" class="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
                 <i class="fas fa-file-pdf text-2xl text-red-500"></i>
                 <div class="text-left">
