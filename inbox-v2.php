@@ -1837,6 +1837,7 @@ document.addEventListener('DOMContentLoaded', function() {
         pollInterval: 3000, // Poll every 3 seconds
         enableSound: true,
         enableDesktopNotification: true,
+        apiLineAccountId: <?= $currentBotId ?>, // Explicit line account ID for API calls
         
         // Callback when new messages arrive
         onNewMessage: function(data) {
@@ -1860,8 +1861,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Start polling
-    InboxRealtime.start();
+    // Start polling - TEMPORARILY DISABLED FOR DEBUGGING
+    // InboxRealtime.start();
+    console.log('[Inbox] Realtime polling DISABLED for debugging');
     
     // Stop polling when page is hidden, resume when visible
     document.addEventListener('visibilitychange', function() {
