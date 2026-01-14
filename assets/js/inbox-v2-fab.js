@@ -207,9 +207,9 @@ const HUDMode = {
             html += `<div class="mb-3">
                 <div class="text-xs font-medium text-gray-500 mb-2 px-1">${escapeHtml(category)}</div>
                 ${items.map(t => `
-                    <div class="template-item bg-white border rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-50 hover:border-teal-300 transition" onclick="HUDMode.useTemplate(${t.id})">
+                    <div class="template-item bg-white border rounded-lg p-3 mb-2 cursor-pointer hover:bg-gray-50 hover:border-teal-300 transition" data-template-id="${t.id}">
                         <div class="flex items-center gap-2 mb-1">
-                            ${t.shortcut ? `<span class="text-xs px-2 py-0.5 bg-teal-100 text-teal-700 rounded font-mono">${escapeHtml(t.shortcut)}</span>` : ''}
+                            ${t.quick_reply ? `<span class="text-xs px-2 py-0.5 bg-teal-100 text-teal-700 rounded font-mono">${escapeHtml(t.quick_reply)}</span>` : ''}
                             <span class="text-sm font-medium text-gray-800 truncate">${escapeHtml(t.name)}</span>
                         </div>
                         <p class="text-xs text-gray-500 line-clamp-2">${escapeHtml(t.content.substring(0, 100))}${t.content.length > 100 ? '...' : ''}</p>
@@ -219,6 +219,14 @@ const HUDMode = {
         }
         
         listContainer.innerHTML = html;
+        
+        // Add click event listeners
+        listContainer.querySelectorAll('.template-item[data-template-id]').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.dataset.templateId, 10);
+                this.useTemplate(id);
+            });
+        });
     },
     
     useTemplate(id) {
@@ -260,18 +268,14 @@ const HUDMode = {
     
     async loadCRMData() {
         const userId = window.ghostDraftState?.userId;
-        console.log('[HUDMode] loadCRMData called, userId:', userId, 'currentBotId:', window.currentBotId);
         if (!userId) {
-            console.warn('[HUDMode] No userId available');
             return;
         }
         
         try {
             const url = `api/inbox-v2.php?action=customer_crm&user_id=${userId}&line_account_id=${window.currentBotId || 1}`;
-            console.log('[HUDMode] Fetching CRM data from:', url);
             const response = await fetch(url);
             const result = await response.json();
-            console.log('[HUDMode] CRM data result:', result);
             
             if (result.success && result.data) {
                 this.renderCRMData(result.data);
@@ -320,6 +324,26 @@ const HUDMode = {
         
         // Transactions
         this.renderTransactions(data.transactions || []);
+        
+        // Load assignment info
+        this.loadAssignment();
+    },
+    
+    async loadAssignment() {
+        const userId = window.ghostDraftState?.userId;
+        if (!userId) return;
+        
+        try {
+            const response = await fetch(`api/inbox-v2.php?action=get_assignment&user_id=${userId}&line_account_id=${window.currentBotId || 1}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                this.currentAssignment = result.data;
+                this.updateAssignedDisplay();
+            }
+        } catch (error) {
+            console.error('Load assignment error:', error);
+        }
     },
     
     renderCustomerInfo(user) {
@@ -384,10 +408,8 @@ const HUDMode = {
         const input = document.getElementById(`edit_${field}`);
         const value = input?.value?.trim() || '';
         const userId = window.ghostDraftState?.userId;
-        console.log('[HUDMode] saveField called:', { field, value, userId });
         
         if (!userId) {
-            console.error('[HUDMode] saveField: No userId available');
             showNotification && showNotification('❌ ไม่พบข้อมูลลูกค้า', 'error');
             return;
         }
@@ -400,10 +422,8 @@ const HUDMode = {
             formData.append('value', value);
             formData.append('line_account_id', window.currentBotId || 1);
             
-            console.log('[HUDMode] saveField sending:', { action: 'update_customer_info', user_id: userId, field, value });
             const response = await fetch('api/inbox-v2.php', { method: 'POST', body: formData });
             const result = await response.json();
-            console.log('[HUDMode] saveField result:', result);
             
             if (result.success) {
                 this.loadCRMData();
@@ -436,7 +456,6 @@ const HUDMode = {
     
     showTagSelector() {
         const container = document.getElementById('tagSelectorContainer');
-        console.log('[HUDMode] showTagSelector called, container:', container, 'allTags:', this.allTags, 'userTags:', this.userTags);
         if (!container) {
             console.error('[HUDMode] tagSelectorContainer not found');
             return;
@@ -445,7 +464,6 @@ const HUDMode = {
         // Filter out already assigned tags
         const userTagIds = this.userTags.map(t => t.id);
         const availableTags = this.allTags.filter(t => !userTagIds.includes(t.id));
-        console.log('[HUDMode] availableTags:', availableTags);
         
         let html = `<div class="tag-selector">`;
         
@@ -468,7 +486,6 @@ const HUDMode = {
         </div>`;
         
         container.innerHTML = html;
-        console.log('[HUDMode] Tag selector rendered');
     },
     
     hideTagSelector() {
@@ -678,6 +695,194 @@ const HUDMode = {
         } catch (error) {
             console.error('Update chat status error:', error);
             showNotification && showNotification('❌ เกิดข้อผิดพลาด', 'error');
+        }
+    },
+    
+    // ============================================
+    // ASSIGN TASK FUNCTIONS
+    // ============================================
+    
+    adminList: [],
+    selectedAdminId: null,
+    currentAssignment: null,
+    
+    async showAssignModal() {
+        const userId = window.ghostDraftState?.userId;
+        if (!userId) {
+            showNotification && showNotification('❌ ไม่พบข้อมูลลูกค้า', 'error');
+            return;
+        }
+        
+        // Create modal if not exists
+        let modal = document.getElementById('assignModalOverlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'assignModalOverlay';
+            modal.className = 'assign-modal-overlay';
+            modal.innerHTML = `
+                <div class="assign-modal">
+                    <div class="assign-modal-header">
+                        <h3><i class="fas fa-user-plus"></i> มอบหมายงาน</h3>
+                        <button class="assign-modal-close" onclick="HUDMode.hideAssignModal()">&times;</button>
+                    </div>
+                    <div class="assign-modal-body">
+                        <div id="assignAdminList" class="assign-admin-list">
+                            <div class="assign-loading"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</div>
+                        </div>
+                    </div>
+                    <div class="assign-modal-footer">
+                        <button class="assign-cancel-btn" onclick="HUDMode.hideAssignModal()">ยกเลิก</button>
+                        <button class="assign-confirm-btn" id="assignConfirmBtn" onclick="HUDMode.confirmAssign()" disabled>มอบหมาย</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        // Show modal
+        setTimeout(() => modal.classList.add('show'), 10);
+        
+        // Load admin list
+        await this.loadAdminList();
+    },
+    
+    hideAssignModal() {
+        const modal = document.getElementById('assignModalOverlay');
+        if (modal) {
+            modal.classList.remove('show');
+        }
+        this.selectedAdminId = null;
+    },
+    
+    async loadAdminList() {
+        const listContainer = document.getElementById('assignAdminList');
+        if (!listContainer) return;
+        
+        try {
+            const response = await fetch(`api/inbox-v2.php?action=get_admins&line_account_id=${window.currentBotId || 1}`);
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                this.adminList = result.data;
+                this.renderAdminList();
+            } else {
+                listContainer.innerHTML = '<div class="assign-loading">ไม่พบข้อมูลผู้ดูแล</div>';
+            }
+        } catch (error) {
+            console.error('Load admin list error:', error);
+            listContainer.innerHTML = '<div class="assign-loading">เกิดข้อผิดพลาด</div>';
+        }
+    },
+    
+    renderAdminList() {
+        const listContainer = document.getElementById('assignAdminList');
+        if (!listContainer || this.adminList.length === 0) {
+            listContainer.innerHTML = '<div class="assign-loading">ไม่พบข้อมูลผู้ดูแล</div>';
+            return;
+        }
+        
+        listContainer.innerHTML = this.adminList.map(admin => `
+            <div class="assign-admin-item ${this.selectedAdminId === admin.id ? 'selected' : ''}" 
+                 onclick="HUDMode.selectAdmin(${admin.id})">
+                <div class="assign-admin-avatar">
+                    ${admin.display_name ? admin.display_name.charAt(0).toUpperCase() : 'A'}
+                </div>
+                <div class="assign-admin-info">
+                    <div class="assign-admin-name">${escapeHtml(admin.display_name || admin.username || 'Admin')}</div>
+                    <div class="assign-admin-role">${escapeHtml(admin.role || 'Staff')}</div>
+                </div>
+            </div>
+        `).join('');
+    },
+    
+    selectAdmin(adminId) {
+        this.selectedAdminId = adminId;
+        this.renderAdminList();
+        
+        const confirmBtn = document.getElementById('assignConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = !this.selectedAdminId;
+        }
+    },
+    
+    async confirmAssign() {
+        if (!this.selectedAdminId) return;
+        
+        const userId = window.ghostDraftState?.userId;
+        if (!userId) {
+            showNotification && showNotification('❌ ไม่พบข้อมูลลูกค้า', 'error');
+            return;
+        }
+        
+        const confirmBtn = document.getElementById('assignConfirmBtn');
+        if (confirmBtn) confirmBtn.disabled = true;
+        
+        try {
+            const formData = new FormData();
+            formData.append('action', 'assign_conversation');
+            formData.append('user_id', userId);
+            formData.append('assign_to', this.selectedAdminId);
+            formData.append('line_account_id', window.currentBotId || 1);
+            
+            const response = await fetch('api/inbox-v2.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification && showNotification('✓ มอบหมายงานสำเร็จ', 'success');
+                this.hideAssignModal();
+                this.loadCRMData(); // Refresh CRM data
+                this.updateAssignedDisplay();
+            } else {
+                showNotification && showNotification('❌ ' + (result.error || 'เกิดข้อผิดพลาด'), 'error');
+            }
+        } catch (error) {
+            console.error('Assign conversation error:', error);
+            showNotification && showNotification('❌ เกิดข้อผิดพลาด', 'error');
+        } finally {
+            if (confirmBtn) confirmBtn.disabled = false;
+        }
+    },
+    
+    async unassignConversation() {
+        const userId = window.ghostDraftState?.userId;
+        if (!userId) return;
+        
+        if (!confirm('ต้องการยกเลิกการมอบหมายงานนี้?')) return;
+        
+        try {
+            const formData = new FormData();
+            formData.append('action', 'unassign_conversation');
+            formData.append('user_id', userId);
+            formData.append('line_account_id', window.currentBotId || 1);
+            
+            const response = await fetch('api/inbox-v2.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification && showNotification('✓ ยกเลิกการมอบหมายแล้ว', 'success');
+                this.loadCRMData();
+                this.updateAssignedDisplay();
+            }
+        } catch (error) {
+            console.error('Unassign error:', error);
+        }
+    },
+    
+    updateAssignedDisplay() {
+        const display = document.getElementById('assignedToDisplay');
+        if (!display) return;
+        
+        if (this.currentAssignment && this.currentAssignment.assigned_to) {
+            const admin = this.adminList.find(a => a.id === this.currentAssignment.assigned_to);
+            const name = admin ? (admin.display_name || admin.username) : 'Admin #' + this.currentAssignment.assigned_to;
+            display.innerHTML = `
+                <span><i class="fas fa-user-check"></i> มอบหมายให้: ${escapeHtml(name)}</span>
+                <button class="unassign-btn" onclick="HUDMode.unassignConversation()">ยกเลิก</button>
+            `;
+            display.classList.add('show');
+        } else {
+            display.classList.remove('show');
+            display.innerHTML = '';
         }
     }
 };

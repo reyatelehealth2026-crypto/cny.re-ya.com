@@ -2182,6 +2182,168 @@ try {
             break;
 
         // ============================================
+        // GET /get_admins - Get list of admin users for assignment
+        // ============================================
+        case 'get_admins':
+            if ($method !== 'GET') {
+                sendError('Method not allowed', 405);
+            }
+            
+            try {
+                $stmt = $db->prepare("
+                    SELECT id, username, display_name, role 
+                    FROM admin_users 
+                    WHERE (line_account_id = ? OR line_account_id IS NULL)
+                    AND status = 'active'
+                    ORDER BY display_name ASC
+                ");
+                $stmt->execute([$lineAccountId]);
+                $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                sendResponse([
+                    'success' => true,
+                    'data' => $admins
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to get admin list: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // POST /assign_conversation - Assign conversation to admin
+        // ============================================
+        case 'assign_conversation':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+            
+            $userId = intval($_POST['user_id'] ?? 0);
+            $assignTo = intval($_POST['assign_to'] ?? 0);
+            
+            if (!$userId) {
+                sendError('User ID is required');
+            }
+            if (!$assignTo) {
+                sendError('Admin ID to assign is required');
+            }
+            
+            try {
+                // Check if assignment table exists, create if not
+                $db->exec("
+                    CREATE TABLE IF NOT EXISTS conversation_assignments (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        line_account_id INT NOT NULL,
+                        assigned_to INT NOT NULL,
+                        assigned_by INT NULL,
+                        assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        status ENUM('active', 'completed', 'transferred') DEFAULT 'active',
+                        UNIQUE KEY unique_user_account (user_id, line_account_id),
+                        INDEX idx_assigned_to (assigned_to),
+                        INDEX idx_status (status)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+                
+                // Upsert assignment
+                $stmt = $db->prepare("
+                    INSERT INTO conversation_assignments (user_id, line_account_id, assigned_to, assigned_by, assigned_at)
+                    VALUES (?, ?, ?, ?, NOW())
+                    ON DUPLICATE KEY UPDATE 
+                        assigned_to = VALUES(assigned_to),
+                        assigned_by = VALUES(assigned_by),
+                        assigned_at = NOW(),
+                        status = 'active'
+                ");
+                $assignedBy = $_SESSION['admin_id'] ?? null;
+                $stmt->execute([$userId, $lineAccountId, $assignTo, $assignedBy]);
+                
+                // Also update user record if column exists
+                try {
+                    $stmt = $db->prepare("UPDATE users SET assigned_to = ? WHERE id = ?");
+                    $stmt->execute([$assignTo, $userId]);
+                } catch (Exception $e) {
+                    // Column might not exist, ignore
+                }
+                
+                sendResponse([
+                    'success' => true,
+                    'message' => 'Conversation assigned successfully'
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to assign conversation: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // POST /unassign_conversation - Remove assignment
+        // ============================================
+        case 'unassign_conversation':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+            
+            $userId = intval($_POST['user_id'] ?? 0);
+            
+            if (!$userId) {
+                sendError('User ID is required');
+            }
+            
+            try {
+                // Delete from assignments table
+                $stmt = $db->prepare("DELETE FROM conversation_assignments WHERE user_id = ? AND line_account_id = ?");
+                $stmt->execute([$userId, $lineAccountId]);
+                
+                // Also update user record if column exists
+                try {
+                    $stmt = $db->prepare("UPDATE users SET assigned_to = NULL WHERE id = ?");
+                    $stmt->execute([$userId]);
+                } catch (Exception $e) {
+                    // Column might not exist, ignore
+                }
+                
+                sendResponse([
+                    'success' => true,
+                    'message' => 'Conversation unassigned successfully'
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to unassign conversation: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // GET /get_assignment - Get current assignment for user
+        // ============================================
+        case 'get_assignment':
+            if ($method !== 'GET') {
+                sendError('Method not allowed', 405);
+            }
+            
+            $userId = intval($_GET['user_id'] ?? 0);
+            
+            if (!$userId) {
+                sendError('User ID is required');
+            }
+            
+            try {
+                $stmt = $db->prepare("
+                    SELECT ca.*, au.display_name as assigned_to_name, au.username as assigned_to_username
+                    FROM conversation_assignments ca
+                    LEFT JOIN admin_users au ON ca.assigned_to = au.id
+                    WHERE ca.user_id = ? AND ca.line_account_id = ? AND ca.status = 'active'
+                ");
+                $stmt->execute([$userId, $lineAccountId]);
+                $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                sendResponse([
+                    'success' => true,
+                    'data' => $assignment ?: null
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to get assignment: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
         // Default - Unknown action
         // ============================================
         default:

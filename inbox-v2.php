@@ -1829,6 +1829,11 @@ function formatThaiDateTime($datetime) {
                             <option value="billing" <?= ($selectedUser['chat_status'] ?? '') === 'billing' ? 'selected' : '' ?>>💰 ติดตามบิล</option>
                         </select>
                     </div>
+                    <!-- Assign Button -->
+                    <button class="assign-task-btn" onclick="HUDMode.showAssignModal()">
+                        <i class="fas fa-user-plus"></i> มอบหมายงาน
+                    </button>
+                    <div id="assignedToDisplay" class="assigned-to-display"></div>
                 </div>
             </div>
             
