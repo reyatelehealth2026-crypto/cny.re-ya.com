@@ -139,6 +139,9 @@ const InboxRealtime = (function() {
         if (!state.isRunning) return;
         
         try {
+            // Save lastCheck before updating (for loading new messages)
+            const previousCheck = state.lastCheck;
+            
             const params = new URLSearchParams({
                 action: 'check_new',
                 last_check: state.lastCheck,
@@ -162,9 +165,9 @@ const InboxRealtime = (function() {
                     state.onConversationUpdate(data.conversations);
                 }
                 
-                // Load new messages for current chat
+                // Load new messages for current chat (use previousCheck as since)
                 if (data.has_new_for_current && state.currentUserId) {
-                    loadNewMessagesForCurrentUser();
+                    loadNewMessagesForCurrentUser(previousCheck);
                 }
             }
             
@@ -228,19 +231,22 @@ const InboxRealtime = (function() {
     
     /**
      * Load new messages for current user
+     * @param {string} sinceTime - Timestamp to get messages since
      */
-    async function loadNewMessagesForCurrentUser() {
+    async function loadNewMessagesForCurrentUser(sinceTime) {
         if (!state.currentUserId) return;
         
         try {
             const params = new URLSearchParams({
                 action: 'get_new_messages',
                 user_id: state.currentUserId,
-                since: state.lastCheck
+                since: sinceTime || state.lastCheck
             });
             
             const response = await fetch(`${config.apiEndpoint}?${params}`);
             const data = await response.json();
+            
+            console.log('[InboxRealtime] Loading new messages for user', state.currentUserId, 'since', sinceTime, 'result:', data);
             
             if (data.success && data.messages.length > 0) {
                 // Append messages to chat
@@ -265,12 +271,18 @@ const InboxRealtime = (function() {
         const chatContainer = document.getElementById('chatBox') || 
                              document.getElementById('chatMessages') ||
                              document.querySelector('.chat-messages');
-        if (!chatContainer) return;
-        
-        // Check if message already exists
-        if (document.querySelector(`[data-msg-id="${msg.id}"]`)) {
+        if (!chatContainer) {
+            console.warn('[InboxRealtime] Chat container not found');
             return;
         }
+        
+        // Check if message already exists (use data-msg-id to match inbox-v2.php)
+        if (document.querySelector(`[data-msg-id="${msg.id}"]`)) {
+            console.log('[InboxRealtime] Message already exists:', msg.id);
+            return;
+        }
+        
+        console.log('[InboxRealtime] Appending message:', msg);
         
         const isIncoming = msg.direction === 'incoming';
         const messageHtml = createMessageHtml(msg, isIncoming);
@@ -313,7 +325,7 @@ const InboxRealtime = (function() {
         }
         
         return `
-            <div class="flex ${alignClass} mb-3 animate-fadeIn" data-message-id="${msg.id}">
+            <div class="flex ${alignClass} mb-3 animate-fadeIn" data-msg-id="${msg.id}">
                 <div class="max-w-[70%] ${bgClass} rounded-2xl ${roundedClass} px-4 py-2 shadow-sm">
                     ${content}
                     <div class="text-[10px] ${isIncoming ? 'text-gray-400' : 'text-emerald-100'} mt-1 text-right">
