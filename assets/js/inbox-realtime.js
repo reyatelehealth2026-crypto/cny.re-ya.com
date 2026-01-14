@@ -108,8 +108,6 @@ const InboxRealtime = (function() {
         state.isRunning = true;
         state.retryCount = 0;
         poll();
-        
-        console.log('[InboxRealtime] Started polling');
     }
     
     /**
@@ -121,8 +119,6 @@ const InboxRealtime = (function() {
             clearTimeout(state.pollTimer);
             state.pollTimer = null;
         }
-        
-        console.log('[InboxRealtime] Stopped polling');
     }
     
     /**
@@ -131,7 +127,6 @@ const InboxRealtime = (function() {
      */
     function setCurrentUser(userId) {
         state.currentUserId = userId;
-        console.log('[InboxRealtime] Current user set to:', userId);
     }
     
     /**
@@ -205,8 +200,6 @@ const InboxRealtime = (function() {
      * @param {object} data
      */
     function handleNewMessages(data) {
-        console.log('[InboxRealtime] New messages:', data.new_count);
-        
         // Play sound
         if (config.enableSound && notificationSound) {
             try {
@@ -253,8 +246,6 @@ const InboxRealtime = (function() {
             const response = await fetch(`${config.apiEndpoint}?${params}`);
             const data = await response.json();
             
-            console.log('[InboxRealtime] Loading new messages for user', state.currentUserId, 'since', sinceTime, 'result:', data);
-            
             if (data.success && data.messages.length > 0) {
                 // Append messages to chat
                 data.messages.forEach(msg => {
@@ -285,11 +276,8 @@ const InboxRealtime = (function() {
         
         // Check if message already exists (use data-msg-id to match inbox-v2.php)
         if (document.querySelector(`[data-msg-id="${msg.id}"]`)) {
-            console.log('[InboxRealtime] Message already exists:', msg.id);
             return;
         }
-        
-        console.log('[InboxRealtime] Appending message:', msg);
         
         const isIncoming = msg.direction === 'incoming';
         const messageHtml = createMessageHtml(msg, isIncoming);

@@ -2104,6 +2104,21 @@ function formatThaiDateTime($datetime) {
 <!-- Notification Container -->
 <div id="notificationContainer" class="notification-container"></div>
 
+<!-- Quick Reply Modal -->
+<div id="quickReplyModal" class="quick-reply-modal hidden">
+    <div class="quick-reply-modal-content">
+        <div class="quick-reply-header">
+            <input type="text" id="quickReplySearch" placeholder="ค้นหาเทมเพลต..." 
+                   oninput="filterQuickReplies(this.value)" 
+                   onkeydown="handleQuickReplyKeydown(event)">
+            <button onclick="closeQuickReplyModal()" class="close-btn">&times;</button>
+        </div>
+        <div id="quickReplyList" class="quick-reply-list">
+            <div class="text-center text-gray-400 py-4">กำลังโหลด...</div>
+        </div>
+    </div>
+</div>
+
 <!-- Real-time Status Indicator -->
 <?php if ($currentTab === 'inbox'): ?>
 <div id="realtimeIndicator" class="realtime-indicator" title="Real-time updates active">
@@ -2157,28 +2172,6 @@ document.addEventListener('DOMContentLoaded', function() {
     markMessagesAsReadOnLine(<?= $selectedUser['id'] ?>);
     <?php endif; ?>
     
-    // DEBUG: Add MutationObserver to track what's changing .last-msg for user 15
-    const jameItem = document.querySelector('a[href*="user=15"]');
-    if (jameItem) {
-        const lastMsgEl = jameItem.querySelector('.last-msg');
-        if (lastMsgEl) {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                        console.log('[MutationObserver] jame.ver .last-msg changed to:', lastMsgEl.textContent);
-                        console.trace('[MutationObserver] Stack trace:');
-                    }
-                });
-            });
-            observer.observe(lastMsgEl, { 
-                characterData: true, 
-                childList: true, 
-                subtree: true 
-            });
-            console.log('[MutationObserver] Watching jame.ver .last-msg, initial value:', lastMsgEl.textContent);
-        }
-    }
-    
     InboxRealtime.init({
         userId: <?= $selectedUser ? $selectedUser['id'] : 'null' ?>,
         lineAccountId: <?= $currentBotId ?>,
@@ -2189,8 +2182,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Callback when new messages arrive
         onNewMessage: function(data) {
-            console.log('[Inbox] New messages:', data.new_count);
-            
             // Show notification toast
             if (typeof showNotification === 'function') {
                 showNotification(`📬 มี ${data.new_count} ข้อความใหม่`, 'info');
@@ -2199,7 +2190,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Callback when conversation list updates
         onConversationUpdate: function(conversations) {
-            console.log('[Inbox] onConversationUpdate called with', conversations.length, 'conversations');
             updateConversationListUI(conversations);
         },
         
@@ -2209,9 +2199,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Start polling - RE-ENABLED for testing
+    // Start polling
     InboxRealtime.start();
-    console.log('[Inbox] Realtime polling ENABLED');
     
     // Stop polling when page is hidden, resume when visible
     document.addEventListener('visibilitychange', function() {
@@ -2235,28 +2224,14 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateConversationListUI(conversations) {
     const container = document.getElementById('userList');
     if (!container) {
-        console.warn('[updateConversationListUI] Container not found');
         return;
     }
     
     const currentUserId = <?= $selectedUser ? $selectedUser['id'] : 'null' ?>;
     
-    console.log('[updateConversationListUI] Container found, updating', conversations.length, 'conversations');
-    
-    // Debug: Log API data for jame.ver (id=15)
-    const jameData = conversations.find(c => c.id === 15);
-    if (jameData) {
-        console.log('[updateConversationListUI] API DATA for jame.ver:', JSON.stringify(jameData));
-    }
-    
     conversations.forEach((conv, index) => {
         // Use data-user-id for exact match instead of href contains (which can match partial IDs)
         const existingItem = container.querySelector(`a[data-user-id="${conv.id}"]`);
-        
-        // Debug: log for first 3 conversations
-        if (index < 3) {
-            console.log(`[updateConversationListUI] Conv ${conv.id} (${conv.display_name}): element found = ${!!existingItem}, API last_message = "${conv.last_message}"`);
-        }
         
         if (existingItem) {
             // Update last message preview - use .last-msg class
@@ -2264,13 +2239,6 @@ function updateConversationListUI(conversations) {
             if (lastMsgEl) {
                 const prefix = conv.last_direction === 'outgoing' ? 'คุณ: ' : '';
                 const newText = prefix + conv.last_message;
-                
-                // Debug: log if jame.ver (id=15) or Kratae (id=492)
-                if (conv.id === 15 || conv.id === 492) {
-                    const initialValue = lastMsgEl.dataset.initial || 'N/A';
-                    console.log(`[updateConversationListUI] ${conv.display_name} (${conv.id}): initial="${initialValue}" DOM="${lastMsgEl.textContent}" -> API="${newText}" (raw: "${conv.last_message}")`);
-                }
-                
                 lastMsgEl.textContent = newText;
             }
             
@@ -2732,6 +2700,27 @@ function handleKeyDown(event) {
  */
 function handleMessageInput(input) {
     const ghostText = document.getElementById('ghostText');
+    const value = input.value;
+    
+    // Check for "/" command to open quick reply/templates - Requirements: 2.1
+    if (value === '/' || value.endsWith(' /') || value.endsWith('\n/')) {
+        openQuickReplyModal();
+        return;
+    }
+    
+    // Check for template shortcut (e.g., /hello, /สวัสดี)
+    const shortcutMatch = value.match(/^\/(\S+)$/);
+    if (shortcutMatch && HUDMode.templates.length > 0) {
+        const shortcut = shortcutMatch[1].toLowerCase();
+        const template = HUDMode.templates.find(t => 
+            t.quick_reply && t.quick_reply.toLowerCase() === shortcut
+        );
+        if (template) {
+            input.value = '';
+            HUDMode.useTemplate(template.id);
+            return;
+        }
+    }
     
     // If user starts typing, hide ghost draft - Requirements: 6.4
     if (input.value.trim() !== '' && ghostDraftState.currentDraft) {
@@ -2807,10 +2796,7 @@ async function learnFromEdit(finalMessage) {
         });
         
         const result = await response.json();
-        
-        if (result.success) {
-            console.log('Ghost Draft learning saved');
-        }
+        // Learning saved silently
     } catch (error) {
         console.error('Failed to save learning data:', error);
     } finally {
@@ -3048,12 +3034,151 @@ async function markMessagesAsReadOnLine(userId) {
         });
         
         const result = await response.json();
-        
-        if (result.success && result.marked_count > 0) {
-            console.log('[MarkAsRead] Marked', result.marked_count, 'messages as read on LINE');
-        }
+        // Mark as read completed silently
     } catch (error) {
         console.error('[MarkAsRead] Error:', error);
+    }
+}
+
+// ============================================
+// QUICK REPLY MODAL FUNCTIONS
+// ============================================
+
+let quickReplySelectedIndex = 0;
+let quickReplyFilteredList = [];
+
+/**
+ * Open quick reply modal
+ */
+async function openQuickReplyModal() {
+    const modal = document.getElementById('quickReplyModal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    
+    // Load templates if not loaded
+    if (!HUDMode.templatesLoaded || HUDMode.templates.length === 0) {
+        await HUDMode.loadTemplates();
+    }
+    
+    // Reset filter
+    quickReplyFilteredList = [...HUDMode.templates];
+    quickReplySelectedIndex = 0;
+    renderQuickReplyList();
+    
+    // Focus search input
+    setTimeout(() => {
+        const searchInput = document.getElementById('quickReplySearch');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+    }, 50);
+    
+    // Clear the "/" from message input
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput && messageInput.value.endsWith('/')) {
+        messageInput.value = messageInput.value.slice(0, -1);
+    }
+}
+
+/**
+ * Close quick reply modal
+ */
+function closeQuickReplyModal() {
+    const modal = document.getElementById('quickReplyModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // Return focus to message input
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.focus();
+    }
+}
+
+/**
+ * Filter quick replies based on search query
+ */
+function filterQuickReplies(query) {
+    const q = query.toLowerCase().trim();
+    
+    if (!q) {
+        quickReplyFilteredList = [...HUDMode.templates];
+    } else {
+        quickReplyFilteredList = HUDMode.templates.filter(t => 
+            t.name.toLowerCase().includes(q) || 
+            t.content.toLowerCase().includes(q) ||
+            (t.category && t.category.toLowerCase().includes(q)) ||
+            (t.quick_reply && t.quick_reply.toLowerCase().includes(q))
+        );
+    }
+    
+    quickReplySelectedIndex = 0;
+    renderQuickReplyList();
+}
+
+/**
+ * Render quick reply list
+ */
+function renderQuickReplyList() {
+    const listContainer = document.getElementById('quickReplyList');
+    if (!listContainer) return;
+    
+    if (quickReplyFilteredList.length === 0) {
+        listContainer.innerHTML = '<div class="quick-reply-empty">ไม่พบเทมเพลต</div>';
+        return;
+    }
+    
+    listContainer.innerHTML = quickReplyFilteredList.map((t, index) => `
+        <div class="quick-reply-item ${index === quickReplySelectedIndex ? 'selected' : ''}" 
+             onclick="selectQuickReply(${index})" 
+             data-index="${index}">
+            <div class="quick-reply-item-header">
+                ${t.quick_reply ? `<span class="quick-reply-item-shortcut">/${t.quick_reply}</span>` : ''}
+                <span class="quick-reply-item-name">${escapeHtml(t.name)}</span>
+            </div>
+            <div class="quick-reply-item-preview">${escapeHtml(t.content.substring(0, 60))}${t.content.length > 60 ? '...' : ''}</div>
+        </div>
+    `).join('');
+    
+    // Scroll selected item into view
+    const selectedItem = listContainer.querySelector('.quick-reply-item.selected');
+    if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+/**
+ * Select quick reply by index
+ */
+function selectQuickReply(index) {
+    if (index >= 0 && index < quickReplyFilteredList.length) {
+        const template = quickReplyFilteredList[index];
+        HUDMode.useTemplate(template.id);
+        closeQuickReplyModal();
+    }
+}
+
+/**
+ * Handle keyboard navigation in quick reply modal
+ */
+function handleQuickReplyKeydown(event) {
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        quickReplySelectedIndex = Math.min(quickReplySelectedIndex + 1, quickReplyFilteredList.length - 1);
+        renderQuickReplyList();
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        quickReplySelectedIndex = Math.max(quickReplySelectedIndex - 1, 0);
+        renderQuickReplyList();
+    } else if (event.key === 'Enter') {
+        event.preventDefault();
+        selectQuickReply(quickReplySelectedIndex);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeQuickReplyModal();
     }
 }
 
@@ -5097,7 +5222,6 @@ async function executeQuickAction(actionType, actionData) {
             break;
             
         default:
-            console.log('Unknown action:', actionType, actionData);
             showNotification(`Action: ${actionData.label}`, 'info');
     }
 }
@@ -5549,9 +5673,7 @@ async function savePendingOrder() {
         });
         
         const result = await response.json();
-        if (result.success) {
-            console.log('Pending order saved:', result);
-        } else {
+        if (!result.success) {
             console.error('Failed to save pending order:', result.error);
         }
     } catch (error) {
