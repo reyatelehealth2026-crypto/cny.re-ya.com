@@ -399,10 +399,11 @@ const InboxRealtime = (function() {
      * @param {object} conv
      */
     function updateConversationItem(item, conv) {
-        // Update last message
+        // Update last message with direction prefix
         const lastMsgEl = item.querySelector('.last-msg');
         if (lastMsgEl) {
-            lastMsgEl.textContent = conv.last_message;
+            const prefix = conv.last_direction === 'outgoing' ? 'คุณ: ' : '';
+            lastMsgEl.textContent = prefix + conv.last_message;
         }
         
         // Update time
@@ -416,10 +417,8 @@ const InboxRealtime = (function() {
         if (badgeEl) {
             if (conv.unread_count > 0) {
                 badgeEl.textContent = conv.unread_count > 9 ? '9+' : conv.unread_count;
-                badgeEl.classList.remove('hidden');
                 badgeEl.style.display = 'flex';
             } else {
-                badgeEl.classList.add('hidden');
                 badgeEl.style.display = 'none';
             }
         } else if (conv.unread_count > 0) {

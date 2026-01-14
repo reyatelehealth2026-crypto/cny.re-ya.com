@@ -1892,37 +1892,37 @@ function updateConversationListUI(conversations) {
         const existingItem = container.querySelector(`a[href*="user=${conv.id}"]`);
         
         if (existingItem) {
-            // Update existing item content
-            const lastMsgEl = existingItem.querySelector('.text-gray-500.text-xs.truncate');
+            // Update last message preview - use .last-msg class
+            const lastMsgEl = existingItem.querySelector('.last-msg');
             if (lastMsgEl) {
                 const prefix = conv.last_direction === 'outgoing' ? 'คุณ: ' : '';
                 lastMsgEl.textContent = prefix + conv.last_message;
             }
             
-            // Update time
-            const timeEl = existingItem.querySelector('.text-gray-400.text-xs');
+            // Update time - use .last-time class
+            const timeEl = existingItem.querySelector('.last-time');
             if (timeEl) {
                 timeEl.textContent = conv.last_time_formatted;
             }
             
             // Update unread badge
-            let badgeEl = existingItem.querySelector('.unread-badge, .bg-red-500.text-white.text-xs');
+            let badgeEl = existingItem.querySelector('.unread-badge');
             if (conv.unread_count > 0) {
                 if (!badgeEl) {
                     // Create badge if doesn't exist
                     const avatarContainer = existingItem.querySelector('.relative');
                     if (avatarContainer) {
                         badgeEl = document.createElement('div');
-                        badgeEl.className = 'absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold unread-badge';
+                        badgeEl.className = 'unread-badge absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold';
                         avatarContainer.appendChild(badgeEl);
                     }
                 }
                 if (badgeEl) {
                     badgeEl.textContent = conv.unread_count > 9 ? '9+' : conv.unread_count;
-                    badgeEl.classList.remove('hidden');
+                    badgeEl.style.display = 'flex';
                 }
             } else if (badgeEl) {
-                badgeEl.classList.add('hidden');
+                badgeEl.style.display = 'none';
             }
             
             // Move to top if has new messages and not already at top
