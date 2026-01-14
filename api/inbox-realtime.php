@@ -59,27 +59,22 @@ try {
             $newCount = (int)$stmt->fetch(PDO::FETCH_ASSOC)['new_count'];
             
             // Get updated conversation list (sorted by latest message)
-            // Use subquery to get the actual latest message by created_at
+            // Use subqueries to get the actual latest message data
             $stmt = $db->prepare("
                 SELECT 
                     u.id,
                     u.display_name,
                     u.picture_url,
                     u.line_user_id,
-                    m_last.content as last_message,
-                    m_last.message_type as last_type,
-                    m_last.created_at as last_time,
-                    m_last.direction as last_direction,
+                    (SELECT content FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_message,
+                    (SELECT message_type FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_type,
+                    (SELECT created_at FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_time,
+                    (SELECT direction FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_direction,
                     (SELECT COUNT(*) FROM messages WHERE user_id = u.id AND direction = 'incoming' AND is_read = 0) as unread_count
                 FROM users u
-                INNER JOIN (
-                    SELECT user_id, MAX(created_at) as max_time
-                    FROM messages
-                    GROUP BY user_id
-                ) m_max ON u.id = m_max.user_id
-                INNER JOIN messages m_last ON m_last.user_id = m_max.user_id AND m_last.created_at = m_max.max_time
                 WHERE u.line_account_id = ?
-                ORDER BY m_last.created_at DESC
+                AND EXISTS (SELECT 1 FROM messages WHERE user_id = u.id)
+                ORDER BY last_time DESC
                 LIMIT 100
             ");
             $stmt->execute([$lineAccountId]);
