@@ -1924,7 +1924,8 @@ function updateConversationListUI(conversations) {
     }
     
     conversations.forEach((conv, index) => {
-        const existingItem = container.querySelector(`a[href*="user=${conv.id}"]`);
+        // Use data-user-id for exact match instead of href contains (which can match partial IDs)
+        const existingItem = container.querySelector(`a[data-user-id="${conv.id}"]`);
         
         // Debug: log for first 3 conversations
         if (index < 3) {
