@@ -692,11 +692,11 @@ function formatThaiDateTime($datetime) {
 <link rel="stylesheet" href="assets/css/inbox-v2-fab.css?v=<?= time() ?>">
 
 <style>
-:root { --primary: #0C665D; --primary-dark: #0A5550; --vibe-purple: #8B5CF6; --vibe-purple-dark: #7C3AED; }
+:root { --primary: #0C665D; --primary-dark: #0A5550; }
 .chat-scroll::-webkit-scrollbar { width: 5px; }
 .chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
 
-/* Chat Bubbles - LINE OA style - fit content */
+/* Chat Bubbles - LINE OA style - fit content exactly */
 .chat-bubble { 
     white-space: pre-wrap; 
     word-wrap: break-word; 
@@ -704,24 +704,35 @@ function formatThaiDateTime($datetime) {
     font-size: 14px;
     display: inline-block;
     padding: 10px 14px;
+    max-width: 100%;
+    width: fit-content;
 }
 .chat-incoming { 
     background: #E8E8E8; 
     color: #1A1A1A; 
-    border-radius: 4px 20px 20px 20px;
+    border-radius: 4px 18px 18px 18px;
 }
 .chat-outgoing { 
     background: #0C665D; 
     color: #FFFFFF; 
-    border-radius: 20px 4px 20px 20px;
+    border-radius: 18px 4px 18px 18px;
 }
 
-/* Message container - remove max-width to fit content */
+/* Message container - fit content */
 .message-item {
     margin-bottom: 8px;
+    display: flex;
 }
 .message-item .flex-col {
     max-width: 70%;
+    display: flex;
+    flex-direction: column;
+}
+.message-item.justify-end .flex-col {
+    align-items: flex-end;
+}
+.message-item.justify-start .flex-col {
+    align-items: flex-start;
 }
 
 /* User list */
@@ -967,10 +978,10 @@ function formatThaiDateTime($datetime) {
     50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
 }
 .quick-action-btn.primary {
-    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+    background: #0C665D;
 }
 .quick-action-btn.primary:hover {
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+    box-shadow: 0 4px 12px rgba(12, 102, 93, 0.35);
 }
 .quick-action-btn .action-icon {
     font-size: 14px;
@@ -1013,7 +1024,7 @@ function formatThaiDateTime($datetime) {
     top: 50%;
     transform: translateY(-50%);
     font-size: 10px;
-    color: #8B5CF6;
+    color: #0C665D;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -1208,7 +1219,7 @@ function formatThaiDateTime($datetime) {
     color: white;
 }
 .purchase-action-btn.payment-link {
-    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+    background: #0C665D;
     color: white;
 }
 .purchase-action-btn.schedule-delivery {
@@ -1291,7 +1302,7 @@ function formatThaiDateTime($datetime) {
         <div class="p-2 border-b">
             <div class="relative">
                 <input type="text" id="userSearch" placeholder="🔍 ค้นหาชื่อ, ข้อความ, แท็ก..." 
-                       class="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none pr-8" 
+                       class="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none pr-8" 
                        oninput="debouncedSearch(this.value)">
             </div>
         </div>
@@ -1299,13 +1310,13 @@ function formatThaiDateTime($datetime) {
         <!-- Filter Dropdowns -->
         <div class="p-2 border-b bg-gray-50 space-y-2">
             <div class="flex gap-2">
-                <select id="filterStatus" onchange="applyFilters()" class="flex-1 px-2 py-1.5 bg-white border rounded-lg text-xs focus:ring-2 focus:ring-purple-500 outline-none">
+                <select id="filterStatus" onchange="applyFilters()" class="flex-1 px-2 py-1.5 bg-white border rounded-lg text-xs focus:ring-2 focus:ring-teal-500 outline-none">
                     <option value="">ทุกสถานะ</option>
                     <option value="unread">ยังไม่อ่าน</option>
                     <option value="assigned">มอบหมายแล้ว</option>
                 </select>
                 
-                <select id="filterTag" onchange="applyFilters()" class="flex-1 px-2 py-1.5 bg-white border rounded-lg text-xs focus:ring-2 focus:ring-purple-500 outline-none">
+                <select id="filterTag" onchange="applyFilters()" class="flex-1 px-2 py-1.5 bg-white border rounded-lg text-xs focus:ring-2 focus:ring-teal-500 outline-none">
                     <option value="">ทุกแท็ก</option>
                     <?php foreach ($allTagsForFilter as $tag): ?>
                     <option value="<?= $tag['id'] ?>"><?= htmlspecialchars($tag['name']) ?></option>
@@ -1378,7 +1389,7 @@ function formatThaiDateTime($datetime) {
                 <button id="mobileBackBtn" onclick="showChatList()" class="hidden w-8 h-8 items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 mr-1">
                     <i class="fas fa-arrow-left"></i>
                 </button>
-                <img src="<?= $selectedUser['picture_url'] ?: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22%3E%3Ccircle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M20 22c3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6 2.7 6 6 6zm0 3c-4 0-12 2-12 6v3h24v-3c0-4-8-6-12-6z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E' ?>" class="w-10 h-10 rounded-full border-2 border-purple-500" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22%3E%3Ccircle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M20 22c3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6 2.7 6 6 6zm0 3c-4 0-12 2-12 6v3h24v-3c0-4-8-6-12-6z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'">
+                <img src="<?= $selectedUser['picture_url'] ?: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22%3E%3Ccircle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M20 22c3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6 2.7 6 6 6zm0 3c-4 0-12 2-12 6v3h24v-3c0-4-8-6-12-6z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E' ?>" class="w-10 h-10 rounded-full border-2 border-teal-600" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22%3E%3Ccircle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M20 22c3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6 2.7 6 6 6zm0 3c-4 0-12 2-12 6v3h24v-3c0-4-8-6-12-6z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'">
                 <div>
                     <div class="flex items-center gap-2">
                         <h3 class="font-bold text-gray-800"><?= htmlspecialchars($selectedUser['display_name']) ?></h3>
@@ -1399,10 +1410,10 @@ function formatThaiDateTime($datetime) {
                 </div>
             </div>
             <div class="flex gap-2">
-                <button onclick="generateGhostDraft()" class="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-medium" title="Ghost Draft">
+                <button onclick="generateGhostDraft()" class="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded-lg text-sm font-medium" title="Ghost Draft">
                     <i class="fas fa-magic mr-1"></i>Ghost
                 </button>
-                <button onclick="toggleHUD()" class="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium" title="HUD Dashboard">
+                <button onclick="toggleHUD()" class="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded-lg text-sm font-medium" title="HUD Dashboard">
                     <i class="fas fa-th-large mr-1"></i>HUD
                 </button>
                 <button onclick="togglePanel()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm cursor-pointer" title="ข้อมูลลูกค้า">
@@ -1499,14 +1510,14 @@ function formatThaiDateTime($datetime) {
                 <!-- Image Analysis Dropdown Button - Requirements: 1.1, 1.2, 1.3 -->
                 <div class="relative" id="imageAnalysisDropdown">
                     <button type="button" onclick="toggleImageAnalysisMenu()" 
-                            class="w-10 h-10 rounded-full bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 text-purple-600 flex items-center justify-center relative" 
+                            class="w-10 h-10 rounded-full bg-teal-100 hover:bg-teal-200 text-teal-600 flex items-center justify-center relative" 
                             title="วิเคราะห์รูปภาพ AI">
                         <i class="fas fa-camera-retro"></i>
-                        <span class="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold">AI</span>
+                        <span class="absolute -top-1 -right-1 w-4 h-4 bg-teal-600 text-white text-[8px] rounded-full flex items-center justify-center font-bold">AI</span>
                     </button>
                     <div id="imageAnalysisMenu" class="hidden absolute bottom-12 left-0 bg-white rounded-xl shadow-xl border border-gray-100 py-2 min-w-[200px] z-50">
                         <div class="px-3 py-1 text-[10px] text-gray-400 font-medium uppercase tracking-wider">วิเคราะห์รูปภาพ AI</div>
-                        <button type="button" onclick="triggerSymptomAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                        <button type="button" onclick="triggerSymptomAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-teal-50 flex items-center gap-2 text-gray-700">
                             <span class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-500">
                                 <i class="fas fa-stethoscope"></i>
                             </span>
@@ -1515,7 +1526,7 @@ function formatThaiDateTime($datetime) {
                                 <div class="text-[10px] text-gray-400">ผื่น, บาดแผล, อาการผิดปกติ</div>
                             </div>
                         </button>
-                        <button type="button" onclick="triggerDrugAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                        <button type="button" onclick="triggerDrugAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-teal-50 flex items-center gap-2 text-gray-700">
                             <span class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-500">
                                 <i class="fas fa-pills"></i>
                             </span>
@@ -1524,7 +1535,7 @@ function formatThaiDateTime($datetime) {
                                 <div class="text-[10px] text-gray-400">ชื่อยา, สรรพคุณ, ข้อควรระวัง</div>
                             </div>
                         </button>
-                        <button type="button" onclick="triggerPrescriptionAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center gap-2 text-gray-700">
+                        <button type="button" onclick="triggerPrescriptionAnalysis()" class="w-full px-3 py-2 text-left text-sm hover:bg-teal-50 flex items-center gap-2 text-gray-700">
                             <span class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-500">
                                 <i class="fas fa-file-prescription"></i>
                             </span>
@@ -1556,7 +1567,7 @@ function formatThaiDateTime($datetime) {
                     </div>
                 </div>
                 
-                <div class="flex-1 bg-gray-100 rounded-2xl px-4 py-2 focus-within:ring-2 focus-within:ring-purple-500 relative ghost-draft-input">
+                <div class="flex-1 bg-gray-100 rounded-2xl px-4 py-2 focus-within:ring-2 focus-within:ring-teal-500 relative ghost-draft-input">
                     <div id="ghostText" class="ghost-text hidden"></div>
                     <textarea name="message" id="messageInput" rows="1" 
                               class="w-full bg-transparent border-0 outline-none text-sm resize-none max-h-24" 
@@ -1568,7 +1579,7 @@ function formatThaiDateTime($datetime) {
                         <span>Tab เพื่อใช้</span>
                     </div>
                 </div>
-                <button type="submit" id="sendBtn" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg">
+                <button type="submit" id="sendBtn" class="text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: #0C665D;">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </form>
@@ -1584,7 +1595,7 @@ function formatThaiDateTime($datetime) {
                     <button type="button" onclick="cancelImageUpload()" class="text-red-500 hover:text-red-700 p-2">
                         <i class="fas fa-times"></i>
                     </button>
-                    <button type="button" onclick="sendImage()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    <button type="button" onclick="sendImage()" class="text-white px-4 py-2 rounded-lg text-sm font-medium" style="background: #0C665D;">
                         <i class="fas fa-paper-plane mr-1"></i>ส่งรูป
                     </button>
                 </div>
@@ -1654,7 +1665,7 @@ function formatThaiDateTime($datetime) {
     <?php if ($selectedUser): ?>
     <div id="hudDashboard" class="hud-dashboard">
         <!-- HUD Header with Mode Switcher -->
-        <div class="p-3 border-b bg-gradient-to-r from-purple-600 to-indigo-600">
+        <div class="p-3 border-b" style="background: #0C665D;">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-white font-bold text-sm flex items-center gap-2">
                     <i class="fas fa-th-large"></i>
@@ -1747,7 +1758,7 @@ function formatThaiDateTime($datetime) {
             <!-- Product Detection Widget - Wholesale Mode -->
             <div class="hud-widget symptom-widget" id="symptomWidget">
                 <div class="hud-widget-header" onclick="toggleWidget('symptomWidget')">
-                    <h4><i class="fas fa-box-open text-purple-500"></i> ตรวจจับสินค้า</h4>
+                    <h4><i class="fas fa-box-open text-teal-600"></i> ตรวจจับสินค้า</h4>
                     <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
                 </div>
                 <div class="hud-widget-body">
@@ -1825,16 +1836,16 @@ function formatThaiDateTime($datetime) {
                             <span class="font-medium"><?= round(($customerClassification['confidence'] ?? 0) * 100) ?>%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-1.5">
-                            <div class="bg-purple-500 h-1.5 rounded-full" style="width: <?= ($customerClassification['confidence'] ?? 0) * 100 ?>%"></div>
+                            <div class="h-1.5 rounded-full" style="width: <?= ($customerClassification['confidence'] ?? 0) * 100 ?>%; background: #0C665D;"></div>
                         </div>
                         <p class="text-[10px] text-gray-400 mt-1">* คำนวณจากประวัติการสนทนา</p>
                     </div>
                     <?php endif; ?>
                     <?php if (!empty($customerClassification['tips'])): ?>
-                    <div class="bg-purple-50 rounded-lg p-2 text-xs">
-                        <p class="font-medium text-purple-700 mb-1">💡 เคล็ดลับการตอบ</p>
+                    <div class="bg-teal-50 rounded-lg p-2 text-xs">
+                        <p class="font-medium text-teal-700 mb-1">💡 เคล็ดลับการตอบ</p>
                         <?php foreach ((array)$customerClassification['tips'] as $tip): ?>
-                        <p class="text-purple-600 text-[11px]">• <?= htmlspecialchars($tip) ?></p>
+                        <p class="text-teal-600 text-[11px]">• <?= htmlspecialchars($tip) ?></p>
                         <?php endforeach; ?>
                     </div>
                     <?php endif; ?>
