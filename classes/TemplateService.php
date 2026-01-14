@@ -104,7 +104,7 @@ class TemplateService {
      * Requirements: 2.4 - Manage templates
      * 
      * @param int $id Template ID
-     * @param array $data Updated data (name, content, category)
+     * @param array $data Updated data (name, content, category, quick_reply)
      * @return bool
      */
     public function updateTemplate(int $id, array $data): bool {
@@ -137,6 +137,11 @@ class TemplateService {
         if (isset($data['category'])) {
             $fields[] = 'category = ?';
             $params[] = trim($data['category']);
+        }
+        
+        if (array_key_exists('quick_reply', $data)) {
+            $fields[] = 'quick_reply = ?';
+            $params[] = $data['quick_reply'];
         }
         
         if (empty($fields)) {
