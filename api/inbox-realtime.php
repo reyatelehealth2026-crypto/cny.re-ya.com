@@ -63,24 +63,25 @@ try {
             
             // Get updated conversation list (sorted by latest message)
             // Use subqueries to get the actual latest message data
+            // IMPORTANT: Filter by line_account_id in subqueries to get correct messages
             $stmt = $db->prepare("
                 SELECT 
                     u.id,
                     u.display_name,
                     u.picture_url,
                     u.line_user_id,
-                    (SELECT content FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_message,
-                    (SELECT message_type FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_type,
-                    (SELECT created_at FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_time,
-                    (SELECT direction FROM messages WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_direction,
-                    (SELECT COUNT(*) FROM messages WHERE user_id = u.id AND direction = 'incoming' AND is_read = 0) as unread_count
+                    (SELECT content FROM messages WHERE user_id = u.id AND line_account_id = ? ORDER BY created_at DESC LIMIT 1) as last_message,
+                    (SELECT message_type FROM messages WHERE user_id = u.id AND line_account_id = ? ORDER BY created_at DESC LIMIT 1) as last_type,
+                    (SELECT created_at FROM messages WHERE user_id = u.id AND line_account_id = ? ORDER BY created_at DESC LIMIT 1) as last_time,
+                    (SELECT direction FROM messages WHERE user_id = u.id AND line_account_id = ? ORDER BY created_at DESC LIMIT 1) as last_direction,
+                    (SELECT COUNT(*) FROM messages WHERE user_id = u.id AND line_account_id = ? AND direction = 'incoming' AND is_read = 0) as unread_count
                 FROM users u
                 WHERE u.line_account_id = ?
-                AND EXISTS (SELECT 1 FROM messages WHERE user_id = u.id)
+                AND EXISTS (SELECT 1 FROM messages WHERE user_id = u.id AND line_account_id = ?)
                 ORDER BY last_time DESC
                 LIMIT 100
             ");
-            $stmt->execute([$lineAccountId]);
+            $stmt->execute([$lineAccountId, $lineAccountId, $lineAccountId, $lineAccountId, $lineAccountId, $lineAccountId, $lineAccountId]);
             $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             // Format conversations
