@@ -986,6 +986,13 @@ if (!$line) {
                 }
             } catch (Exception $e) {}
             
+            devLog($db, 'debug', 'webhook', 'Bot mode check', [
+                'user_id' => $userId,
+                'bot_mode' => $botMode,
+                'message' => mb_substr($messageText, 0, 30),
+                'text_lower' => $textLower
+            ], $userId);
+            
             // ถ้าเป็นโหมด general - เช็ค Auto Reply ก่อน ถ้าไม่ match ค่อยไม่ตอบ
             if ($botMode === 'general') {
                 // Debug: log before checking auto reply
