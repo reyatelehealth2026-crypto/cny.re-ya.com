@@ -59,7 +59,7 @@ $signature = $_SERVER['HTTP_X_LINE_SIGNATURE'] ?? '';
 
 $db = Database::getInstance()->getConnection();
 
-// Multi-account support: à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸²à¸ˆà¸²à¸ account à¹„à¸«à¸™
+// Multi-account support: ตรวจสอบว่ามาจาก account ไหน
 $lineAccountId = null;
 $lineAccount = null;
 $line = null;
@@ -105,10 +105,10 @@ if (!$line) {
         $events = json_decode($body, true)['events'] ?? [];
 
     /**
-     * à¹à¸ªà¸”à¸‡ Loading Animation à¹ƒà¸™ LINE Chat
+     * แสดง Loading Animation ใน LINE Chat
      * @param LineAPI $line - LINE API instance
-     * @param string $chatId - User ID à¸«à¸£à¸·à¸­ Group ID
-     * @param int $seconds - à¸ˆà¸³à¸™à¸§à¸™à¸§à¸´à¸™à¸²à¸—à¸µ (5-60)
+     * @param string $chatId - User ID หรือ Group ID
+     * @param int $seconds - จำนวนวินาที (5-60)
      */
     function showLoadingAnimation($line, $chatId, $seconds = 10) {
         try {
@@ -159,7 +159,7 @@ if (!$line) {
             $sourceType = $event['source']['type'] ?? 'user';
             $groupId = $event['source']['groupId'] ?? $event['source']['roomId'] ?? null;
             
-            // Handle join/leave events (à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡à¸¡à¸µ userId)
+            // Handle join/leave events (ไม่ต้องมี userId)
             if ($event['type'] === 'join') {
                 handleJoinGroup($event, $db, $line, $lineAccountId);
                 continue;
@@ -169,20 +169,20 @@ if (!$line) {
                 continue;
             }
             
-            // à¸ªà¸³à¸«à¸£à¸±à¸š event à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡ - à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¹à¸¥à¸°à¸ªà¸£à¹‰à¸²à¸‡à¸à¸¥à¸¸à¹ˆà¸¡à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¸–à¹‰à¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ
+            // สำหรับ event จากกลุ่ม - ตรวจสอบและสร้างกลุ่มอัตโนมัติถ้ายังไม่มี
             if (($sourceType === 'group' || $sourceType === 'room') && $groupId && $lineAccountId) {
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¹à¸¥à¸°à¸ªà¸£à¹‰à¸²à¸‡à¸à¸¥à¸¸à¹ˆà¸¡à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´
+                // ตรวจสอบและสร้างกลุ่มอัตโนมัติ
                 ensureGroupExists($db, $line, $lineAccountId, $groupId, $sourceType);
                 
                 if ($userId) {
-                    // à¸šà¸±à¸™à¸—à¸¶à¸à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡
+                    // บันทึกผู้ใช้จากกลุ่ม
                     $groupUser = getOrCreateUser($db, $line, $userId, $lineAccountId, $groupId);
                     $dbUserId = $groupUser['id'] ?? null;
                     
-                    // à¸šà¸±à¸™à¸—à¸¶à¸ event à¸žà¸£à¹‰à¸­à¸¡ source_id (groupId)
+                    // บันทึก event พร้อม source_id (groupId)
                     saveAccountEvent($db, $lineAccountId, $event['type'], $userId, $dbUserId, $event);
                     
-                    // à¸­à¸±à¸žà¹€à¸”à¸—à¸ªà¸–à¸´à¸•à¸´à¸à¸¥à¸¸à¹ˆà¸¡
+                    // อัพเดทสถิติกลุ่ม
                     updateGroupStats($db, $lineAccountId, $groupId, $event['type']);
                 }
                 // Skip saveAccountEvent if no userId (bot events from group)
@@ -190,11 +190,11 @@ if (!$line) {
             
             if (!$userId) continue;
             
-            // Deduplication: à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸à¸²à¸£à¸›à¸£à¸°à¸¡à¸§à¸¥à¸œà¸¥ event à¸‹à¹‰à¸³
+            // Deduplication: ป้องกันการประมวลผล event ซ้ำ
             $webhookEventId = $event['webhookEventId'] ?? null;
             $messageText = $event['message']['text'] ?? '';
             
-            // Log à¸—à¸¸à¸ event à¸—à¸µà¹ˆà¹€à¸‚à¹‰à¸²à¸¡à¸²
+            // Log ทุก event ที่เข้ามา
             devLog($db, 'debug', 'webhook', 'Event received', [
                 'event_id' => $webhookEventId ? substr($webhookEventId, 0, 20) : 'none',
                 'type' => $event['type'] ?? 'unknown',
@@ -210,9 +210,9 @@ if (!$line) {
                         devLog($db, 'warning', 'webhook', 'Duplicate event skipped', [
                             'event_id' => substr($webhookEventId, 0, 20)
                         ], $userId);
-                        continue; // Event à¸™à¸µà¹‰à¸–à¸¹à¸à¸›à¸£à¸°à¸¡à¸§à¸¥à¸œà¸¥à¹à¸¥à¹‰à¸§
+                        continue; // Event นี้ถูกประมวลผลแล้ว
                     }
-                    // à¸šà¸±à¸™à¸—à¸¶à¸ event ID
+                    // บันทึก event ID
                     $stmt = $db->prepare("INSERT INTO webhook_events (event_id) VALUES (?)");
                     $stmt->execute([$webhookEventId]);
                 } catch (Exception $e) {
@@ -222,7 +222,7 @@ if (!$line) {
 
             switch ($event['type']) {
                 case 'follow':
-                    // Follow event à¸¡à¸µ replyToken - à¹ƒà¸Šà¹‰ reply à¹à¸—à¸™ push à¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota
+                    // Follow event มี replyToken - ใช้ reply แทน push เพื่อประหยัด quota
                     handleFollow($userId, $replyToken, $db, $line, $lineAccountId, $event);
                     break;
                 case 'unfollow':
@@ -232,7 +232,7 @@ if (!$line) {
                     handleMessage($event, $userId, $replyToken, $db, $line, $lineAccountId);
                     break;
             case 'postback':
-                // à¸šà¸±à¸™à¸—à¸¶à¸ postback event
+                // บันทึก postback event
                 $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ?");
                 $stmt->execute([$userId]);
                 $dbUserId = $stmt->fetchColumn();
@@ -244,7 +244,7 @@ if (!$line) {
                 // Handle Broadcast Product Click - Auto Tag
                 $postbackData = $event['postback']['data'] ?? '';
                 
-                // à¸£à¸­à¸‡à¸£à¸±à¸šà¸—à¸±à¹‰à¸‡ 2 à¸£à¸¹à¸›à¹à¸šà¸š: broadcast_click_{id}_{id} à¸«à¸£à¸·à¸­ JSON {"action":"broadcast_click",...}
+                // รองรับทั้ง 2 รูปแบบ: broadcast_click_{id}_{id} หรือ JSON {"action":"broadcast_click",...}
                 $isBroadcastClick = false;
                 if (strpos($postbackData, 'broadcast_click_') === 0) {
                     $isBroadcastClick = true;
@@ -260,7 +260,7 @@ if (!$line) {
                 }
                 break;
             case 'beacon':
-                // à¸šà¸±à¸™à¸—à¸¶à¸ beacon event
+                // บันทึก beacon event
                 if ($lineAccountId) {
                     $stmt = $db->prepare("SELECT id FROM users WHERE line_user_id = ?");
                     $stmt->execute([$userId]);
@@ -269,20 +269,20 @@ if (!$line) {
                 }
                 break;
             case 'memberJoined':
-                // à¸ªà¸¡à¸²à¸Šà¸´à¸à¹ƒà¸«à¸¡à¹ˆà¹€à¸‚à¹‰à¸²à¸à¸¥à¸¸à¹ˆà¸¡
+                // สมาชิกใหม่เข้ากลุ่ม
                 if ($groupId && $lineAccountId) {
                     handleMemberJoined($event, $groupId, $db, $line, $lineAccountId);
                 }
                 break;
             case 'memberLeft':
-                // à¸ªà¸¡à¸²à¸Šà¸´à¸à¸­à¸­à¸à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡
+                // สมาชิกออกจากกลุ่ม
                 if ($groupId && $lineAccountId) {
                     handleMemberLeft($event, $groupId, $db, $lineAccountId);
                 }
                 break;
             }
             
-            // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡ à¹ƒà¸«à¹‰à¸šà¸±à¸™à¸—à¸¶à¸à¸”à¹‰à¸§à¸¢
+            // ถ้าเป็นข้อความจากกลุ่ม ให้บันทึกด้วย
             if ($event['type'] === 'message' && $groupId && $lineAccountId) {
                 saveGroupMessage($db, $lineAccountId, $groupId, $userId, $event);
             }
@@ -303,7 +303,7 @@ if (!$line) {
 
     /**
      * Handle follow event
-     * à¹ƒà¸Šà¹‰ replyToken à¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota (reply à¸Ÿà¸£à¸µ, push à¸™à¸±à¸š quota)
+     * ใช้ replyToken เพื่อประหยัด quota (reply ฟรี, push นับ quota)
      */
     function handleFollow($userId, $replyToken, $db, $line, $lineAccountId = null, $event = null) {
         $profile = $line->getProfile($userId);
@@ -355,7 +355,7 @@ if (!$line) {
             $dbUserId = $stmt->fetchColumn();
         }
         
-        // à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ follower à¹à¸¢à¸à¸•à¸²à¸¡à¸šà¸­à¸—
+        // บันทึกข้อมูล follower แยกตามบอท
         if ($lineAccountId) {
             saveAccountFollower($db, $lineAccountId, $userId, $dbUserId, $profile, true);
             saveAccountEvent($db, $lineAccountId, 'follow', $userId, $dbUserId, $event);
@@ -382,7 +382,7 @@ if (!$line) {
             }
         }
 
-        // Dynamic Rich Menu - à¸à¸³à¸«à¸™à¸” Rich Menu à¸•à¸²à¸¡à¸à¸Žà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´
+        // Dynamic Rich Menu - กำหนด Rich Menu ตามกฎอัตโนมัติ
         if ($dbUserId && $lineAccountId) {
             try {
                 if (file_exists(__DIR__ . '/classes/DynamicRichMenu.php')) {
@@ -395,31 +395,31 @@ if (!$line) {
             }
         }
 
-        // Send welcome message - à¹ƒà¸Šà¹‰ reply à¹à¸—à¸™ push à¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota!
+        // Send welcome message - ใช้ reply แทน push เพื่อประหยัด quota!
         sendWelcomeMessage($db, $line, $userId, $replyToken, $lineAccountId);
 
         // Log analytics
         logAnalytics($db, 'follow', ['user_id' => $userId, 'line_account_id' => $lineAccountId], $lineAccountId);
 
-        // Telegram notification à¸žà¸£à¹‰à¸­à¸¡à¸Šà¸·à¹ˆà¸­à¸šà¸­à¸—
+        // Telegram notification พร้อมชื่อบอท
         $accountName = getAccountName($db, $lineAccountId);
         sendTelegramNotification($db, 'follow', $displayName, '', $userId, $dbUserId, $accountName);
     }
 
     /**
      * Send welcome message to new follower
-     * à¹ƒà¸Šà¹‰ replyMessage à¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota (à¸Ÿà¸£à¸µ!) à¸–à¹‰à¸²à¸¡à¸µ replyToken
-     * à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µ replyToken à¸ˆà¸° fallback à¹„à¸›à¹ƒà¸Šà¹‰ pushMessage
-     * V5.1: à¹ƒà¸Šà¹‰ welcome_settings à¸ˆà¸²à¸à¸«à¸¥à¸±à¸‡à¸šà¹‰à¸²à¸™à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™ - à¹„à¸¡à¹ˆà¸¡à¸µ default hardcode
+     * ใช้ replyMessage เพื่อประหยัด quota (ฟรี!) ถ้ามี replyToken
+     * ถ้าไม่มี replyToken จะ fallback ไปใช้ pushMessage
+     * V5.1: ใช้ welcome_settings จากหลังบ้านเท่านั้น - ไม่มี default hardcode
      */
     function sendWelcomeMessage($db, $line, $userId, $replyToken = null, $lineAccountId = null) {
         try {
             // Get user profile for personalized message
             $profile = $line->getProfile($userId);
-            $displayName = $profile['displayName'] ?? 'à¸„à¸¸à¸“à¸¥à¸¹à¸à¸„à¹‰à¸²';
+            $displayName = $profile['displayName'] ?? 'คุณลูกค้า';
             $pictureUrl = $profile['pictureUrl'] ?? null;
             
-            // Get shop name - à¹à¸¢à¸à¸•à¸²à¸¡ LINE Account
+            // Get shop name - แยกตาม LINE Account
             $shopName = 'LINE Shop';
             try {
                 if ($lineAccountId) {
@@ -435,15 +435,15 @@ if (!$line) {
             // Helper function to send message (reply if possible, otherwise push)
             $sendMessage = function($messages) use ($line, $userId, $replyToken) {
                 if ($replyToken) {
-                    // à¹ƒà¸Šà¹‰ reply - à¸Ÿà¸£à¸µ à¹„à¸¡à¹ˆà¸™à¸±à¸š quota!
+                    // ใช้ reply - ฟรี ไม่นับ quota!
                     return $line->replyMessage($replyToken, $messages);
                 } else {
-                    // Fallback to push - à¸™à¸±à¸š quota
+                    // Fallback to push - นับ quota
                     return $line->pushMessage($userId, $messages);
                 }
             };
             
-            // Get welcome settings for this account - à¹ƒà¸Šà¹‰à¸ˆà¸²à¸à¸«à¸¥à¸±à¸‡à¸šà¹‰à¸²à¸™à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™
+            // Get welcome settings for this account - ใช้จากหลังบ้านเท่านั้น
             $welcomeSettings = null;
             try {
                 $stmt = $db->prepare("SELECT * FROM welcome_settings WHERE (line_account_id = ? OR line_account_id IS NULL) AND is_enabled = 1 ORDER BY line_account_id DESC LIMIT 1");
@@ -451,7 +451,7 @@ if (!$line) {
                 $welcomeSettings = $stmt->fetch();
             } catch (Exception $e) {}
             
-            // à¸–à¹‰à¸²à¸¡à¸µ welcome_settings à¸—à¸µà¹ˆà¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™ - à¹ƒà¸Šà¹‰à¸„à¹ˆà¸²à¸ˆà¸²à¸à¸™à¸±à¹‰à¸™
+            // ถ้ามี welcome_settings ที่เปิดใช้งาน - ใช้ค่าจากนั้น
             if ($welcomeSettings) {
                 if ($welcomeSettings['message_type'] === 'text' && !empty($welcomeSettings['text_content'])) {
                     // Replace placeholders
@@ -466,7 +466,7 @@ if (!$line) {
                         $flexContent = json_decode($flexJson, true);
                         $message = [
                             'type' => 'flex',
-                            'altText' => "à¸¢à¸´à¸™à¸”à¸µà¸•à¹‰à¸­à¸™à¸£à¸±à¸šà¸„à¸¸à¸“{$displayName}",
+                            'altText' => "ยินดีต้อนรับคุณ{$displayName}",
                             'contents' => $flexContent
                         ];
                         $sendMessage([$message]);
@@ -475,8 +475,8 @@ if (!$line) {
                 }
             }
             
-            // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µ welcome_settings - à¹„à¸¡à¹ˆà¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸•à¹‰à¸­à¸™à¸£à¸±à¸š (à¹ƒà¸«à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²à¸ˆà¸²à¸à¸«à¸¥à¸±à¸‡à¸šà¹‰à¸²à¸™)
-            // Log à¹€à¸žà¸·à¹ˆà¸­à¹à¸ˆà¹‰à¸‡à¹ƒà¸«à¹‰à¸—à¸£à¸²à¸šà¸§à¹ˆà¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²
+            // ถ้าไม่มี welcome_settings - ไม่ส่งข้อความต้อนรับ (ให้ตั้งค่าจากหลังบ้าน)
+            // Log เพื่อแจ้งให้ทราบว่ายังไม่ได้ตั้งค่า
             devLog($db, 'info', 'welcome_message', 'No welcome_settings configured', [
                 'line_account_id' => $lineAccountId,
                 'user_id' => $userId
@@ -489,7 +489,7 @@ if (!$line) {
     }
 
     /**
-     * Handle Broadcast Product Click - à¸•à¸´à¸” Tag à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¹€à¸¡à¸·à¹ˆà¸­à¸¥à¸¹à¸à¸„à¹‰à¸²à¸à¸”à¸ªà¸´à¸™à¸„à¹‰à¸²
+     * Handle Broadcast Product Click - ติด Tag อัตโนมัติเมื่อลูกค้ากดสินค้า
      */
     function handleBroadcastClick($db, $line, $dbUserId, $lineUserId, $postbackData, $replyToken, $lineAccountId) {
         try {
@@ -497,7 +497,7 @@ if (!$line) {
             $productId = null;
             $tagId = null;
             
-            // à¸£à¸­à¸‡à¸£à¸±à¸š 2 à¸£à¸¹à¸›à¹à¸šà¸š: string format à¸«à¸£à¸·à¸­ JSON
+            // รองรับ 2 รูปแบบ: string format หรือ JSON
             if (strpos($postbackData, '{') === 0) {
                 // JSON format: {"action":"broadcast_click","campaign_id":1,"product_id":2,"tag_id":3}
                 $jsonData = json_decode($postbackData, true);
@@ -517,7 +517,7 @@ if (!$line) {
             
             if (!$campaignId || !$productId) return;
             
-            // à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ item
+            // ดึงข้อมูล item
             $stmt = $db->prepare("SELECT bi.*, bc.auto_tag_enabled, bc.name as campaign_name 
                                 FROM broadcast_items bi 
                                 JOIN broadcast_campaigns bc ON bi.broadcast_id = bc.id 
@@ -527,12 +527,12 @@ if (!$line) {
             
             if (!$item) return;
             
-            // à¸šà¸±à¸™à¸—à¸¶à¸ click
+            // บันทึก click
             try {
                 $stmt = $db->prepare("INSERT INTO broadcast_clicks (broadcast_id, item_id, user_id, line_user_id, tag_assigned) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$campaignId, $item['id'], $dbUserId, $lineUserId, $item['auto_tag_enabled'] ? 1 : 0]);
                 
-                // à¸­à¸±à¸žà¹€à¸”à¸— click count
+                // อัพเดท click count
                 $stmt = $db->prepare("UPDATE broadcast_items SET click_count = click_count + 1 WHERE id = ?");
                 $stmt->execute([$item['id']]);
                 
@@ -540,8 +540,8 @@ if (!$line) {
                 $stmt->execute([$campaignId]);
             } catch (Exception $e) {}
             
-            // à¸•à¸´à¸” Tag à¸–à¹‰à¸²à¹€à¸›à¸´à¸” auto tag
-            // à¹ƒà¸Šà¹‰ tag_id à¸ˆà¸²à¸ item à¸«à¸£à¸·à¸­à¸ˆà¸²à¸ JSON postback data
+            // ติด Tag ถ้าเปิด auto tag
+            // ใช้ tag_id จาก item หรือจาก JSON postback data
             $finalTagId = $item['tag_id'] ?? $tagId;
             if ($item['auto_tag_enabled'] && $finalTagId) {
                 try {
@@ -560,12 +560,12 @@ if (!$line) {
                 }
             }
             
-            // à¸•à¸­à¸šà¸à¸¥à¸±à¸šà¸¥à¸¹à¸à¸„à¹‰à¸²
-            $replyText = "âœ… à¸‚à¸­à¸šà¸„à¸¸à¸“à¸—à¸µà¹ˆà¸ªà¸™à¹ƒà¸ˆ {$item['item_name']}\n\nà¸—à¸µà¸¡à¸‡à¸²à¸™à¸ˆà¸°à¸•à¸´à¸”à¸•à¹ˆà¸­à¸à¸¥à¸±à¸šà¹‚à¸”à¸¢à¹€à¸£à¹‡à¸§à¸—à¸µà¹ˆà¸ªà¸¸à¸”à¸„à¹ˆà¸° ðŸ™";
+            // ตอบกลับลูกค้า
+            $replyText = "✅ ขอบคุณที่สนใจ {$item['item_name']}\n\nทีมงานจะติดต่อกลับโดยเร็วที่สุดค่ะ 🙏";
             $line->replyMessage($replyToken, [['type' => 'text', 'text' => $replyText]]);
             
-            // à¹à¸ˆà¹‰à¸‡ Telegram
-            sendTelegramNotification($db, 'broadcast_click', $item['item_name'], "à¸¥à¸¹à¸à¸„à¹‰à¸²à¸ªà¸™à¹ƒà¸ˆà¸ªà¸´à¸™à¸„à¹‰à¸²: {$item['item_name']}", $lineUserId, $dbUserId);
+            // แจ้ง Telegram
+            sendTelegramNotification($db, 'broadcast_click', $item['item_name'], "ลูกค้าสนใจสินค้า: {$item['item_name']}", $lineUserId, $dbUserId);
             
         } catch (Exception $e) {
             error_log("handleBroadcastClick error: " . $e->getMessage());
@@ -586,7 +586,7 @@ if (!$line) {
         $dbUserId = $user['id'] ?? null;
         $displayName = $user['display_name'] ?? 'Unknown';
         
-        // à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ unfollow à¹à¸¢à¸à¸•à¸²à¸¡à¸šà¸­à¸—
+        // บันทึกข้อมูล unfollow แยกตามบอท
         if ($lineAccountId) {
             saveAccountFollower($db, $lineAccountId, $userId, $dbUserId, null, false);
             saveAccountEvent($db, $lineAccountId, 'unfollow', $userId, $dbUserId, $event);
@@ -595,7 +595,7 @@ if (!$line) {
 
         logAnalytics($db, 'unfollow', ['user_id' => $userId, 'line_account_id' => $lineAccountId], $lineAccountId);
         
-        // Telegram notification à¸žà¸£à¹‰à¸­à¸¡à¸Šà¸·à¹ˆà¸­à¸šà¸­à¸—
+        // Telegram notification พร้อมชื่อบอท
         $accountName = getAccountName($db, $lineAccountId);
         sendTelegramNotification($db, 'unfollow', $displayName, '', $userId, $dbUserId, $accountName);
     }
@@ -615,17 +615,17 @@ if (!$line) {
             // Get markAsReadToken from message event (for LINE Mark as Read feature)
             $markAsReadToken = $event['message']['markAsReadToken'] ?? null;
 
-            // Get or create user - à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¹à¸¥à¸°à¸šà¸±à¸™à¸—à¸¶à¸à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¹€à¸ªà¸¡à¸­ (à¹„à¸¡à¹ˆà¸§à¹ˆà¸²à¸ˆà¸°à¸¡à¸²à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡à¸«à¸£à¸·à¸­à¹à¸Šà¸—à¸ªà¹ˆà¸§à¸™à¸•à¸±à¸§)
+            // Get or create user - ตรวจสอบและบันทึกผู้ใช้เสมอ (ไม่ว่าจะมาจากกลุ่มหรือแชทส่วนตัว)
             $user = getOrCreateUser($db, $line, $userId, $lineAccountId, $groupId);
             
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¹€à¸›à¹‡à¸™à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹à¸£à¸à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ (à¸™à¸±à¸šà¸ˆà¸³à¸™à¸§à¸™à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡ incoming à¸‚à¸­à¸‡ user)
-            // à¸™à¸±à¸šà¸à¹ˆà¸­à¸™à¸—à¸µà¹ˆà¸ˆà¸°à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹ƒà¸«à¸¡à¹ˆ à¸”à¸±à¸‡à¸™à¸±à¹‰à¸™ == 0 à¸„à¸·à¸­à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹à¸£à¸
+            // ตรวจสอบว่าเป็นข้อความแรกหรือไม่ (นับจำนวนข้อความ incoming ของ user)
+            // นับก่อนที่จะบันทึกข้อความใหม่ ดังนั้น == 0 คือข้อความแรก
             $isFirstMessage = false;
             try {
                 $stmt = $db->prepare("SELECT COUNT(*) FROM messages WHERE user_id = ? AND direction = 'incoming'");
                 $stmt->execute([$user['id']]);
                 $messageCount = (int)$stmt->fetchColumn();
-                $isFirstMessage = ($messageCount == 0); // == 0 à¹€à¸žà¸£à¸²à¸°à¸™à¸±à¸šà¸à¹ˆà¸­à¸™à¸šà¸±à¸™à¸—à¸¶à¸
+                $isFirstMessage = ($messageCount == 0); // == 0 เพราะนับก่อนบันทึก
             } catch (Exception $e) {}
 
             // Check user state first (for waiting slip mode)
@@ -634,7 +634,7 @@ if (!$line) {
             // Handle different message types
             $mediaUrl = null;
             if (in_array($messageType, ['image', 'video', 'audio', 'file'])) {
-                // à¸”à¸²à¸§à¸™à¹Œà¹‚à¸«à¸¥à¸”à¹à¸¥à¸°à¹€à¸à¹‡à¸š media à¹„à¸§à¹‰à¹ƒà¸™ server à¸—à¸±à¸™à¸—à¸µ (LINE à¸ˆà¸°à¸¥à¸š content à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸à¸œà¹ˆà¸²à¸™à¹„à¸›à¸£à¸°à¸¢à¸°à¸«à¸™à¸¶à¹ˆà¸‡)
+                // ดาวน์โหลดและเก็บ media ไว้ใน server ทันที (LINE จะลบ content หลังจากผ่านไประยะหนึ่ง)
                 $savedMediaUrl = null;
                 if ($messageType === 'image') {
                     try {
@@ -667,7 +667,7 @@ if (!$line) {
                     }
                 }
                 
-                // à¸–à¹‰à¸²à¸šà¸±à¸™à¸—à¸¶à¸à¸£à¸¹à¸›à¹„à¸”à¹‰ à¹ƒà¸Šà¹‰ URL à¸—à¸µà¹ˆà¸šà¸±à¸™à¸—à¸¶à¸ à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹ƒà¸Šà¹‰ LINE message ID à¹€à¸›à¹‡à¸™ fallback
+                // ถ้าบันทึกรูปได้ ใช้ URL ที่บันทึก ถ้าไม่ได้ใช้ LINE message ID เป็น fallback
                 if ($savedMediaUrl) {
                     $messageContent = $savedMediaUrl;
                 } else {
@@ -703,7 +703,7 @@ if (!$line) {
                 $messageContent = "[location] {$address} ({$lat}, {$lng})";
             }
 
-            // Save incoming message à¸žà¸£à¹‰à¸­à¸¡ line_account_id, is_read = 0, à¹à¸¥à¸° mark_as_read_token
+            // Save incoming message พร้อม line_account_id, is_read = 0, และ mark_as_read_token
             try {
                 $stmt = $db->query("SHOW COLUMNS FROM messages LIKE 'line_account_id'");
                 if ($stmt->rowCount() > 0) {
@@ -736,13 +736,13 @@ if (!$line) {
 
             logAnalytics($db, 'message_received', ['user_id' => $userId, 'type' => $messageType, 'line_account_id' => $lineAccountId, 'source' => $sourceType], $lineAccountId);
             
-            // à¸šà¸±à¸™à¸—à¸¶à¸ reply_token à¹ƒà¸™ users table (à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸à¹ƒà¸™ 20 à¸™à¸²à¸—à¸µ)
+            // บันทึก reply_token ใน users table (หมดอายุใน 20 นาที)
             if ($replyToken) {
                 try {
-                    // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µ column à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                    // ตรวจสอบว่ามี column หรือไม่
                     $checkCol = $db->query("SHOW COLUMNS FROM users LIKE 'reply_token'");
                     if ($checkCol->rowCount() > 0) {
-                        $expires = date('Y-m-d H:i:s', time() + (19 * 60)); // à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸à¹ƒà¸™ 19 à¸™à¸²à¸—à¸µ (à¹€à¸œà¸·à¹ˆà¸­ delay)
+                        $expires = date('Y-m-d H:i:s', time() + (19 * 60)); // หมดอายุใน 19 นาที (เผื่อ delay)
                         $stmt = $db->prepare("UPDATE users SET reply_token = ?, reply_token_expires = ? WHERE id = ?");
                         $stmt->execute([$replyToken, $expires, $user['id']]);
                     }
@@ -751,7 +751,7 @@ if (!$line) {
                 }
             }
             
-            // à¸šà¸±à¸™à¸—à¸¶à¸ event à¹à¸¥à¸°à¸­à¸±à¸žà¹€à¸”à¸—à¸ªà¸–à¸´à¸•à¸´à¹à¸¢à¸à¸•à¸²à¸¡à¸šà¸­à¸—
+            // บันทึก event และอัพเดทสถิติแยกตามบอท
             if ($lineAccountId) {
                 saveAccountEvent($db, $lineAccountId, 'message', $userId, $user['id'], $event);
                 updateAccountDailyStats($db, $lineAccountId, 'incoming_messages');
@@ -759,7 +759,7 @@ if (!$line) {
                 updateFollowerInteraction($db, $lineAccountId, $userId);
             }
             
-            // Send Telegram notification with media support à¸žà¸£à¹‰à¸­à¸¡à¸Šà¸·à¹ˆà¸­à¸šà¸­à¸—
+            // Send Telegram notification with media support พร้อมชื่อบอท
             $accountName = getAccountName($db, $lineAccountId);
             $displayNameWithBot = $user['display_name'] . ($accountName ? " [{$accountName}]" : "");
             sendTelegramNotificationWithMedia($db, $line, $displayNameWithBot, $messageType, $messageContent, $messageId, $user['id'], $event['message']);
@@ -769,7 +769,7 @@ if (!$line) {
                 return; // Don't process non-text further, just notify via Telegram
             }
             
-            // ========== à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š Pending Order - à¸¥à¸¹à¸à¸„à¹‰à¸²à¸•à¸­à¸š "à¸¢à¸·à¸™à¸¢à¸±à¸™" ==========
+            // ========== ตรวจสอบ Pending Order - ลูกค้าตอบ "ยืนยัน" ==========
             // Debug: log user state
             devLog($db, 'debug', 'webhook', 'Checking pending order state', [
                 'user_id' => $user['id'],
@@ -779,8 +779,8 @@ if (!$line) {
             ], $userId);
             
             if ($userState && $userState['state'] === 'pending_order') {
-                $confirmKeywords = ['à¸¢à¸·à¸™à¸¢à¸±à¸™', 'à¸•à¸à¸¥à¸‡', 'ok', 'yes', 'confirm', 'à¸ªà¸±à¹ˆà¸‡à¹€à¸¥à¸¢', 'à¹€à¸­à¸²', 'à¹„à¸”à¹‰'];
-                $cancelKeywords = ['à¸¢à¸à¹€à¸¥à¸´à¸', 'cancel', 'no', 'à¹„à¸¡à¹ˆà¹€à¸­à¸²', 'à¹„à¸¡à¹ˆ'];
+                $confirmKeywords = ['ยืนยัน', 'ตกลง', 'ok', 'yes', 'confirm', 'สั่งเลย', 'เอา', 'ได้'];
+                $cancelKeywords = ['ยกเลิก', 'cancel', 'no', 'ไม่เอา', 'ไม่'];
                 
                 $textLowerTrim = mb_strtolower(trim($messageText));
                 
@@ -791,7 +791,7 @@ if (!$line) {
                 ], $userId);
                 
                 if (in_array($textLowerTrim, $confirmKeywords)) {
-                    // à¸ªà¸£à¹‰à¸²à¸‡ Order à¸ˆà¸²à¸ pending order
+                    // สร้าง Order จาก pending order
                     devLog($db, 'info', 'webhook', 'Creating order from pending state', [
                         'user_id' => $user['id']
                     ], $userId);
@@ -802,11 +802,11 @@ if (!$line) {
                         return;
                     }
                 } elseif (in_array($textLowerTrim, $cancelKeywords)) {
-                    // à¸¢à¸à¹€à¸¥à¸´à¸ pending order
+                    // ยกเลิก pending order
                     clearUserState($db, $user['id']);
                     $cancelMessage = [
                         'type' => 'text',
-                        'text' => "âŒ à¸¢à¸à¹€à¸¥à¸´à¸à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­à¹à¸¥à¹‰à¸§à¸„à¹ˆà¸°\n\nà¸«à¸²à¸à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­à¹ƒà¸«à¸¡à¹ˆ à¸ªà¸²à¸¡à¸²à¸£à¸–à¹à¸ˆà¹‰à¸‡à¹„à¸”à¹‰à¹€à¸¥à¸¢à¸„à¹ˆà¸° ðŸ™"
+                        'text' => "❌ ยกเลิกรายการสั่งซื้อแล้วค่ะ\n\nหากต้องการสั่งซื้อใหม่ สามารถแจ้งได้เลยค่ะ 🙏"
                     ];
                     $line->replyMessage($replyToken, [$cancelMessage]);
                     saveOutgoingMessage($db, $user['id'], json_encode($cancelMessage), 'system', 'text');
@@ -814,19 +814,19 @@ if (!$line) {
                 }
             }
             
-            // ========== à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š Consent PDPA ==========
-            // à¸›à¸´à¸”à¸à¸²à¸£à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š consent - à¹ƒà¸«à¹‰à¸–à¸·à¸­à¸§à¹ˆà¸² consent à¹à¸¥à¹‰à¸§à¹€à¸ªà¸¡à¸­
-            // à¸–à¹‰à¸²à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹ƒà¸«à¸¡à¹ˆ à¹ƒà¸«à¹‰ uncomment à¸šà¸£à¸£à¸—à¸±à¸”à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡
+            // ========== ตรวจสอบ Consent PDPA ==========
+            // ปิดการตรวจสอบ consent - ให้ถือว่า consent แล้วเสมอ
+            // ถ้าต้องการเปิดใช้งานใหม่ ให้ uncomment บรรทัดด้านล่าง
             // $hasConsent = checkUserConsent($db, $user['id'], $userId);
-            $hasConsent = true; // à¸‚à¹‰à¸²à¸¡ consent check
+            $hasConsent = true; // ข้าม consent check
             
-            // à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ LIFF ID à¹à¸¥à¸° shop name
+            // ดึงข้อมูล LIFF ID และ shop name
             $liffShopUrl = '';
             $liffConsentUrl = '';
             $shopName = 'LINE Shop';
             
             if ($lineAccountId) {
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µ column liff_consent_id à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                // ตรวจสอบว่ามี column liff_consent_id หรือไม่
                 $hasConsentCol = false;
                 try {
                     $checkCol = $db->query("SHOW COLUMNS FROM line_accounts LIKE 'liff_consent_id'");
@@ -845,13 +845,13 @@ if (!$line) {
                     if (!empty($accountInfo['liff_id'])) {
                         $liffShopUrl = 'https://liff.line.me/' . $accountInfo['liff_id'];
                     }
-                    // à¹ƒà¸Šà¹‰ liff_consent_id à¸–à¹‰à¸²à¸¡à¸µ à¸«à¸£à¸·à¸­à¹ƒà¸Šà¹‰ liff_id à¸›à¸à¸•à¸´
+                    // ใช้ liff_consent_id ถ้ามี หรือใช้ liff_id ปกติ
                     $consentLiffId = $accountInfo['liff_consent_id'] ?? $accountInfo['liff_id'] ?? '';
                     if ($consentLiffId) {
                         $liffConsentUrl = 'https://liff.line.me/' . $consentLiffId . '?page=consent';
                     }
                     
-                    // à¸”à¸¶à¸‡ shop name
+                    // ดึง shop name
                     $stmt = $db->prepare("SELECT shop_name FROM shop_settings WHERE line_account_id = ?");
                     $stmt->execute([$lineAccountId]);
                     $shopSettings = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -863,15 +863,15 @@ if (!$line) {
                 }
             }
             
-            // ========== à¸›à¸´à¸”à¸à¸²à¸£à¸ªà¹ˆà¸‡ Consent PDPA à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´ ==========
-            // à¸«à¸¡à¸²à¸¢à¹€à¸«à¸•à¸¸: à¸›à¸´à¸”à¸à¸²à¸£à¸ªà¹ˆà¸‡ liff-consent.php à¹€à¸¡à¸·à¹ˆà¸­à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸„à¸£à¸±à¹‰à¸‡à¹à¸£à¸
-            // à¸–à¹‰à¸²à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹ƒà¸«à¸¡à¹ˆ à¹ƒà¸«à¹‰ uncomment à¹‚à¸„à¹‰à¸”à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡
+            // ========== ปิดการส่ง Consent PDPA อัตโนมัติ ==========
+            // หมายเหตุ: ปิดการส่ง liff-consent.php เมื่อใช้งานครั้งแรก
+            // ถ้าต้องการเปิดใช้งานใหม่ ให้ uncomment โค้ดด้านล่าง
             /*
             if (!$hasConsent && $sourceType === 'user') {
                 try {
-                    $displayName = $user['display_name'] ?: 'à¸„à¸¸à¸“à¸¥à¸¹à¸à¸„à¹‰à¸²';
+                    $displayName = $user['display_name'] ?: 'คุณลูกค้า';
                     
-                    // à¸ªà¸£à¹‰à¸²à¸‡ Flex Message à¸‚à¸­à¸„à¸§à¸²à¸¡à¸¢à¸´à¸™à¸¢à¸­à¸¡
+                    // สร้าง Flex Message ขอความยินยอม
                     $consentFlex = [
                         'type' => 'bubble',
                         'size' => 'kilo',
@@ -881,7 +881,7 @@ if (!$line) {
                             'backgroundColor' => '#2563EB',
                             'paddingAll' => '15px',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'ðŸ”’ à¸‚à¹‰à¸­à¸•à¸à¸¥à¸‡à¹à¸¥à¸°à¸„à¸§à¸²à¸¡à¸¢à¸´à¸™à¸¢à¸­à¸¡', 'color' => '#FFFFFF', 'size' => 'lg', 'weight' => 'bold', 'align' => 'center']
+                                ['type' => 'text', 'text' => '🔒 ข้อตกลงและความยินยอม', 'color' => '#FFFFFF', 'size' => 'lg', 'weight' => 'bold', 'align' => 'center']
                             ]
                         ],
                         'body' => [
@@ -889,10 +889,10 @@ if (!$line) {
                             'layout' => 'vertical',
                             'paddingAll' => '15px',
                             'contents' => [
-                                ['type' => 'text', 'text' => "à¸ªà¸§à¸±à¸ªà¸”à¸µà¸„à¹ˆà¸° à¸„à¸¸à¸“{$displayName} ðŸ‘‹", 'size' => 'md', 'weight' => 'bold'],
-                                ['type' => 'text', 'text' => "à¸¢à¸´à¸™à¸”à¸µà¸•à¹‰à¸­à¸™à¸£à¸±à¸šà¸ªà¸¹à¹ˆ {$shopName}", 'size' => 'sm', 'color' => '#666666', 'margin' => 'sm'],
+                                ['type' => 'text', 'text' => "สวัสดีค่ะ คุณ{$displayName} 👋", 'size' => 'md', 'weight' => 'bold'],
+                                ['type' => 'text', 'text' => "ยินดีต้อนรับสู่ {$shopName}", 'size' => 'sm', 'color' => '#666666', 'margin' => 'sm'],
                                 ['type' => 'separator', 'margin' => 'lg'],
-                                ['type' => 'text', 'text' => 'à¸à¹ˆà¸­à¸™à¹€à¸£à¸´à¹ˆà¸¡à¹ƒà¸Šà¹‰à¸šà¸£à¸´à¸à¸²à¸£ à¸à¸£à¸¸à¸“à¸²à¸¢à¸­à¸¡à¸£à¸±à¸šà¸‚à¹‰à¸­à¸•à¸à¸¥à¸‡à¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹à¸¥à¸°à¸™à¹‚à¸¢à¸šà¸²à¸¢à¸„à¸§à¸²à¸¡à¹€à¸›à¹‡à¸™à¸ªà¹ˆà¸§à¸™à¸•à¸±à¸§ (PDPA)', 'size' => 'sm', 'color' => '#666666', 'wrap' => true, 'margin' => 'lg']
+                                ['type' => 'text', 'text' => 'ก่อนเริ่มใช้บริการ กรุณายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัว (PDPA)', 'size' => 'sm', 'color' => '#666666', 'wrap' => true, 'margin' => 'lg']
                             ]
                         ],
                         'footer' => [
@@ -904,7 +904,7 @@ if (!$line) {
                                     'type' => 'button',
                                     'action' => [
                                         'type' => 'uri',
-                                        'label' => 'ðŸ“‹ à¸­à¹ˆà¸²à¸™à¹à¸¥à¸°à¸¢à¸­à¸¡à¸£à¸±à¸šà¸‚à¹‰à¸­à¸•à¸à¸¥à¸‡',
+                                        'label' => '📋 อ่านและยอมรับข้อตกลง',
                                         'uri' => $liffConsentUrl ?: (defined('BASE_URL') ? BASE_URL . 'liff-consent.php' : 'https://likesms.net/v1/liff-consent.php')
                                     ],
                                     'style' => 'primary',
@@ -916,7 +916,7 @@ if (!$line) {
                     
                     $consentMessage = [
                         'type' => 'flex',
-                        'altText' => 'ðŸ”’ à¸à¸£à¸¸à¸“à¸²à¸¢à¸­à¸¡à¸£à¸±à¸šà¸‚à¹‰à¸­à¸•à¸à¸¥à¸‡à¸à¹ˆà¸­à¸™à¹ƒà¸Šà¹‰à¸šà¸£à¸´à¸à¸²à¸£',
+                        'altText' => '🔒 กรุณายอมรับข้อตกลงก่อนใช้บริการ',
                         'contents' => $consentFlex
                     ];
                     
@@ -928,7 +928,7 @@ if (!$line) {
                         'display_name' => $displayName
                     ], $userId);
                     
-                    return; // à¸ªà¹ˆà¸‡ Consent request à¹à¸¥à¹‰à¸§ à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡ process à¸•à¹ˆà¸­
+                    return; // ส่ง Consent request แล้ว ไม่ต้อง process ต่อ
                     
                 } catch (Exception $e) {
                     devLog($db, 'error', 'webhook', 'Consent request error: ' . $e->getMessage(), null, $userId);
@@ -936,21 +936,21 @@ if (!$line) {
             }
             */
             
-            // ========== LIFF Menu à¸ªà¸³à¸«à¸£à¸±à¸šà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹à¸£à¸ (à¸«à¸¥à¸±à¸‡à¸ˆà¸²à¸ consent à¹à¸¥à¹‰à¸§) ==========
-            // à¸ªà¹ˆà¸‡ LIFF Menu à¹€à¸¡à¸·à¹ˆà¸­à¸¥à¸¹à¸à¸„à¹‰à¸²à¸—à¸±à¸à¸¡à¸²à¸„à¸£à¸±à¹‰à¸‡à¹à¸£à¸
+            // ========== LIFF Menu สำหรับข้อความแรก (หลังจาก consent แล้ว) ==========
+            // ส่ง LIFF Menu เมื่อลูกค้าทักมาครั้งแรก
             if ($isFirstMessage && $sourceType === 'user' && $hasConsent) {
                 try {
-                    // à¸–à¹‰à¸²à¸¡à¸µ LIFF URL à¹ƒà¸«à¹‰à¸ªà¹ˆà¸‡ LIFF Menu
+                    // ถ้ามี LIFF URL ให้ส่ง LIFF Menu
                     if ($liffShopUrl) {
-                        $displayName = $user['display_name'] ?: 'à¸„à¸¸à¸“à¸¥à¸¹à¸à¸„à¹‰à¸²';
+                        $displayName = $user['display_name'] ?: 'คุณลูกค้า';
                         $liffMenuBubble = FlexTemplates::firstMessageMenu($shopName, $liffShopUrl, $displayName);
-                        $liffMenuMessage = FlexTemplates::toMessage($liffMenuBubble, "à¸¢à¸´à¸™à¸”à¸µà¸•à¹‰à¸­à¸™à¸£à¸±à¸šà¸ªà¸¹à¹ˆ {$shopName}");
+                        $liffMenuMessage = FlexTemplates::toMessage($liffMenuBubble, "ยินดีต้อนรับสู่ {$shopName}");
                         
-                        // à¹€à¸žà¸´à¹ˆà¸¡ Quick Reply
+                        // เพิ่ม Quick Reply
                         $liffMenuMessage = FlexTemplates::withQuickReply($liffMenuMessage, [
-                            ['label' => 'ðŸ›’ à¸”à¸¹à¸ªà¸´à¸™à¸„à¹‰à¸²', 'text' => 'shop'],
-                            ['label' => 'ðŸ“‹ à¹€à¸¡à¸™à¸¹', 'text' => 'menu'],
-                            ['label' => 'ðŸ’¬ à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²', 'text' => 'contact']
+                            ['label' => '🛒 ดูสินค้า', 'text' => 'shop'],
+                            ['label' => '📋 เมนู', 'text' => 'menu'],
+                            ['label' => '💬 ติดต่อเรา', 'text' => 'contact']
                         ]);
                         
                         $line->replyMessage($replyToken, [$liffMenuMessage]);
@@ -962,14 +962,14 @@ if (!$line) {
                             'liff_url' => $liffShopUrl
                         ], $userId);
                         
-                        return; // à¸ªà¹ˆà¸‡ LIFF Menu à¹à¸¥à¹‰à¸§ à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡ process à¸•à¹ˆà¸­
+                        return; // ส่ง LIFF Menu แล้ว ไม่ต้อง process ต่อ
                     }
                 } catch (Exception $e) {
                     devLog($db, 'error', 'webhook', 'LIFF Menu error: ' . $e->getMessage(), null, $userId);
                 }
             }
 
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š bot_mode à¸à¹ˆà¸­à¸™ - à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ general à¹„à¸¡à¹ˆà¸•à¸­à¸šà¸à¸¥à¸±à¸šà¸­à¸°à¹„à¸£à¹€à¸¥à¸¢
+            // ตรวจสอบ bot_mode ก่อน - ถ้าเป็น general ไม่ตอบกลับอะไรเลย
             $botMode = 'shop'; // default
             $liffId = '';
             try {
@@ -986,7 +986,18 @@ if (!$line) {
                 }
             } catch (Exception $e) {}
             
-            // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™à¹‚à¸«à¸¡à¸” general - à¹€à¸Šà¹‡à¸„ Auto Reply à¸à¹ˆà¸­à¸™ à¸–à¹‰à¸²à¹„à¸¡à¹ˆ match à¸„à¹ˆà¸­à¸¢à¹„à¸¡à¹ˆà¸•à¸­à¸š
+            // ตรวจสอบคำสั่งและการเรียก AI
+            $textLower = mb_strtolower(trim($messageText));
+            $textTrimmed = trim($messageText);
+            
+            devLog($db, 'debug', 'webhook', 'Bot mode check', [
+                'user_id' => $userId,
+                'bot_mode' => $botMode,
+                'message' => mb_substr($messageText, 0, 30),
+                'text_lower' => $textLower
+            ], $userId);
+            
+            // ถ้าเป็นโหมด general - เช็ค Auto Reply ก่อน ถ้าไม่ match ค่อยไม่ตอบ
             if ($botMode === 'general') {
                 // Debug: log before checking auto reply
                 devLog($db, 'debug', 'webhook', 'General mode - checking auto reply', [
@@ -995,7 +1006,7 @@ if (!$line) {
                     'line_account_id' => $lineAccountId
                 ], $userId);
                 
-                // Check auto-reply rules first - à¸–à¹‰à¸²à¸¡à¸µ rule à¸—à¸µà¹ˆ match à¹ƒà¸«à¹‰à¸•à¸­à¸š
+                // Check auto-reply rules first - ถ้ามี rule ที่ match ให้ตอบ
                 $autoReply = checkAutoReply($db, $messageText, $lineAccountId);
                 
                 // Debug: log result
@@ -1016,18 +1027,14 @@ if (!$line) {
                     return;
                 }
                 
-                // à¹„à¸¡à¹ˆà¸¡à¸µ auto reply match - à¹„à¸¡à¹ˆà¸•à¸­à¸šà¸à¸¥à¸±à¸š à¹à¸„à¹ˆà¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ (à¸£à¸­à¹à¸­à¸”à¸¡à¸´à¸™à¸•à¸­à¸š)
+                // ไม่มี auto reply match - ไม่ตอบกลับ แค่บันทึกข้อมูล (รอแอดมินตอบ)
                 devLog($db, 'info', 'webhook', 'General mode - no auto reply match, waiting for admin', [
                     'user_id' => $userId,
                     'message' => mb_substr($messageText, 0, 100),
                     'bot_mode' => $botMode
                 ], $userId);
-                return; // à¹„à¸¡à¹ˆà¸•à¸­à¸šà¸à¸¥à¸±à¸š - à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸–à¸¹à¸à¸šà¸±à¸™à¸—à¸¶à¸à¹„à¸§à¹‰à¹à¸¥à¹‰à¸§à¸”à¹‰à¸²à¸™à¸šà¸™
+                return; // ไม่ตอบกลับ - ข้อมูลถูกบันทึกไว้แล้วด้านบน
             }
-            
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸„à¸³à¸ªà¸±à¹ˆà¸‡à¹à¸¥à¸°à¸à¸²à¸£à¹€à¸£à¸µà¸¢à¸ AI
-            $textLower = mb_strtolower(trim($messageText));
-            $textTrimmed = trim($messageText);
             
             // ===== LIFF Message Handler - Process LIFF-triggered messages =====
             // Requirements: 20.3, 20.9, 20.12
@@ -1064,38 +1071,38 @@ if (!$line) {
                 }
             }
             
-            // ===== V3.2: AI à¸•à¸­à¸šà¸—à¸¸à¸à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´ (à¸¢à¸à¹€à¸§à¹‰à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸žà¸´à¹€à¸¨à¸©) =====
-            // à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¹ƒà¸«à¹‰ AI à¸•à¸­à¸š (à¹ƒà¸«à¹‰à¸£à¸°à¸šà¸šà¸­à¸·à¹ˆà¸™à¸ˆà¸±à¸”à¸à¸²à¸£)
-            $systemCommands = ['à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²', 'shop', 'à¸£à¹‰à¸²à¸™', 'à¸ªà¸´à¸™à¸„à¹‰à¸²', 'à¸‹à¸·à¹‰à¸­', 'à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­', 
-                            'à¸ªà¸¥à¸´à¸›', 'slip', 'à¹à¸™à¸šà¸ªà¸¥à¸´à¸›', 'à¸ªà¹ˆà¸‡à¸ªà¸¥à¸´à¸›', 'à¹‚à¸­à¸™à¹€à¸‡à¸´à¸™', 'à¹‚à¸­à¸™à¹à¸¥à¹‰à¸§',
-                            'à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ', 'order', 'à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­', 'à¸•à¸´à¸”à¸•à¸²à¸¡', 'tracking',
-                            'à¹€à¸¡à¸™à¸¹', 'menu', 'help', 'à¸Šà¹ˆà¸§à¸¢à¹€à¸«à¸¥à¸·à¸­', '?',
-                            'quickmenu', 'à¹€à¸¡à¸™à¸¹à¸”à¹ˆà¸§à¸™', 'allmenu', 'à¹€à¸¡à¸™à¸¹à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”',
-                            'contact', 'à¸•à¸´à¸”à¸•à¹ˆà¸­', 'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²',
-                            'à¸ªà¸¡à¸±à¸„à¸£à¸šà¸±à¸•à¸£', 'à¸šà¸±à¸•à¸£à¸ªà¸¡à¸²à¸Šà¸´à¸', 'member', 'points', 'à¹à¸•à¹‰à¸¡'];
+            // ===== V3.2: AI ตอบทุกข้อความอัตโนมัติ (ยกเว้นคำสั่งพิเศษ) =====
+            // คำสั่งที่ไม่ให้ AI ตอบ (ให้ระบบอื่นจัดการ)
+            $systemCommands = ['ร้านค้า', 'shop', 'ร้าน', 'สินค้า', 'ซื้อ', 'สั่งซื้อ', 
+                            'สลิป', 'slip', 'แนบสลิป', 'ส่งสลิป', 'โอนเงิน', 'โอนแล้ว',
+                            'ออเดอร์', 'order', 'คำสั่งซื้อ', 'ติดตาม', 'tracking',
+                            'เมนู', 'menu', 'help', 'ช่วยเหลือ', '?',
+                            'quickmenu', 'เมนูด่วน', 'allmenu', 'เมนูทั้งหมด',
+                            'contact', 'ติดต่อ', 'ติดต่อเรา',
+                            'สมัครบัตร', 'บัตรสมาชิก', 'member', 'points', 'แต้ม'];
             $isSystemCommand = in_array($textLower, $systemCommands);
             
-            // à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸µà¹ˆà¸ˆà¸°à¸«à¸¢à¸¸à¸” AI à¹à¸¥à¸°à¸ªà¹ˆà¸‡à¸•à¹ˆà¸­à¹€à¸ à¸ªà¸±à¸Šà¸à¸£/à¹à¸­à¸”à¸¡à¸´à¸™
+            // คำสั่งที่จะหยุด AI และส่งต่อเภสัชกร/แอดมิน
 
 
-            $stopAICommands = ['à¸›à¸£à¸¶à¸à¸©à¸²à¹€à¸ à¸ªà¸±à¸Šà¸à¸£', 'à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£', 'à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™', 'à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹à¸­à¸”à¸¡à¸´à¸™', 'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸ à¸ªà¸±à¸Šà¸à¸£', 'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹à¸­à¸”à¸¡à¸´à¸™', 'à¸«à¸¢à¸¸à¸”à¸šà¸­à¸—', 'stop bot', 'human'];
+            $stopAICommands = ['ปรึกษาเภสัชกร', 'คุยกับเภสัชกร', 'ขอคุยกับคน', 'ขอคุยกับแอดมิน', 'ติดต่อเภสัชกร', 'ติดต่อแอดมิน', 'หยุดบอท', 'stop bot', 'human'];
             $isStopAICommand = in_array($textLower, $stopAICommands);
             
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¹€à¸£à¸µà¸¢à¸ AI à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ (@à¸šà¸­à¸—, @bot, @ai à¸«à¸£à¸·à¸­ /xxx)
-            $isAICall = preg_match('/^@(à¸šà¸­à¸—|bot|ai)\s*/iu', $textTrimmed, $aiMatch);
-            $aiMessage = $isAICall ? trim(preg_replace('/^@(à¸šà¸­à¸—|bot|ai)\s*/iu', '', $textTrimmed)) : '';
+            // ตรวจสอบว่าเรียก AI หรือไม่ (@บอท, @bot, @ai หรือ /xxx)
+            $isAICall = preg_match('/^@(บอท|bot|ai)\s*/iu', $textTrimmed, $aiMatch);
+            $aiMessage = $isAICall ? trim(preg_replace('/^@(บอท|bot|ai)\s*/iu', '', $textTrimmed)) : '';
             
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¹€à¸›à¹‡à¸™ / command à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ (à¹€à¸£à¸µà¸¢à¸ AI à¹‚à¸”à¸¢à¸•à¸£à¸‡)
+            // ตรวจสอบว่าเป็น / command หรือไม่ (เรียก AI โดยตรง)
             $isSlashCommand = preg_match('/^\/[\w\p{Thai}]+/u', $textTrimmed);
             
-            // à¸–à¹‰à¸²à¸žà¸´à¸¡à¸žà¹Œà¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£ - à¸«à¸¢à¸¸à¸” AI
+            // ถ้าพิมพ์ขอคุยกับเภสัชกร - หยุด AI
             if ($isStopAICommand) {
-                // à¹ƒà¸Šà¹‰ sender à¸ˆà¸²à¸ ai_settings
+                // ใช้ sender จาก ai_settings
                 $stopSender = getAISenderSettings($db, $lineAccountId, 'pharmacist');
                 
                 $stopMessage = [
                     'type' => 'text',
-                    'text' => "ðŸ“ž à¸£à¸±à¸šà¸—à¸£à¸²à¸šà¸„à¹ˆà¸° à¸à¸³à¸¥à¸±à¸‡à¸ªà¹ˆà¸‡à¸•à¹ˆà¸­à¹ƒà¸«à¹‰à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸”à¸¹à¹à¸¥à¸„à¹ˆà¸°\n\nà¸à¸£à¸¸à¸“à¸²à¸£à¸­à¸ªà¸±à¸à¸„à¸£à¸¹à¹ˆ à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸°à¸•à¸´à¸”à¸•à¹ˆà¸­à¸à¸¥à¸±à¸šà¹‚à¸”à¸¢à¹€à¸£à¹‡à¸§à¸—à¸µà¹ˆà¸ªà¸¸à¸”à¸„à¹ˆà¸° ðŸ™",
+                    'text' => "📞 รับทราบค่ะ กำลังส่งต่อให้เภสัชกรดูแลค่ะ\n\nกรุณารอสักครู่ เภสัชกรจะติดต่อกลับโดยเร็วที่สุดค่ะ 🙏",
                     'sender' => $stopSender
                 ];
                 $line->replyMessage($replyToken, [$stopMessage]);
@@ -1104,7 +1111,7 @@ if (!$line) {
                 return;
             }
             
-            // ===== / command - à¸ªà¹ˆà¸‡à¹„à¸›à¹ƒà¸«à¹‰ AI à¸•à¸­à¸šà¹‚à¸”à¸¢à¸•à¸£à¸‡ =====
+            // ===== / command - ส่งไปให้ AI ตอบโดยตรง =====
             if ($isSlashCommand && isset($user['id'])) {
                 devLog($db, 'info', 'webhook', 'Slash command detected', [
                     'user_id' => $userId,
@@ -1126,10 +1133,10 @@ if (!$line) {
                 }
             }
             
-            // ===== AI à¸•à¸­à¸šà¹€à¸‰à¸žà¸²à¸°à¹€à¸¡à¸·à¹ˆà¸­à¹ƒà¸Šà¹‰ / à¸«à¸£à¸·à¸­ @ command =====
-            // ===== AI SIMPLE MODE: DISABLED - à¹ƒà¸«à¹‰à¹à¸­à¸”à¸¡à¸´à¸™à¸•à¸­à¸šà¹€à¸­à¸‡ =====
-            // à¸›à¸´à¸”à¸à¸²à¸£à¸•à¸­à¸šà¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¸‚à¸­à¸‡ AI à¸œà¹ˆà¸²à¸™ webhook à¹à¸¥à¹‰à¸§
-            // à¹ƒà¸Šà¹‰ Ghost Draft à¹ƒà¸™ Inbox V2 à¹à¸—à¸™
+            // ===== AI ตอบเฉพาะเมื่อใช้ / หรือ @ command =====
+            // ===== AI SIMPLE MODE: DISABLED - ให้แอดมินตอบเอง =====
+            // ปิดการตอบอัตโนมัติของ AI ผ่าน webhook แล้ว
+            // ใช้ Ghost Draft ใน Inbox V2 แทน
             /*
             if (isset($user['id'])) {
                 try {
@@ -1148,7 +1155,7 @@ if (!$line) {
                             'has_token' => $currentReplyToken ? 'yes' : 'no'
                         ], $userId);
                         
-                        // à¹€à¸£à¸µà¸¢à¸ Gemini à¸•à¸­à¸šà¹€à¸¥à¸¢
+                        // เรียก Gemini ตอบเลย
                         set_time_limit(60);
                         $startTime = microtime(true);
                         $response = $gemini->generateResponse($messageText, $user['id'], []);
@@ -1166,7 +1173,7 @@ if (!$line) {
                                 'text' => $response
                             ]];
                             
-                            // à¸ªà¹ˆà¸‡à¸à¸¥à¸±à¸šà¸”à¹‰à¸§à¸¢ replyMessage
+                            // ส่งกลับด้วย replyMessage
                             if ($currentReplyToken) {
                                 $replyResult = $line->replyMessage($currentReplyToken, $aiReply);
                                 devLog($db, 'debug', 'webhook', 'AI reply sent', [
@@ -1188,21 +1195,21 @@ if (!$line) {
             }
             */
             
-            // ===== à¸–à¹‰à¸² AI à¹„à¸¡à¹ˆà¸•à¸­à¸š à¹ƒà¸«à¹‰à¸—à¸³à¸‡à¸²à¸™à¸•à¸²à¸¡à¸›à¸à¸•à¸´ =====
+            // ===== ถ้า AI ไม่ตอบ ให้ทำงานตามปกติ =====
             
-            // à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸µà¹ˆà¸šà¸­à¸—à¸ˆà¸°à¸•à¸­à¸š (à¹€à¸‰à¸žà¸²à¸°à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¹€à¸ˆà¸²à¸°à¸ˆà¸‡)
-            $shopCommands = ['à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²', 'shop', 'à¸£à¹‰à¸²à¸™', 'à¸ªà¸´à¸™à¸„à¹‰à¸²', 'à¸‹à¸·à¹‰à¸­', 'à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­'];
-            $slipCommands = ['à¸ªà¸¥à¸´à¸›', 'slip', 'à¹à¸™à¸šà¸ªà¸¥à¸´à¸›', 'à¸ªà¹ˆà¸‡à¸ªà¸¥à¸´à¸›', 'à¹‚à¸­à¸™à¹€à¸‡à¸´à¸™', 'à¹‚à¸­à¸™à¹à¸¥à¹‰à¸§'];
-            $orderCommands = ['à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ', 'order', 'à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­', 'à¸•à¸´à¸”à¸•à¸²à¸¡', 'tracking'];
-            $menuCommands = ['à¹€à¸¡à¸™à¸¹', 'menu', 'help', 'à¸Šà¹ˆà¸§à¸¢à¹€à¸«à¸¥à¸·à¸­'];
+            // คำสั่งที่บอทจะตอบ (เฉพาะคำสั่งเจาะจง)
+            $shopCommands = ['ร้านค้า', 'shop', 'ร้าน', 'สินค้า', 'ซื้อ', 'สั่งซื้อ'];
+            $slipCommands = ['สลิป', 'slip', 'แนบสลิป', 'ส่งสลิป', 'โอนเงิน', 'โอนแล้ว'];
+            $orderCommands = ['ออเดอร์', 'order', 'คำสั่งซื้อ', 'ติดตาม', 'tracking'];
+            $menuCommands = ['เมนู', 'menu', 'help', 'ช่วยเหลือ'];
             
             $isShopCommand = in_array($textLower, $shopCommands);
             $isSlipCommand = in_array($textLower, $slipCommands);
             $isOrderCommand = in_array($textLower, $orderCommands);
             $isMenuCommand = in_array($textLower, $menuCommands);
             
-            // ===== Handle LIFF Action Messages (à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­à¸ªà¸³à¹€à¸£à¹‡à¸ˆ, à¸™à¸±à¸”à¸«à¸¡à¸²à¸¢à¸ªà¸³à¹€à¸£à¹‡à¸ˆ, etc.) =====
-            if (preg_match('/^à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­à¸ªà¸³à¹€à¸£à¹‡à¸ˆ\s*#?(\w+)/u', $messageText, $matches)) {
+            // ===== Handle LIFF Action Messages (สั่งซื้อสำเร็จ, นัดหมายสำเร็จ, etc.) =====
+            if (preg_match('/^สั่งซื้อสำเร็จ\s*#?(\w+)/u', $messageText, $matches)) {
                 $orderNumber = $matches[1];
                 devLog($db, 'info', 'webhook', 'Order confirmation message received', [
                     'user_id' => $userId,
@@ -1234,7 +1241,7 @@ if (!$line) {
                             'contents' => [
                                 ['type' => 'text', 'text' => $item['product_name'], 'size' => 'sm', 'color' => '#555555', 'flex' => 4, 'wrap' => true],
                                 ['type' => 'text', 'text' => 'x' . $item['quantity'], 'size' => 'sm', 'color' => '#111111', 'flex' => 1, 'align' => 'end'],
-                                ['type' => 'text', 'text' => 'à¸¿' . number_format($item['subtotal'], 0), 'size' => 'sm', 'color' => '#111111', 'flex' => 2, 'align' => 'end']
+                                ['type' => 'text', 'text' => '฿' . number_format($item['subtotal'], 0), 'size' => 'sm', 'color' => '#111111', 'flex' => 2, 'align' => 'end']
                             ]
                         ];
                     }
@@ -1249,7 +1256,7 @@ if (!$line) {
                             'backgroundColor' => '#06C755',
                             'paddingAll' => 'lg',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'à¸¢à¸·à¸™à¸¢à¸±à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­', 'color' => '#FFFFFF', 'weight' => 'bold', 'size' => 'lg']
+                                ['type' => 'text', 'text' => 'ยืนยันคำสั่งซื้อ', 'color' => '#FFFFFF', 'weight' => 'bold', 'size' => 'lg']
                             ]
                         ],
                         'body' => [
@@ -1259,7 +1266,7 @@ if (!$line) {
                                 [
                                     ['type' => 'text', 'text' => '#' . $order['order_number'], 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755'],
                                     ['type' => 'separator', 'margin' => 'lg'],
-                                    ['type' => 'text', 'text' => 'à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²', 'weight' => 'bold', 'size' => 'sm', 'margin' => 'lg']
+                                    ['type' => 'text', 'text' => 'รายการสินค้า', 'weight' => 'bold', 'size' => 'sm', 'margin' => 'lg']
                                 ],
                                 $itemContents,
                                 [
@@ -1269,8 +1276,8 @@ if (!$line) {
                                         'layout' => 'horizontal',
                                         'margin' => 'lg',
                                         'contents' => [
-                                            ['type' => 'text', 'text' => 'à¸„à¹ˆà¸²à¸ˆà¸±à¸”à¸ªà¹ˆà¸‡', 'size' => 'sm', 'color' => '#555555'],
-                                            ['type' => 'text', 'text' => 'à¸¿' . number_format($order['shipping_fee'] ?? 0, 0), 'size' => 'sm', 'color' => '#111111', 'align' => 'end']
+                                            ['type' => 'text', 'text' => 'ค่าจัดส่ง', 'size' => 'sm', 'color' => '#555555'],
+                                            ['type' => 'text', 'text' => '฿' . number_format($order['shipping_fee'] ?? 0, 0), 'size' => 'sm', 'color' => '#111111', 'align' => 'end']
                                         ]
                                     ],
                                     [
@@ -1278,8 +1285,8 @@ if (!$line) {
                                         'layout' => 'horizontal',
                                         'margin' => 'md',
                                         'contents' => [
-                                            ['type' => 'text', 'text' => 'à¸£à¸§à¸¡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”', 'size' => 'md', 'weight' => 'bold'],
-                                            ['type' => 'text', 'text' => 'à¸¿' . number_format($order['grand_total'], 0), 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755', 'align' => 'end']
+                                            ['type' => 'text', 'text' => 'รวมทั้งหมด', 'size' => 'md', 'weight' => 'bold'],
+                                            ['type' => 'text', 'text' => '฿' . number_format($order['grand_total'], 0), 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755', 'align' => 'end']
                                         ]
                                     ]
                                 ]
@@ -1289,26 +1296,26 @@ if (!$line) {
                             'type' => 'box',
                             'layout' => 'vertical',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'à¸à¸£à¸¸à¸“à¸²à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™à¹à¸¥à¸°à¹à¸™à¸šà¸ªà¸¥à¸´à¸›', 'size' => 'xs', 'color' => '#888888', 'align' => 'center'],
-                                ['type' => 'text', 'text' => 'à¸žà¸´à¸¡à¸žà¹Œ "à¸ªà¸¥à¸´à¸›" à¹€à¸žà¸·à¹ˆà¸­à¹à¸™à¸šà¸«à¸¥à¸±à¸à¸à¸²à¸™', 'size' => 'xs', 'color' => '#888888', 'align' => 'center', 'margin' => 'sm']
+                                ['type' => 'text', 'text' => 'กรุณาชำระเงินและแนบสลิป', 'size' => 'xs', 'color' => '#888888', 'align' => 'center'],
+                                ['type' => 'text', 'text' => 'พิมพ์ "สลิป" เพื่อแนบหลักฐาน', 'size' => 'xs', 'color' => '#888888', 'align' => 'center', 'margin' => 'sm']
                             ]
                         ]
                     ];
                     
                     $message = [
                         'type' => 'flex',
-                        'altText' => 'à¸¢à¸·à¸™à¸¢à¸±à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­ #' . $order['order_number'],
+                        'altText' => 'ยืนยันคำสั่งซื้อ #' . $order['order_number'],
                         'contents' => $orderFlex
                     ];
                     $line->replyMessage($replyToken, [$message]);
                     saveOutgoingMessage($db, $user['id'], 'order_confirmation_flex', 'system', 'flex');
                 } else {
-                    $line->replyMessage($replyToken, [['type' => 'text', 'text' => 'à¹„à¸¡à¹ˆà¸žà¸šà¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­ #' . $orderNumber]]);
+                    $line->replyMessage($replyToken, [['type' => 'text', 'text' => 'ไม่พบคำสั่งซื้อ #' . $orderNumber]]);
                 }
                 return;
             }
             
-            // à¸–à¹‰à¸²à¹€à¸£à¸µà¸¢à¸ AI (@à¸šà¸­à¸— xxx) - à¸ªà¹ˆà¸‡à¹„à¸›à¹ƒà¸«à¹‰ AI à¸•à¸­à¸š (fallback)
+            // ถ้าเรียก AI (@บอท xxx) - ส่งไปให้ AI ตอบ (fallback)
             if ($isAICall && !empty($aiMessage)) {
                 devLog($db, 'info', 'webhook', 'AI called with @bot', [
                     'user_id' => $userId,
@@ -1317,11 +1324,11 @@ if (!$line) {
                 
                 $aiReply = checkAIChatbot($db, $aiMessage, $lineAccountId, $user['id'] ?? null);
                 if ($aiReply) {
-                    // à¸¥à¸­à¸‡ replyMessage à¸à¹ˆà¸­à¸™ (à¸Ÿà¸£à¸µ!)
+                    // ลอง replyMessage ก่อน (ฟรี!)
                     $replyResult = $line->replyMessage($replyToken, $aiReply);
                     $replyCode = $replyResult['code'] ?? 0;
                     
-                    // à¸–à¹‰à¸² reply à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰ pushMessage à¹à¸—à¸™
+                    // ถ้า reply ไม่สำเร็จ ให้ใช้ pushMessage แทน
                     if ($replyCode !== 200) {
                         $line->pushMessage($userId, $aiReply);
                     }
@@ -1329,13 +1336,13 @@ if (!$line) {
                     saveOutgoingMessage($db, $user['id'], $aiReply, 'ai', 'flex');
                     return;
                 } else {
-                    // AI à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™
-                    $line->replyMessage($replyToken, [['type' => 'text', 'text' => 'âŒ à¸£à¸°à¸šà¸š AI à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™ à¸à¸£à¸¸à¸“à¸²à¸•à¸´à¸”à¸•à¹ˆà¸­à¹à¸­à¸”à¸¡à¸´à¸™']]);
+                    // AI ไม่ได้เปิดใช้งาน
+                    $line->replyMessage($replyToken, [['type' => 'text', 'text' => '❌ ระบบ AI ยังไม่ได้เปิดใช้งาน กรุณาติดต่อแอดมิน']]);
                     return;
                 }
             }
             
-            // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸£à¹‰à¸²à¸™à¸„à¹‰à¸² - à¸ªà¹ˆà¸‡ LIFF URL
+            // ถ้าเป็นคำสั่งร้านค้า - ส่ง LIFF URL
             if ($isShopCommand && $liffId) {
                 $liffUrl = "https://liff.line.me/{$liffId}";
                 $shopFlex = [
@@ -1344,8 +1351,8 @@ if (!$line) {
                         'type' => 'box',
                         'layout' => 'vertical',
                         'contents' => [
-                            ['type' => 'text', 'text' => 'ðŸ›ï¸ à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²à¸­à¸­à¸™à¹„à¸¥à¸™à¹Œ', 'weight' => 'bold', 'size' => 'lg'],
-                            ['type' => 'text', 'text' => 'à¸à¸”à¸›à¸¸à¹ˆà¸¡à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡à¹€à¸žà¸·à¹ˆà¸­à¸”à¸¹à¸ªà¸´à¸™à¸„à¹‰à¸²à¹à¸¥à¸°à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­', 'size' => 'sm', 'color' => '#666666', 'margin' => 'md', 'wrap' => true]
+                            ['type' => 'text', 'text' => '🛍️ ร้านค้าออนไลน์', 'weight' => 'bold', 'size' => 'lg'],
+                            ['type' => 'text', 'text' => 'กดปุ่มด้านล่างเพื่อดูสินค้าและสั่งซื้อ', 'size' => 'sm', 'color' => '#666666', 'margin' => 'md', 'wrap' => true]
                         ]
                     ],
                     'footer' => [
@@ -1356,7 +1363,7 @@ if (!$line) {
                                 'type' => 'button',
                                 'style' => 'primary',
                                 'color' => '#06C755',
-                                'action' => ['type' => 'uri', 'label' => 'ðŸ›’ à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¹‰à¸²à¸™à¸„à¹‰à¸²', 'uri' => $liffUrl]
+                                'action' => ['type' => 'uri', 'label' => '🛒 เข้าสู่ร้านค้า', 'uri' => $liffUrl]
                             ]
                         ]
                     ]
@@ -1364,7 +1371,7 @@ if (!$line) {
                 
                 $message = [
                     'type' => 'flex',
-                    'altText' => 'à¸à¸”à¹€à¸žà¸·à¹ˆà¸­à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¹‰à¸²à¸™à¸„à¹‰à¸²',
+                    'altText' => 'กดเพื่อเข้าสู่ร้านค้า',
                     'contents' => $shopFlex
                 ];
                 $line->replyMessage($replyToken, [$message]);
@@ -1372,12 +1379,12 @@ if (!$line) {
                 return;
             }
             
-            // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸ªà¸¥à¸´à¸›/à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ - à¹ƒà¸«à¹‰ BusinessBot à¸ˆà¸±à¸”à¸à¸²à¸£ (à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡)
-            // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¹€à¸¡à¸™à¸¹ - à¹ƒà¸«à¹‰ Auto Reply à¸«à¸£à¸·à¸­ BusinessBot à¸ˆà¸±à¸”à¸à¸²à¸£ (à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡)
+            // ถ้าเป็นคำสั่งสลิป/ออเดอร์ - ให้ BusinessBot จัดการ (ด้านล่าง)
+            // ถ้าเป็นคำสั่งเมนู - ให้ Auto Reply หรือ BusinessBot จัดการ (ด้านล่าง)
             
-            // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸µà¹ˆà¸à¸³à¸«à¸™à¸” à¹à¸¥à¸°à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¹‚à¸«à¸¡à¸” general - à¹„à¸¡à¹ˆà¸•à¸­à¸š (à¸£à¸­à¹à¸­à¸”à¸¡à¸´à¸™)
+            // ถ้าไม่ใช่คำสั่งที่กำหนด และไม่ใช่โหมด general - ไม่ตอบ (รอแอดมิน)
             if (!$isSlipCommand && !$isOrderCommand && !$isMenuCommand && $botMode !== 'general') {
-                // à¹€à¸Šà¹‡à¸„ Auto Reply à¸à¹ˆà¸­à¸™
+                // เช็ค Auto Reply ก่อน
                 $autoReply = checkAutoReply($db, $messageText, $lineAccountId);
                 if ($autoReply) {
                     devLog($db, 'info', 'webhook', 'Auto reply matched (non-general mode)', [
@@ -1390,7 +1397,7 @@ if (!$line) {
                     return;
                 }
                 
-                // à¹„à¸¡à¹ˆà¸•à¸­à¸š - à¸£à¸­à¹à¸­à¸”à¸¡à¸´à¸™
+                // ไม่ตอบ - รอแอดมิน
                 devLog($db, 'info', 'webhook', 'No matching command - waiting for admin', [
                     'user_id' => $userId,
                     'message' => mb_substr($messageText, 0, 100),
@@ -1399,16 +1406,55 @@ if (!$line) {
                 return;
             }
 
-            // Check for slip command: "à¸ªà¸¥à¸´à¸›", "slip", "à¹à¸™à¸šà¸ªà¸¥à¸´à¸›", "à¸ªà¹ˆà¸‡à¸ªà¸¥à¸´à¸›"
-            if (in_array($textLower, ['à¸ªà¸¥à¸´à¸›', 'slip', 'à¹à¸™à¸šà¸ªà¸¥à¸´à¸›', 'à¸ªà¹ˆà¸‡à¸ªà¸¥à¸´à¸›', 'à¹‚à¸­à¸™à¹€à¸‡à¸´à¸™', 'à¹‚à¸­à¸™à¹à¸¥à¹‰à¸§'])) {
+            // Check for contact command FIRST (ก่อน Auto Reply)
+            if (in_array($textLower, ['contact', 'ติดต่อ', 'ติดต่อเรา'])) {
+                $contactBubble = FlexTemplates::notification(
+                    'ติดต่อเรา',
+                    'สามารถพิมพ์ข้อความถึงเราได้เลย\nทีมงานจะตอบกลับโดยเร็วที่สุด',
+                    '📞',
+                    '#3B82F6',
+                    [['label' => '🛒 ดูสินค้า', 'text' => 'shop', 'style' => 'secondary']]
+                );
+                $contactMessage = FlexTemplates::toMessage($contactBubble, 'ติดต่อเรา');
+                // เพิ่ม Quick Reply
+                $contactMessage = FlexTemplates::withQuickReply($contactMessage, [
+                    ['label' => '🛒 ดูสินค้า', 'text' => 'shop'],
+                    ['label' => '📋 เมนู', 'text' => 'menu'],
+                    ['label' => '📦 ออเดอร์', 'text' => 'orders']
+                ]);
+                
+                // Send and log response
+                $replyResult = $line->replyMessage($replyToken, [$contactMessage]);
+                
+                devLog($db, 'debug', 'webhook', 'Contact command reply result', [
+                    'user_id' => $userId,
+                    'code' => $replyResult['code'] ?? 0,
+                    'body' => $replyResult['body'] ?? null,
+                    'has_reply_token' => !empty($replyToken)
+                ], $userId);
+                
+                if (($replyResult['code'] ?? 0) !== 200) {
+                    devLog($db, 'error', 'webhook', 'Contact command reply FAILED', [
+                        'user_id' => $userId,
+                        'code' => $replyResult['code'] ?? 0,
+                        'error' => $replyResult['body'] ?? null
+                    ], $userId);
+                }
+                
+                saveOutgoingMessage($db, $user['id'], 'contact');
+                return;
+            }
+            
+            // Check for slip command: "สลิป", "slip", "แนบสลิป", "ส่งสลิป"
+            if (in_array($textLower, ['สลิป', 'slip', 'แนบสลิป', 'ส่งสลิป', 'โอนเงิน', 'โอนแล้ว'])) {
                 devLog($db, 'debug', 'webhook', 'Slip command detected', ['user_id' => $user['id'], 'text' => $textLower], $userId);
                 $handled = handleSlipCommand($db, $line, $user['id'], $replyToken);
                 devLog($db, 'debug', 'webhook', 'Slip command result: ' . ($handled ? 'handled' : 'not handled'), ['user_id' => $user['id']], $userId);
                 if ($handled) return;
             }
             
-            // Check for menu command - à¹à¸ªà¸”à¸‡à¹€à¸¡à¸™à¸¹à¸«à¸¥à¸±à¸à¸ªà¸§à¸¢à¹† (à¸­à¸±à¸žà¹€à¸à¸£à¸” V2)
-            if (in_array($textLower, ['menu', 'à¹€à¸¡à¸™à¸¹', 'help', 'à¸Šà¹ˆà¸§à¸¢à¹€à¸«à¸¥à¸·à¸­', '?'])) {
+            // Check for menu command - แสดงเมนูหลักสวยๆ (อัพเกรด V2)
+            if (in_array($textLower, ['menu', 'เมนู', 'help', 'ช่วยเหลือ', '?'])) {
                 $shopName = 'LINE Shop';
                 try {
                     if ($lineAccountId) {
@@ -1424,14 +1470,14 @@ if (!$line) {
                 } catch (Exception $e) {}
                 
                 $menuBubble = FlexTemplates::mainMenu($shopName);
-                $menuMessage = FlexTemplates::toMessage($menuBubble, "à¹€à¸¡à¸™à¸¹ {$shopName}");
+                $menuMessage = FlexTemplates::toMessage($menuBubble, "เมนู {$shopName}");
                 $line->replyMessage($replyToken, [$menuMessage]);
                 saveOutgoingMessage($db, $user['id'], 'menu');
                 return;
             }
             
-            // Check for quick menu command - à¹€à¸¡à¸™à¸¹à¸”à¹ˆà¸§à¸™à¹à¸šà¸š Carousel
-            if (in_array($textLower, ['quickmenu', 'à¹€à¸¡à¸™à¸¹à¸”à¹ˆà¸§à¸™', 'allmenu', 'à¹€à¸¡à¸™à¸¹à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”'])) {
+            // Check for quick menu command - เมนูด่วนแบบ Carousel
+            if (in_array($textLower, ['quickmenu', 'เมนูด่วน', 'allmenu', 'เมนูทั้งหมด'])) {
                 $shopName = 'LINE Shop';
                 try {
                     if ($lineAccountId) {
@@ -1447,38 +1493,17 @@ if (!$line) {
                 } catch (Exception $e) {}
                 
                 $menuCarousel = FlexTemplates::quickMenu($shopName);
-                $menuMessage = FlexTemplates::toMessage($menuCarousel, "à¹€à¸¡à¸™à¸¹à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸” {$shopName}");
+                $menuMessage = FlexTemplates::toMessage($menuCarousel, "เมนูทั้งหมด {$shopName}");
                 $line->replyMessage($replyToken, [$menuMessage]);
                 saveOutgoingMessage($db, $user['id'], 'quickmenu');
                 return;
             }
             
-            // Check for contact command
-            if (in_array($textLower, ['contact', 'à¸•à¸´à¸”à¸•à¹ˆà¸­', 'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²'])) {
-                $contactBubble = FlexTemplates::notification(
-                    'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²',
-                    'à¸ªà¸²à¸¡à¸²à¸£à¸–à¸žà¸´à¸¡à¸žà¹Œà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸–à¸¶à¸‡à¹€à¸£à¸²à¹„à¸”à¹‰à¹€à¸¥à¸¢\nà¸—à¸µà¸¡à¸‡à¸²à¸™à¸ˆà¸°à¸•à¸­à¸šà¸à¸¥à¸±à¸šà¹‚à¸”à¸¢à¹€à¸£à¹‡à¸§à¸—à¸µà¹ˆà¸ªà¸¸à¸”',
-                    'ðŸ“ž',
-                    '#3B82F6',
-                    [['label' => 'ðŸ›’ à¸”à¸¹à¸ªà¸´à¸™à¸„à¹‰à¸²', 'text' => 'shop', 'style' => 'secondary']]
-                );
-                $contactMessage = FlexTemplates::toMessage($contactBubble, 'à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²');
-                // à¹€à¸žà¸´à¹ˆà¸¡ Quick Reply
-                $contactMessage = FlexTemplates::withQuickReply($contactMessage, [
-                    ['label' => 'ðŸ›’ à¸”à¸¹à¸ªà¸´à¸™à¸„à¹‰à¸²', 'text' => 'shop'],
-                    ['label' => 'ðŸ“‹ à¹€à¸¡à¸™à¸¹', 'text' => 'menu'],
-                    ['label' => 'ðŸ“¦ à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ', 'text' => 'orders']
-                ]);
-                $line->replyMessage($replyToken, [$contactMessage]);
-                saveOutgoingMessage($db, $user['id'], 'contact');
-                return;
-            }
-            
             // Points/loyalty command - handled by BusinessBot.showPoints()
 
-            // à¹€à¸Šà¹‡à¸„ Auto Reply à¸à¹ˆà¸­à¸™ BusinessBot (à¸ªà¸³à¸«à¸£à¸±à¸šà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸—à¸±à¹ˆà¸§à¹„à¸›)
-            // à¸¢à¸à¹€à¸§à¹‰à¸™à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸žà¸´à¹€à¸¨à¸©à¸—à¸µà¹ˆ BusinessBot à¸•à¹‰à¸­à¸‡à¸ˆà¸±à¸”à¸à¸²à¸£
-            $specialCommands = ['shop', 'menu', 'orders', 'à¸ªà¸´à¸™à¸„à¹‰à¸²', 'à¹€à¸¡à¸™à¸¹', 'à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ', 'points', 'à¹à¸•à¹‰à¸¡'];
+            // เช็ค Auto Reply ก่อน BusinessBot (สำหรับข้อความทั่วไป)
+            // ยกเว้นคำสั่งพิเศษที่ BusinessBot ต้องจัดการ
+            $specialCommands = ['shop', 'menu', 'orders', 'สินค้า', 'เมนู', 'ออเดอร์', 'points', 'แต้ม'];
             if (!in_array($textLower, $specialCommands) && !$isSlipCommand && !$isOrderCommand) {
                 $autoReply = checkAutoReply($db, $messageText, $lineAccountId);
                 if ($autoReply) {
@@ -1492,7 +1517,7 @@ if (!$line) {
                 }
             }
 
-            // V2.5: Check Business commands (à¹ƒà¸Šà¹‰ BusinessBot à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™)
+            // V2.5: Check Business commands (ใช้ BusinessBot เท่านั้น)
             $botMode = 'shop'; // default
             $businessBot = null;
             
@@ -1529,7 +1554,7 @@ if (!$line) {
                 error_log("BusinessBot error: " . $e->getMessage());
             }
 
-            // Check auto-reply rules (à¸£à¸­à¸‡à¸£à¸±à¸š Sender, Quick Reply, Alt Text) - à¹à¸¢à¸à¸•à¸²à¸¡ LINE Account
+            // Check auto-reply rules (รองรับ Sender, Quick Reply, Alt Text) - แยกตาม LINE Account
             $reply = checkAutoReply($db, $messageText, $lineAccountId);
             if ($reply) {
                 $line->replyMessage($replyToken, [$reply]);
@@ -1537,7 +1562,7 @@ if (!$line) {
                 return;
             }
             
-            // à¹„à¸¡à¹ˆà¸•à¸­à¸š default reply - à¸£à¸­à¹à¸­à¸”à¸¡à¸´à¸™à¸•à¸­à¸š
+            // ไม่ตอบ default reply - รอแอดมินตอบ
             devLog($db, 'info', 'webhook', 'No command matched - waiting for admin', [
                 'user_id' => $userId,
                 'message' => mb_substr($messageText, 0, 100)
@@ -1556,17 +1581,17 @@ if (!$line) {
             
             // Try to reply with error message
             try {
-                $line->replyMessage($replyToken, ['type' => 'text', 'text' => 'âŒ à¹€à¸à¸´à¸”à¸‚à¹‰à¸­à¸œà¸´à¸”à¸žà¸¥à¸²à¸” à¸à¸£à¸¸à¸“à¸²à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆà¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡']);
+                $line->replyMessage($replyToken, ['type' => 'text', 'text' => '❌ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง']);
             } catch (Exception $e2) {}
         }
     }
 
         /**
          * Check auto-reply rules (Upgraded with Sender, Quick Reply, Alt Text)
-         * à¹à¸¢à¸à¸•à¸²à¸¡ LINE Account - à¸”à¸¶à¸‡à¹€à¸‰à¸žà¸²à¸°à¸à¸Žà¸‚à¸­à¸‡ account à¸™à¸±à¹‰à¸™à¹† à¸«à¸£à¸·à¸­à¸à¸Žà¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸ account (global)
+         * แยกตาม LINE Account - ดึงเฉพาะกฎของ account นั้นๆ หรือกฎที่ไม่ระบุ account (global)
          */
         function checkAutoReply($db, $text, $lineAccountId = null) {
-            // à¸”à¸¶à¸‡à¸à¸Žà¸—à¸µà¹ˆà¸•à¸£à¸‡à¸à¸±à¸š account à¸™à¸µà¹‰ à¸«à¸£à¸·à¸­à¸à¸Ž global (line_account_id IS NULL)
+            // ดึงกฎที่ตรงกับ account นี้ หรือกฎ global (line_account_id IS NULL)
             if ($lineAccountId) {
                 $stmt = $db->prepare("SELECT * FROM auto_replies WHERE is_active = 1 AND (line_account_id = ? OR line_account_id IS NULL) ORDER BY line_account_id DESC, priority DESC");
                 $stmt->execute([$lineAccountId]);
@@ -1592,7 +1617,7 @@ if (!$line) {
                         $matched = preg_match('/' . $rule['keyword'] . '/i', $text);
                         break;
                     case 'all':
-                        // Match all messages - à¸•à¸­à¸šà¸—à¸¸à¸à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡
+                        // Match all messages - ตอบทุกข้อความ
                         $matched = true;
                         break;
                 }
@@ -1613,12 +1638,12 @@ if (!$line) {
                         // Flex Message
                         $flexContent = json_decode($rule['reply_content'], true);
                         if ($flexContent) {
-                            $altText = $rule['alt_text'] ?? $rule['keyword'] ?? 'à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡';
+                            $altText = $rule['alt_text'] ?? $rule['keyword'] ?? 'ข้อความ';
                             
                             // Add share button if enabled
                             $enableShare = $rule['enable_share'] ?? false;
                             if ($enableShare && defined('LIFF_SHARE_ID') && LIFF_SHARE_ID) {
-                                $shareLabel = $rule['share_button_label'] ?? 'ðŸ“¤ à¹à¸Šà¸£à¹Œà¹ƒà¸«à¹‰à¹€à¸žà¸·à¹ˆà¸­à¸™';
+                                $shareLabel = $rule['share_button_label'] ?? '📤 แชร์ให้เพื่อน';
                                 $flexContent = addShareButtonToFlex($flexContent, $rule['id'], $shareLabel);
                             }
                             
@@ -1714,8 +1739,8 @@ if (!$line) {
                                         break;
                                     
                                     case 'share':
-                                        // Share button - à¹ƒà¸Šà¹‰ LINE URI Scheme
-                                        $shareText = $item['shareText'] ?? 'à¸¡à¸²à¸”à¸¹à¸ªà¸´à¹ˆà¸‡à¸™à¸µà¹‰à¸ªà¸´!';
+                                        // Share button - ใช้ LINE URI Scheme
+                                        $shareText = $item['shareText'] ?? 'มาดูสิ่งนี้สิ!';
                                         $encodedText = urlencode($shareText);
                                         $qrItem['action'] = [
                                             'type' => 'uri',
@@ -1753,7 +1778,7 @@ if (!$line) {
          * @param string $label - Button label
          * @return array - Modified flex content
          */
-        function addShareButtonToFlex($flexContent, $ruleId, $label = 'ðŸ“¤ à¹à¸Šà¸£à¹Œà¹ƒà¸«à¹‰à¹€à¸žà¸·à¹ˆà¸­à¸™') {
+        function addShareButtonToFlex($flexContent, $ruleId, $label = '📤 แชร์ให้เพื่อน') {
             $liffId = LIFF_SHARE_ID;
             $shareUrl = "https://liff.line.me/{$liffId}?rule={$ruleId}";
             
@@ -1804,10 +1829,10 @@ if (!$line) {
          * Check AI chatbot - Using Gemini 2.0 with Conversation History
          * Enhanced for conversation continuity
          * 
-         * V5.0: à¹€à¸žà¸´à¹ˆà¸¡ Command Mode (/ai, /mims, /triage, /human)
-         * V4.0: à¹€à¸žà¸´à¹ˆà¸¡ Keyword Routing + Bot Pause Feature
-         * V3.0: à¸£à¸­à¸‡à¸£à¸±à¸š PharmacyAI Adapter (Triage System)
-         * V2.6: à¸£à¸­à¸‡à¸£à¸±à¸š Module à¹ƒà¸«à¸¡à¹ˆ (modules/AIChat)
+         * V5.0: เพิ่ม Command Mode (/ai, /mims, /triage, /human)
+         * V4.0: เพิ่ม Keyword Routing + Bot Pause Feature
+         * V3.0: รองรับ PharmacyAI Adapter (Triage System)
+         * V2.6: รองรับ Module ใหม่ (modules/AIChat)
          */
         function checkAIChatbot($db, $text, $lineAccountId = null, $userId = null) {
             try {
@@ -1822,17 +1847,17 @@ if (!$line) {
                 $textLower = mb_strtolower(trim($text));
                 $originalText = trim($text);
                 
-                // ===== 0. à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š Command Mode (/ai, /mims, /triage, /human) =====
+                // ===== 0. ตรวจสอบ Command Mode (/ai, /mims, /triage, /human) =====
                 $commandMode = null;
                 $commandMessage = $originalText;
                 
-                // à¸£à¸¹à¸›à¹à¸šà¸š: /command à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡ à¸«à¸£à¸·à¸­ @command à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡
-                // à¸£à¸­à¸‡à¸£à¸±à¸š backtick à¸«à¸£à¸·à¸­ character à¸žà¸´à¹€à¸¨à¸©à¸‚à¹‰à¸²à¸‡à¸«à¸™à¹‰à¸²
+                // รูปแบบ: /command ข้อความ หรือ @command ข้อความ
+                // รองรับ backtick หรือ character พิเศษข้างหน้า
                 $cleanText = preg_replace('/^[`\'"\s]+/', '', $originalText);
                 
-                // ===== à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š "/" à¹€à¸”à¸µà¸¢à¸§ â†’ à¹€à¸£à¸´à¹ˆà¸¡ AI à¹à¸¥à¸°à¹à¸ªà¸”à¸‡à¸„à¸³à¸­à¸˜à¸´à¸šà¸²à¸¢ =====
+                // ===== ตรวจสอบ "/" เดียว → เริ่ม AI และแสดงคำอธิบาย =====
                 if ($cleanText === '/' || $cleanText === '@') {
-                    // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¹€à¸„à¸¢à¹ƒà¸Šà¹‰ AI à¸«à¸£à¸·à¸­à¸¢à¸±à¸‡
+                    // ตรวจสอบว่าเคยใช้ AI หรือยัง
                     $isFirstTime = true;
                     if ($userId) {
                         try {
@@ -1842,7 +1867,7 @@ if (!$line) {
                         } catch (Exception $e) {}
                     }
                     
-                    // à¸”à¸¶à¸‡ AI mode à¸ˆà¸²à¸ ai_settings
+                    // ดึง AI mode จาก ai_settings
                     $configuredMode = 'sales'; // default
                     try {
                         $stmt = $db->prepare("SELECT ai_mode FROM ai_settings WHERE line_account_id = ? LIMIT 1");
@@ -1853,75 +1878,75 @@ if (!$line) {
                         }
                     } catch (Exception $e) {}
                     
-                    // à¸šà¸±à¸™à¸—à¸¶à¸à¹‚à¸«à¸¡à¸” AI à¸•à¸²à¸¡à¸—à¸µà¹ˆà¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²à¹„à¸§à¹‰
+                    // บันทึกโหมด AI ตามที่ตั้งค่าไว้
                     if ($userId) {
                         setUserAIMode($db, $userId, $configuredMode);
                     }
                     
                     if ($isFirstTime) {
-                        // à¸„à¸£à¸±à¹‰à¸‡à¹à¸£à¸ - à¹à¸ªà¸”à¸‡à¸„à¸³à¸­à¸˜à¸´à¸šà¸²à¸¢à¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™
+                        // ครั้งแรก - แสดงคำอธิบายการใช้งาน
                         return [[
                             'type' => 'text',
-                            'text' => "ðŸ¤– à¸¢à¸´à¸™à¸”à¸µà¸•à¹‰à¸­à¸™à¸£à¸±à¸šà¸ªà¸¹à¹ˆ AI Assistant!\n\nâœ¨ à¸§à¸´à¸˜à¸µà¹ƒà¸Šà¹‰à¸‡à¸²à¸™:\nâ€¢ à¸žà¸´à¸¡à¸žà¹Œà¸„à¸³à¸–à¸²à¸¡à¸«à¸£à¸·à¸­à¸ªà¸´à¹ˆà¸‡à¸—à¸µà¹ˆà¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¹„à¸”à¹‰à¹€à¸¥à¸¢\nâ€¢ AI à¸ˆà¸°à¸Šà¹ˆà¸§à¸¢à¸•à¸­à¸šà¸„à¸³à¸–à¸²à¸¡ à¹à¸™à¸°à¸™à¸³à¸ªà¸´à¸™à¸„à¹‰à¸² à¹à¸¥à¸°à¹ƒà¸«à¹‰à¸‚à¹‰à¸­à¸¡à¸¹à¸¥\n\nðŸ“ à¸•à¸±à¸§à¸­à¸¢à¹ˆà¸²à¸‡:\nâ€¢ \"à¸¡à¸µà¸ªà¸´à¸™à¸„à¹‰à¸²à¸­à¸°à¹„à¸£à¸šà¹‰à¸²à¸‡\"\nâ€¢ \"à¹à¸™à¸°à¸™à¸³à¸ªà¸´à¸™à¸„à¹‰à¸²à¸‚à¸²à¸¢à¸”à¸µ\"\nâ€¢ \"à¸£à¸²à¸„à¸²à¸ªà¸´à¸™à¸„à¹‰à¸² XXX\"\n\nðŸ’¡ à¸žà¸´à¸¡à¸žà¹Œ /exit à¹€à¸žà¸·à¹ˆà¸­à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸” AI\n\nðŸŽ¯ à¹€à¸£à¸´à¹ˆà¸¡à¸•à¹‰à¸™à¹„à¸”à¹‰à¹€à¸¥à¸¢! à¸žà¸´à¸¡à¸žà¹Œà¸„à¸³à¸–à¸²à¸¡à¸‚à¸­à¸‡à¸„à¸¸à¸“:",
+                            'text' => "🤖 ยินดีต้อนรับสู่ AI Assistant!\n\n✨ วิธีใช้งาน:\n• พิมพ์คำถามหรือสิ่งที่ต้องการได้เลย\n• AI จะช่วยตอบคำถาม แนะนำสินค้า และให้ข้อมูล\n\n📝 ตัวอย่าง:\n• \"มีสินค้าอะไรบ้าง\"\n• \"แนะนำสินค้าขายดี\"\n• \"ราคาสินค้า XXX\"\n\n💡 พิมพ์ /exit เพื่อออกจากโหมด AI\n\n🎯 เริ่มต้นได้เลย! พิมพ์คำถามของคุณ:",
                             'sender' => [
-                                'name' => 'ðŸ¤– AI Assistant',
+                                'name' => '🤖 AI Assistant',
                                 'iconUrl' => 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png'
                             ]
                         ]];
                     } else {
-                        // à¹€à¸„à¸¢à¹ƒà¸Šà¹‰à¹à¸¥à¹‰à¸§ - à¹à¸ªà¸”à¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸ªà¸±à¹‰à¸™à¹†
+                        // เคยใช้แล้ว - แสดงข้อความสั้นๆ
                         return [[
                             'type' => 'text',
-                            'text' => "ðŸ¤– AI à¸žà¸£à¹‰à¸­à¸¡à¹ƒà¸«à¹‰à¸šà¸£à¸´à¸à¸²à¸£à¸„à¹ˆà¸°!\n\nà¸žà¸´à¸¡à¸žà¹Œà¸„à¸³à¸–à¸²à¸¡à¸«à¸£à¸·à¸­à¸ªà¸´à¹ˆà¸‡à¸—à¸µà¹ˆà¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¹„à¸”à¹‰à¹€à¸¥à¸¢\n(à¸žà¸´à¸¡à¸žà¹Œ /exit à¹€à¸žà¸·à¹ˆà¸­à¸­à¸­à¸)",
+                            'text' => "🤖 AI พร้อมให้บริการค่ะ!\n\nพิมพ์คำถามหรือสิ่งที่ต้องการได้เลย\n(พิมพ์ /exit เพื่อออก)",
                             'sender' => [
-                                'name' => 'ðŸ¤– AI Assistant',
+                                'name' => '🤖 AI Assistant',
                                 'iconUrl' => 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png'
                             ]
                         ]];
                     }
                 }
                 
-                // à¸£à¸­à¸‡à¸£à¸±à¸šà¸—à¸±à¹‰à¸‡ / à¹à¸¥à¸° @ à¸™à¸³à¸«à¸™à¹‰à¸² command (à¸£à¸­à¸‡à¸£à¸±à¸šà¸—à¸±à¹‰à¸‡ English à¹à¸¥à¸° Thai)
+                // รองรับทั้ง / และ @ นำหน้า command (รองรับทั้ง English และ Thai)
                 if (preg_match('/^[\/\@]([\w\p{Thai}]+)\s*(.*)/u', $cleanText, $matches)) {
                     $command = mb_strtolower($matches[1]);
                     $commandMessage = trim($matches[2]);
                     
                     // Map commands to modes
                     $commandMap = [
-                        'ai' => 'auto',          // /ai = à¹ƒà¸Šà¹‰ mode à¸ˆà¸²à¸ settings
+                        'ai' => 'auto',          // /ai = ใช้ mode จาก settings
                         'pharmacy' => 'pharmacist',
                         'pharmacist' => 'pharmacist',
-                        'à¸¢à¸²' => 'pharmacist',
-                        'à¸–à¸²à¸¡' => 'auto',         // /à¸–à¸²à¸¡ = à¹ƒà¸Šà¹‰ mode à¸ˆà¸²à¸ settings
-                        'à¸‚à¸²à¸¢' => 'sales',        // /à¸‚à¸²à¸¢ = à¹‚à¸«à¸¡à¸”à¸‚à¸²à¸¢
+                        'ยา' => 'pharmacist',
+                        'ถาม' => 'auto',         // /ถาม = ใช้ mode จาก settings
+                        'ขาย' => 'sales',        // /ขาย = โหมดขาย
                         'sales' => 'sales',
-                        'support' => 'support',  // /support = à¹‚à¸«à¸¡à¸”à¸‹à¸±à¸žà¸žà¸­à¸£à¹Œà¸•
-                        'à¸‹à¸±à¸žà¸žà¸­à¸£à¹Œà¸•' => 'support',
+                        'support' => 'support',  // /support = โหมดซัพพอร์ต
+                        'ซัพพอร์ต' => 'support',
                         
-                        'mims' => 'mims',        // /mims = MIMS AI (à¸„à¸§à¸²à¸¡à¸£à¸¹à¹‰à¸—à¸²à¸‡à¸à¸²à¸£à¹à¸žà¸—à¸¢à¹Œ)
+                        'mims' => 'mims',        // /mims = MIMS AI (ความรู้ทางการแพทย์)
                         'med' => 'mims',
-                        'à¸§à¸´à¸Šà¸²à¸à¸²à¸£' => 'mims',
+                        'วิชาการ' => 'mims',
                         
-                        'triage' => 'triage',    // /triage = à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´
-                        'à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´' => 'triage',
+                        'triage' => 'triage',    // /triage = ซักประวัติ
+                        'ซักประวัติ' => 'triage',
                         'assess' => 'triage',
                         
-                        'human' => 'human',      // /human = à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡
-                        'à¸„à¸™' => 'human',
-                        'à¹€à¸ à¸ªà¸±à¸Š' => 'human',
+                        'human' => 'human',      // /human = ขอคุยกับเภสัชกรจริง
+                        'คน' => 'human',
+                        'เภสัช' => 'human',
                         
-                        'exit' => 'exit',        // /exit = à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸” AI
-                        'à¸­à¸­à¸' => 'exit',
-                        'à¸«à¸¢à¸¸à¸”' => 'exit',
+                        'exit' => 'exit',        // /exit = ออกจากโหมด AI
+                        'ออก' => 'exit',
+                        'หยุด' => 'exit',
                         
-                        'help' => 'help',        // /help = à¹à¸ªà¸”à¸‡à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”
-                        'à¸Šà¹ˆà¸§à¸¢' => 'help',
+                        'help' => 'help',        // /help = แสดงคำสั่งทั้งหมด
+                        'ช่วย' => 'help',
                     ];
                     
                     if (isset($commandMap[$command])) {
                         $commandMode = $commandMap[$command];
                         
-                        // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ 'auto' à¹ƒà¸«à¹‰à¸”à¸¶à¸‡ mode à¸ˆà¸²à¸ ai_settings
+                        // ถ้าเป็น 'auto' ให้ดึง mode จาก ai_settings
                         if ($commandMode === 'auto') {
                             try {
                                 $stmt = $db->prepare("SELECT ai_mode FROM ai_settings WHERE line_account_id = ? LIMIT 1");
@@ -1941,8 +1966,8 @@ if (!$line) {
                             'cleaned' => $cleanText
                         ], null);
                     } else {
-                        // Unknown command â†’ à¸–à¸·à¸­à¸§à¹ˆà¸²à¹€à¸›à¹‡à¸™à¸„à¸³à¸–à¸²à¸¡à¸–à¸²à¸¡ AI
-                        // à¹ƒà¸Šà¹‰ mode à¸ˆà¸²à¸ ai_settings
+                        // Unknown command → ถือว่าเป็นคำถามถาม AI
+                        // ใช้ mode จาก ai_settings
                         try {
                             $stmt = $db->prepare("SELECT ai_mode FROM ai_settings WHERE line_account_id = ? LIMIT 1");
                             $stmt->execute([$lineAccountId]);
@@ -1978,9 +2003,9 @@ if (!$line) {
                     error_log("AI_trace_1 error: " . $e->getMessage());
                 }
                 
-                // ===== 0.5 à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š AI Mode à¸‚à¸­à¸‡ user =====
-                // à¸–à¹‰à¸² user à¹€à¸„à¸¢à¸žà¸´à¸¡à¸žà¹Œ /ai, /mims, /triage â†’ à¸ˆà¸³à¹‚à¸«à¸¡à¸”à¹„à¸§à¹‰
-                // à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸–à¸±à¸”à¹„à¸›à¸ˆà¸°à¹ƒà¸Šà¹‰à¹‚à¸«à¸¡à¸”à¸™à¸±à¹‰à¸™à¸•à¹ˆà¸­à¸ˆà¸™à¸à¸§à¹ˆà¸²à¸ˆà¸°à¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™
+                // ===== 0.5 ตรวจสอบ AI Mode ของ user =====
+                // ถ้า user เคยพิมพ์ /ai, /mims, /triage → จำโหมดไว้
+                // ข้อความถัดไปจะใช้โหมดนั้นต่อจนกว่าจะเปลี่ยน
                 if (!$commandMode && $userId) {
                     $currentAIMode = getUserAIMode($db, $userId);
                     if ($currentAIMode) {
@@ -1990,12 +2015,12 @@ if (!$line) {
                     }
                 }
                 
-                // à¸–à¹‰à¸²à¸žà¸´à¸¡à¸žà¹Œ command à¹ƒà¸«à¸¡à¹ˆ â†’ à¸šà¸±à¸™à¸—à¸¶à¸à¹‚à¸«à¸¡à¸”
+                // ถ้าพิมพ์ command ใหม่ → บันทึกโหมด
                 if ($commandMode && $userId && in_array($commandMode, ['pharmacist', 'pharmacy', 'sales', 'support', 'mims', 'triage'])) {
                     setUserAIMode($db, $userId, $commandMode);
                 }
                 
-                // à¸–à¹‰à¸²à¸žà¸´à¸¡à¸žà¹Œ /human à¸«à¸£à¸·à¸­ /exit â†’ à¸¥à¸šà¹‚à¸«à¸¡à¸”
+                // ถ้าพิมพ์ /human หรือ /exit → ลบโหมด
                 if (($commandMode === 'human' || $commandMode === 'exit') && $userId) {
                     clearUserAIMode($db, $userId);
                 }
@@ -2006,64 +2031,64 @@ if (!$line) {
                     'line' => __LINE__
                 ], null);
                 
-                // à¸”à¸¶à¸‡ sender settings à¸ªà¸³à¸«à¸£à¸±à¸š system messages
+                // ดึง sender settings สำหรับ system messages
                 $systemSender = getAISenderSettings($db, $lineAccountId);
                 
-                // ===== /exit - à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸” AI =====
+                // ===== /exit - ออกจากโหมด AI =====
                 if ($commandMode === 'exit') {
                     return [[
                         'type' => 'text',
-                        'text' => "âœ… à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸” AI à¹à¸¥à¹‰à¸§à¸„à¹ˆà¸°\n\nà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸–à¸±à¸”à¹„à¸›à¸ˆà¸°à¸ªà¹ˆà¸‡à¸–à¸¶à¸‡à¹à¸­à¸”à¸¡à¸´à¸™à¹‚à¸”à¸¢à¸•à¸£à¸‡\n\nðŸ’¡ à¸žà¸´à¸¡à¸žà¹Œ /ai, /mims à¸«à¸£à¸·à¸­ /triage à¹€à¸žà¸·à¹ˆà¸­à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰ AI à¹„à¸”à¹‰à¸—à¸¸à¸à¹€à¸¡à¸·à¹ˆà¸­à¸„à¹ˆà¸°",
+                        'text' => "✅ ออกจากโหมด AI แล้วค่ะ\n\nข้อความถัดไปจะส่งถึงแอดมินโดยตรง\n\n💡 พิมพ์ /ai, /mims หรือ /triage เพื่อกลับมาใช้ AI ได้ทุกเมื่อค่ะ",
                         'sender' => $systemSender
                     ]];
                 }
                 
-                // ===== /help - à¹à¸ªà¸”à¸‡à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸” =====
+                // ===== /help - แสดงคำสั่งทั้งหมด =====
                 if ($commandMode === 'help') {
                     return [[
                         'type' => 'text',
-                        'text' => "ðŸ¤– à¸„à¸³à¸ªà¸±à¹ˆà¸‡ AI à¸—à¸µà¹ˆà¹ƒà¸Šà¹‰à¹„à¸”à¹‰:\n\n" .
-                                "/ai - à¹€à¸‚à¹‰à¸²à¹‚à¸«à¸¡à¸” AI à¸•à¸²à¸¡à¸—à¸µà¹ˆà¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸²à¹„à¸§à¹‰\n" .
-                                "/mims - à¹€à¸‚à¹‰à¸²à¹‚à¸«à¸¡à¸” MIMS (à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸¢à¸²)\n" .
-                                "/triage - à¹€à¸£à¸´à¹ˆà¸¡à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸­à¸²à¸à¸²à¸£\n" .
-                                "/human - à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡\n" .
-                                "/exit - à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸” AI\n\n" .
-                                "ðŸ’¡ à¹€à¸¡à¸·à¹ˆà¸­à¹€à¸‚à¹‰à¸²à¹‚à¸«à¸¡à¸”à¹à¸¥à¹‰à¸§ à¸žà¸´à¸¡à¸žà¹Œà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹„à¸”à¹‰à¹€à¸¥à¸¢\n" .
-                                "AI à¸ˆà¸°à¸•à¸­à¸šà¸•à¹ˆà¸­à¸ˆà¸™à¸à¸§à¹ˆà¸²à¸ˆà¸°à¸žà¸´à¸¡à¸žà¹Œ /exit",
+                        'text' => "🤖 คำสั่ง AI ที่ใช้ได้:\n\n" .
+                                "/ai - เข้าโหมด AI ตามที่ตั้งค่าไว้\n" .
+                                "/mims - เข้าโหมด MIMS (ข้อมูลยา)\n" .
+                                "/triage - เริ่มซักประวัติอาการ\n" .
+                                "/human - ขอคุยกับเภสัชกรจริง\n" .
+                                "/exit - ออกจากโหมด AI\n\n" .
+                                "💡 เมื่อเข้าโหมดแล้ว พิมพ์ข้อความได้เลย\n" .
+                                "AI จะตอบต่อจนกว่าจะพิมพ์ /exit",
                         'sender' => $systemSender
                     ]];
                 }
                 
-                // ===== 1. à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸² Bot à¸–à¸¹à¸ Pause à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ =====
+                // ===== 1. ตรวจสอบว่า Bot ถูก Pause หรือไม่ =====
                 if ($userId && isAIPaused($db, $userId)) {
-                    // à¸–à¹‰à¸²à¸žà¸´à¸¡à¸žà¹Œ /ai à¸«à¸£à¸·à¸­ command à¸­à¸·à¹ˆà¸™ à¹ƒà¸«à¹‰ resume bot
+                    // ถ้าพิมพ์ /ai หรือ command อื่น ให้ resume bot
                     if ($commandMode && $commandMode !== 'human') {
                         resumeAI($db, $userId);
                         devLog($db, 'info', 'AI_pause', 'AI resumed by command', ['user_id' => $userId, 'command' => $commandMode], null);
                     } else {
                         devLog($db, 'debug', 'AI_pause', 'AI is paused for user', ['user_id' => $userId], null);
-                        return null; // à¹„à¸¡à¹ˆà¸•à¸­à¸š - à¹ƒà¸«à¹‰à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡à¸•à¸­à¸š
+                        return null; // ไม่ตอบ - ให้เภสัชกรจริงตอบ
                     }
                 }
                 
-                // ===== 2. /human à¸«à¸£à¸·à¸­ à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡ =====
+                // ===== 2. /human หรือ คำสั่งขอคุยกับเภสัชกรจริง =====
                 if ($commandMode === 'human') {
                     pauseAI($db, $userId, 20);
                     notifyPharmacistForHumanRequest($db, $userId, $lineAccountId, $originalText);
                     
                     return [[
                         'type' => 'text',
-                        'text' => "à¹€à¸‚à¹‰à¸²à¹ƒà¸ˆà¸„à¹ˆà¸° ðŸ™\n\nà¸£à¸°à¸šà¸šà¹„à¸”à¹‰à¹à¸ˆà¹‰à¸‡à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¹à¸¥à¹‰à¸§ à¸ˆà¸°à¸¡à¸µà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸•à¸´à¸”à¸•à¹ˆà¸­à¸à¸¥à¸±à¸šà¸ à¸²à¸¢à¹ƒà¸™ 5-10 à¸™à¸²à¸—à¸µà¸„à¹ˆà¸°\n\nðŸ“ž à¸«à¸²à¸à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸•à¸´à¸”à¸•à¹ˆà¸­à¸”à¹ˆà¸§à¸™ à¹‚à¸—à¸£: 02-XXX-XXXX\n\n(à¸šà¸­à¸—à¸ˆà¸°à¸«à¸¢à¸¸à¸”à¸•à¸­à¸šà¸Šà¸±à¹ˆà¸§à¸„à¸£à¸²à¸§ 20 à¸™à¸²à¸—à¸µ)\n\nðŸ’¡ à¸žà¸´à¸¡à¸žà¹Œ /ai à¹€à¸žà¸·à¹ˆà¸­à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰à¸šà¸­à¸—à¹„à¸”à¹‰à¸—à¸¸à¸à¹€à¸¡à¸·à¹ˆà¸­",
+                        'text' => "เข้าใจค่ะ 🙏\n\nระบบได้แจ้งเภสัชกรแล้ว จะมีเภสัชกรติดต่อกลับภายใน 5-10 นาทีค่ะ\n\n📞 หากต้องการติดต่อด่วน โทร: 02-XXX-XXXX\n\n(บอทจะหยุดตอบชั่วคราว 20 นาที)\n\n💡 พิมพ์ /ai เพื่อกลับมาใช้บอทได้ทุกเมื่อ",
                         'sender' => $systemSender
                     ]];
                 }
                 
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š keyword à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡ (à¹„à¸¡à¹ˆà¹ƒà¸Šà¹‰ command)
+                // ตรวจสอบ keyword ขอคุยกับเภสัชกรจริง (ไม่ใช้ command)
                 $humanPharmacistKeywords = [
-                    'à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£', 'à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™', 'à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Š', 'à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡', 
-                    'à¸„à¸™à¸ˆà¸£à¸´à¸‡', 'à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸šà¸­à¸—', 'à¹„à¸¡à¹ˆà¹€à¸­à¸²à¸šà¸­à¸—', 'à¸«à¸¢à¸¸à¸”à¸šà¸­à¸—', 'à¸›à¸´à¸”à¸šà¸­à¸—',
-                    'à¸‚à¸­à¸žà¸¹à¸”à¸à¸±à¸šà¸„à¸™', 'à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™', 'human', 'real pharmacist',
-                    'à¸‚à¸­à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸•à¸±à¸§à¸ˆà¸£à¸´à¸‡', 'à¹€à¸ à¸ªà¸±à¸Šà¸•à¸±à¸§à¸ˆà¸£à¸´à¸‡', 'à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡à¸à¸²à¸£ ai', 'à¹„à¸¡à¹ˆà¹€à¸­à¸² ai'
+                    'คุยกับเภสัชกร', 'ขอคุยกับคน', 'ขอคุยกับเภสัช', 'เภสัชกรจริง', 
+                    'คนจริง', 'ไม่ใช่บอท', 'ไม่เอาบอท', 'หยุดบอท', 'ปิดบอท',
+                    'ขอพูดกับคน', 'ต้องการคุยกับคน', 'human', 'real pharmacist',
+                    'ขอเภสัชกรตัวจริง', 'เภสัชตัวจริง', 'ไม่ต้องการ ai', 'ไม่เอา ai'
                 ];
                 
                 if (!$commandMode) {
@@ -2074,7 +2099,7 @@ if (!$line) {
                             
                             return [[
                                 'type' => 'text',
-                                'text' => "à¹€à¸‚à¹‰à¸²à¹ƒà¸ˆà¸„à¹ˆà¸° ðŸ™\n\nà¸£à¸°à¸šà¸šà¹„à¸”à¹‰à¹à¸ˆà¹‰à¸‡à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¹à¸¥à¹‰à¸§ à¸ˆà¸°à¸¡à¸µà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸•à¸´à¸”à¸•à¹ˆà¸­à¸à¸¥à¸±à¸šà¸ à¸²à¸¢à¹ƒà¸™ 5-10 à¸™à¸²à¸—à¸µà¸„à¹ˆà¸°\n\nðŸ“ž à¸«à¸²à¸à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸•à¸´à¸”à¸•à¹ˆà¸­à¸”à¹ˆà¸§à¸™ à¹‚à¸—à¸£: 02-XXX-XXXX\n\n(à¸šà¸­à¸—à¸ˆà¸°à¸«à¸¢à¸¸à¸”à¸•à¸­à¸šà¸Šà¸±à¹ˆà¸§à¸„à¸£à¸²à¸§ 20 à¸™à¸²à¸—à¸µ)\n\nðŸ’¡ à¸žà¸´à¸¡à¸žà¹Œ /ai à¹€à¸žà¸·à¹ˆà¸­à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰à¸šà¸­à¸—à¹„à¸”à¹‰à¸—à¸¸à¸à¹€à¸¡à¸·à¹ˆà¸­",
+                                'text' => "เข้าใจค่ะ 🙏\n\nระบบได้แจ้งเภสัชกรแล้ว จะมีเภสัชกรติดต่อกลับภายใน 5-10 นาทีค่ะ\n\n📞 หากต้องการติดต่อด่วน โทร: 02-XXX-XXXX\n\n(บอทจะหยุดตอบชั่วคราว 20 นาที)\n\n💡 พิมพ์ /ai เพื่อกลับมาใช้บอทได้ทุกเมื่อ",
                                 'sender' => $systemSender
                             ]];
                         }
@@ -2095,16 +2120,16 @@ if (!$line) {
                             $isEnabled = $adapter->isEnabled();
                             devLog($db, 'debug', 'AI_mims', 'MIMS isEnabled', ['enabled' => $isEnabled, 'commandMessage' => $commandMessage], null);
                             
-                            // à¸”à¸¶à¸‡ sender settings à¸ªà¸³à¸«à¸£à¸±à¸š MIMS mode
+                            // ดึง sender settings สำหรับ MIMS mode
                             $mimsSender = getAISenderSettings($db, $lineAccountId, 'mims');
                             
                             if ($isEnabled) {
-                                // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡ à¹ƒà¸«à¹‰à¹à¸ªà¸”à¸‡à¸„à¸³à¹à¸™à¸°à¸™à¸³
+                                // ถ้าไม่มีข้อความ ให้แสดงคำแนะนำ
                                 if (empty($commandMessage)) {
                                     devLog($db, 'debug', 'AI_mims', 'MIMS empty message - showing help', [], null);
                                     return [[
                                         'type' => 'text',
-                                        'text' => "ðŸ“š MIMS Pharmacist AI à¸žà¸£à¹‰à¸­à¸¡à¹ƒà¸«à¹‰à¸šà¸£à¸´à¸à¸²à¸£à¸„à¹ˆà¸°\n\nà¸ªà¸²à¸¡à¸²à¸£à¸–à¸–à¸²à¸¡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹€à¸à¸µà¹ˆà¸¢à¸§à¸à¸±à¸š:\nâ€¢ à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸¢à¸²à¹à¸¥à¸°à¸ªà¸£à¸£à¸žà¸„à¸¸à¸“\nâ€¢ à¸­à¸²à¸à¸²à¸£à¹à¸¥à¸°à¸à¸²à¸£à¸£à¸±à¸à¸©à¸²\nâ€¢ à¸‚à¹‰à¸­à¸„à¸§à¸£à¸£à¸°à¸§à¸±à¸‡à¹ƒà¸™à¸à¸²à¸£à¹ƒà¸Šà¹‰à¸¢à¸²\n\nðŸ’¡ à¸•à¸±à¸§à¸­à¸¢à¹ˆà¸²à¸‡:\n/mims à¸¢à¸² paracetamol\n/mims à¸­à¸²à¸à¸²à¸£à¸›à¸§à¸”à¸«à¸±à¸§à¹„à¸¡à¹€à¸à¸£à¸™\n/mims à¸¢à¸²à¹à¸à¹‰à¹à¸žà¹‰à¸•à¸±à¸§à¹„à¸«à¸™à¸”à¸µ",
+                                        'text' => "📚 MIMS Pharmacist AI พร้อมให้บริการค่ะ\n\nสามารถถามข้อมูลเกี่ยวกับ:\n• ข้อมูลยาและสรรพคุณ\n• อาการและการรักษา\n• ข้อควรระวังในการใช้ยา\n\n💡 ตัวอย่าง:\n/mims ยา paracetamol\n/mims อาการปวดหัวไมเกรน\n/mims ยาแก้แพ้ตัวไหนดี",
                                         'sender' => $mimsSender
                                     ]];
                                 }
@@ -2115,22 +2140,22 @@ if (!$line) {
                                 
                                 if ($result['success'] && !empty($result['message'])) {
                                     $msg = $result['message'];
-                                    // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸² message à¹€à¸›à¹‡à¸™ array à¸—à¸µà¹ˆà¸¡à¸µ type à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                                    // ตรวจสอบว่า message เป็น array ที่มี type หรือไม่
                                     if (is_array($msg) && isset($msg['type'])) {
-                                        // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µ text content à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                                        // ตรวจสอบว่ามี text content หรือไม่
                                         if (empty($msg['text'])) {
-                                            // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µ text à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰ response à¹à¸—à¸™
-                                            $msg['text'] = $result['response'] ?? 'à¸‚à¸­à¸­à¸ à¸±à¸¢à¸„à¹ˆà¸° à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸›à¸£à¸°à¸¡à¸§à¸¥à¸œà¸¥à¹„à¸”à¹‰';
+                                            // ถ้าไม่มี text ให้ใช้ response แทน
+                                            $msg['text'] = $result['response'] ?? 'ขออภัยค่ะ ไม่สามารถประมวลผลได้';
                                             devLog($db, 'warning', 'AI_mims', 'MIMS message missing text, using response', ['response' => mb_substr($msg['text'], 0, 100)], null);
                                         }
-                                        // à¹€à¸žà¸´à¹ˆà¸¡ sender à¸–à¹‰à¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ
+                                        // เพิ่ม sender ถ้ายังไม่มี
                                         if (!isset($msg['sender'])) {
                                             $msg['sender'] = $mimsSender;
                                         }
                                         devLog($db, 'debug', 'AI_mims', 'MIMS returning message array', ['type' => $msg['type'], 'textLength' => strlen($msg['text'] ?? '')], null);
                                         return [$msg];
                                     }
-                                    // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ string à¹ƒà¸«à¹‰ wrap à¹€à¸›à¹‡à¸™ LINE message
+                                    // ถ้าเป็น string ให้ wrap เป็น LINE message
                                     if (is_string($msg)) {
                                         devLog($db, 'debug', 'AI_mims', 'MIMS returning string message', ['length' => strlen($msg)], null);
                                         return [[
@@ -2143,7 +2168,7 @@ if (!$line) {
                                     return [$msg];
                                 }
                                 
-                                // à¸–à¹‰à¸² success à¹à¸•à¹ˆà¹„à¸¡à¹ˆà¸¡à¸µ message à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰ response
+                                // ถ้า success แต่ไม่มี message ให้ใช้ response
                                 if ($result['success'] && !empty($result['response'])) {
                                     devLog($db, 'debug', 'AI_mims', 'MIMS using response text', ['length' => strlen($result['response'])], null);
                                     return [[
@@ -2153,13 +2178,13 @@ if (!$line) {
                                     ]];
                                 }
                                 
-                                // à¸–à¹‰à¸²à¹„à¸¡à¹ˆ success à¹ƒà¸«à¹‰à¹à¸ªà¸”à¸‡ error
+                                // ถ้าไม่ success ให้แสดง error
                                 if (!$result['success']) {
                                     $errorMsg = $result['error'] ?? 'Unknown error';
                                     devLog($db, 'error', 'AI_mims', 'MIMS process failed: ' . $errorMsg, ['user_id' => $userId], null);
                                     return [[
                                         'type' => 'text',
-                                        'text' => "âŒ MIMS AI à¸‚à¸±à¸”à¸‚à¹‰à¸­à¸‡: {$errorMsg}\n\nà¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                                        'text' => "❌ MIMS AI ขัดข้อง: {$errorMsg}\n\nลองใช้ /ai แทนได้ค่ะ",
                                         'sender' => $mimsSender
                                     ]];
                                 }
@@ -2167,7 +2192,7 @@ if (!$line) {
                                 devLog($db, 'warning', 'AI_mims', 'MIMS not enabled - no API key', [], null);
                                 return [[
                                     'type' => 'text',
-                                    'text' => "âŒ MIMS AI à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² API Key\n\nà¸à¸£à¸¸à¸“à¸²à¸•à¸´à¸”à¸•à¹ˆà¸­à¸œà¸¹à¹‰à¸”à¸¹à¹à¸¥à¸£à¸°à¸šà¸š à¸«à¸£à¸·à¸­à¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                                    'text' => "❌ MIMS AI ยังไม่ได้ตั้งค่า API Key\n\nกรุณาติดต่อผู้ดูแลระบบ หรือลองใช้ /ai แทนได้ค่ะ",
                                     'sender' => $mimsSender
                                 ]];
                             }
@@ -2175,7 +2200,7 @@ if (!$line) {
                             devLog($db, 'error', 'AI_mims', 'MIMS AI error: ' . $e->getMessage(), ['user_id' => $userId, 'trace' => $e->getTraceAsString()], null);
                             return [[
                                 'type' => 'text',
-                                'text' => "âŒ MIMS AI à¸‚à¸±à¸”à¸‚à¹‰à¸­à¸‡\n\nà¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                                'text' => "❌ MIMS AI ขัดข้อง\n\nลองใช้ /ai แทนได้ค่ะ",
                                 'sender' => $mimsSender
                             ]];
                         }
@@ -2183,16 +2208,16 @@ if (!$line) {
                     
                     return [[
                         'type' => 'text',
-                        'text' => "âŒ MIMS AI à¹„à¸¡à¹ˆà¸žà¸£à¹‰à¸­à¸¡à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸‚à¸“à¸°à¸™à¸µà¹‰\n\nà¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                        'text' => "❌ MIMS AI ไม่พร้อมใช้งานขณะนี้\n\nลองใช้ /ai แทนได้ค่ะ",
                         'sender' => getAISenderSettings($db, $lineAccountId, 'mims')
                     ]];
                 }
                 
-                // ===== 4. /triage - à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸­à¸²à¸à¸²à¸£ =====
+                // ===== 4. /triage - ซักประวัติอาการ =====
                 if ($commandMode === 'triage') {
                     devLog($db, 'debug', 'AI_triage', 'Triage command', ['userId' => $userId], null);
                     
-                    // à¸”à¸¶à¸‡ sender settings à¸ªà¸³à¸«à¸£à¸±à¸š triage mode
+                    // ดึง sender settings สำหรับ triage mode
                     $triageSender = getAISenderSettings($db, $lineAccountId, 'triage');
                     
                     if (file_exists(__DIR__ . '/modules/AIChat/Services/TriageEngine.php')) {
@@ -2204,11 +2229,11 @@ if (!$line) {
                             // Pass $db connection to TriageEngine
                             $triage = new \Modules\AIChat\Services\TriageEngine($lineAccountId, $userId, $db);
                             
-                            // Reset à¹à¸¥à¸°à¹€à¸£à¸´à¹ˆà¸¡à¹ƒà¸«à¸¡à¹ˆ
-                            $result = $triage->process($commandMessage ?: 'à¹€à¸£à¸´à¹ˆà¸¡à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´');
+                            // Reset และเริ่มใหม่
+                            $result = $triage->process($commandMessage ?: 'เริ่มซักประวัติ');
                             devLog($db, 'debug', 'AI_triage', 'Triage result', ['hasText' => !empty($result['text']), 'hasMessage' => !empty($result['message'])], null);
                             
-                            $responseText = $result['text'] ?? $result['message'] ?? 'à¸žà¸£à¹‰à¸­à¸¡à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸„à¹ˆà¸°';
+                            $responseText = $result['text'] ?? $result['message'] ?? 'พร้อมซักประวัติค่ะ';
                             $lineMessage = [
                                 'type' => 'text',
                                 'text' => $responseText,
@@ -2224,27 +2249,27 @@ if (!$line) {
                             devLog($db, 'error', 'AI_triage', 'Triage error: ' . $e->getMessage(), ['user_id' => $userId, 'trace' => $e->getTraceAsString()], null);
                             return [[
                                 'type' => 'text',
-                                'text' => "âŒ à¸£à¸°à¸šà¸šà¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¸‚à¸±à¸”à¸‚à¹‰à¸­à¸‡\n\nà¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                                'text' => "❌ ระบบซักประวัติขัดข้อง\n\nลองใช้ /ai แทนได้ค่ะ",
                                 'sender' => $triageSender
                             ]];
                         }
                     } else {
                         return [[
                             'type' => 'text',
-                            'text' => "âŒ à¸£à¸°à¸šà¸šà¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´à¹„à¸¡à¹ˆà¸žà¸£à¹‰à¸­à¸¡à¹ƒà¸Šà¹‰à¸‡à¸²à¸™\n\nà¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ /ai à¹à¸—à¸™à¹„à¸”à¹‰à¸„à¹ˆà¸°",
+                            'text' => "❌ ระบบซักประวัติไม่พร้อมใช้งาน\n\nลองใช้ /ai แทนได้ค่ะ",
                             'sender' => $triageSender
                         ]];
                     }
                 }
                 
-                // ===== 5. /ai, /sales à¸«à¸£à¸·à¸­ Default - à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š AI Mode à¸à¹ˆà¸­à¸™ =====
-                // à¸–à¹‰à¸²à¹ƒà¸Šà¹‰ command /ai à¸«à¸£à¸·à¸­ /sales à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸«à¸¥à¸±à¸‡ command
+                // ===== 5. /ai, /sales หรือ Default - ตรวจสอบ AI Mode ก่อน =====
+                // ถ้าใช้ command /ai หรือ /sales ให้ใช้ข้อความหลัง command
                 $messageToProcess = $text;
                 if (!empty($commandMessage)) {
                     $messageToProcess = $commandMessage;
                 }
                 
-                // à¸”à¸¶à¸‡ AI mode à¸ˆà¸²à¸ ai_settings à¹€à¸ªà¸¡à¸­ (à¹„à¸¡à¹ˆà¸§à¹ˆà¸² commandMode à¸ˆà¸°à¹€à¸›à¹‡à¸™à¸­à¸°à¹„à¸£)
+                // ดึง AI mode จาก ai_settings เสมอ (ไม่ว่า commandMode จะเป็นอะไร)
                 $currentAIMode = 'sales'; // default to sales
                 try {
                     $stmt = $db->prepare("SELECT ai_mode FROM ai_settings WHERE line_account_id = ? LIMIT 1");
@@ -2255,7 +2280,7 @@ if (!$line) {
                     }
                 } catch (Exception $e) {}
                 
-                // à¸–à¹‰à¸² commandMode à¹€à¸›à¹‡à¸™ sales/support/pharmacist à¹‚à¸”à¸¢à¸•à¸£à¸‡ â†’ override
+                // ถ้า commandMode เป็น sales/support/pharmacist โดยตรง → override
                 if (in_array($commandMode, ['sales', 'support', 'pharmacist', 'pharmacy'])) {
                     $currentAIMode = $commandMode;
                 }
@@ -2266,7 +2291,7 @@ if (!$line) {
                     'message' => mb_substr($messageToProcess, 0, 50)
                 ], null);
                 
-                // ===== à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ Sales/Support Mode â†’ à¹ƒà¸Šà¹‰ GeminiChat (à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆ PharmacyAI) =====
+                // ===== ถ้าเป็น Sales/Support Mode → ใช้ GeminiChat (ไม่ใช่ PharmacyAI) =====
                 if (in_array($currentAIMode, ['sales', 'support']) && file_exists(__DIR__ . '/classes/GeminiChat.php')) {
                     require_once __DIR__ . '/classes/GeminiChat.php';
                     
@@ -2324,7 +2349,7 @@ if (!$line) {
                         ], null);
                         
                         if ($response) {
-                            // à¹ƒà¸Šà¹‰ sender à¸ˆà¸²à¸ ai_settings
+                            // ใช้ sender จาก ai_settings
                             $sender = getAISenderSettings($db, $lineAccountId, $currentAIMode);
                             
                             $message = [
@@ -2344,20 +2369,20 @@ if (!$line) {
                                 'user_id' => $userId,
                                 'message' => mb_substr($messageToProcess, 0, 50)
                             ], null);
-                            // Sales mode à¹à¸•à¹ˆ GeminiChat return null â†’ return null à¹„à¸¡à¹ˆ fallthrough à¹„à¸› PharmacyAI
+                            // Sales mode แต่ GeminiChat return null → return null ไม่ fallthrough ไป PharmacyAI
                             return null;
                         }
                     } else {
                         devLog($db, 'warning', 'AI_sales', 'GeminiChat not enabled', [
                             'line_account_id' => $lineAccountId
                         ], null);
-                        // Sales mode à¹à¸•à¹ˆ GeminiChat not enabled â†’ return null à¹„à¸¡à¹ˆ fallthrough à¹„à¸› PharmacyAI
+                        // Sales mode แต่ GeminiChat not enabled → return null ไม่ fallthrough ไป PharmacyAI
                         return null;
                     }
                 }
                 
-                // ===== à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ Pharmacist Mode â†’ à¹ƒà¸Šà¹‰ PharmacyAI Adapter =====
-                // à¹€à¸‚à¹‰à¸²à¹€à¸‰à¸žà¸²à¸°à¹€à¸¡à¸·à¹ˆà¸­ currentAIMode à¹€à¸›à¹‡à¸™ pharmacist/pharmacy à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™
+                // ===== ถ้าเป็น Pharmacist Mode → ใช้ PharmacyAI Adapter =====
+                // เข้าเฉพาะเมื่อ currentAIMode เป็น pharmacist/pharmacy เท่านั้น
                 $usePharmacyAI = in_array($currentAIMode, ['pharmacist', 'pharmacy']) 
                                  && file_exists(__DIR__ . '/modules/AIChat/Adapters/PharmacyAIAdapter.php');
                 
@@ -2395,7 +2420,7 @@ if (!$line) {
                                 'command_mode' => $commandMode
                             ], null);
                             
-                            // à¹ƒà¸Šà¹‰ PharmacyAI Adapter
+                            // ใช้ PharmacyAI Adapter
                             $result = $adapter->processMessage($messageToProcess);
                             
                             if ($result['success'] && !empty($result['message'])) {
@@ -2407,15 +2432,15 @@ if (!$line) {
                                     'has_products' => !empty($result['products'])
                                 ], null);
                                 
-                                // à¸£à¸­à¸‡à¸£à¸±à¸š multiple messages (text + product carousel)
+                                // รองรับ multiple messages (text + product carousel)
                                 $messages = $result['messages'] ?? $result['message'];
                                 
-                                // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ single message à¹ƒà¸«à¹‰ wrap à¹€à¸›à¹‡à¸™ array
+                                // ถ้าเป็น single message ให้ wrap เป็น array
                                 if (isset($messages['type'])) {
                                     return [$messages];
                                 }
                                 
-                                // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ array à¸‚à¸­à¸‡ messages à¹à¸¥à¹‰à¸§ return à¸•à¸£à¸‡à¹†
+                                // ถ้าเป็น array ของ messages แล้ว return ตรงๆ
                                 return $messages;
                             }
                             
@@ -2428,8 +2453,8 @@ if (!$line) {
                     }
                 }
                 
-                // ===== Fallback: à¸¥à¸­à¸‡à¹ƒà¸Šà¹‰ GeminiChatAdapter (à¹€à¸‰à¸žà¸²à¸° pharmacist mode) =====
-                // à¸–à¹‰à¸²à¹€à¸›à¹‡à¸™ sales mode à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡ fallback à¹€à¸žà¸£à¸²à¸° GeminiChat à¸„à¸§à¸£à¸—à¸³à¸‡à¸²à¸™à¹à¸¥à¹‰à¸§
+                // ===== Fallback: ลองใช้ GeminiChatAdapter (เฉพาะ pharmacist mode) =====
+                // ถ้าเป็น sales mode ไม่ต้อง fallback เพราะ GeminiChat ควรทำงานแล้ว
                 $useNewModule = ($currentAIMode !== 'sales') && file_exists(__DIR__ . '/modules/AIChat/Autoloader.php');
                 
                 if ($useNewModule) {
@@ -2449,7 +2474,7 @@ if (!$line) {
                             'message' => mb_substr($text, 0, 50)
                         ], null);
                         
-                        // à¹ƒà¸Šà¹‰ method à¹ƒà¸«à¸¡à¹ˆà¸—à¸µà¹ˆ return message object à¸žà¸£à¹‰à¸­à¸¡à¹ƒà¸Šà¹‰
+                        // ใช้ method ใหม่ที่ return message object พร้อมใช้
                         $result = $adapter->generateResponseWithMessage($text, $userId);
                         
                         if ($result['success'] && !empty($result['message'])) {
@@ -2464,14 +2489,14 @@ if (!$line) {
                         return null;
                         
                     } catch (Exception $e) {
-                        // à¸–à¹‰à¸² Module à¹ƒà¸«à¸¡à¹ˆ error à¹ƒà¸«à¹‰ fallback à¹„à¸›à¹ƒà¸Šà¹‰à¸£à¸°à¸šà¸šà¹€à¸à¹ˆà¸²
+                        // ถ้า Module ใหม่ error ให้ fallback ไปใช้ระบบเก่า
                         devLog($db, 'warning', 'AI_chatbot_v2', 'Module v2 error, fallback to v1: ' . $e->getMessage(), [
                             'user_id' => $userId
                         ], null);
                     }
                 }
                 
-                // ===== Fallback: à¹ƒà¸Šà¹‰ GeminiChat à¹€à¸à¹ˆà¸² =====
+                // ===== Fallback: ใช้ GeminiChat เก่า =====
                 if (file_exists(__DIR__ . '/classes/GeminiChat.php')) {
                     require_once __DIR__ . '/classes/GeminiChat.php';
                     
@@ -2628,7 +2653,7 @@ if (!$line) {
         }
         
         /**
-         * Developer Log - à¸šà¸±à¸™à¸—à¸¶à¸ log à¸ªà¸³à¸«à¸£à¸±à¸š debug
+         * Developer Log - บันทึก log สำหรับ debug
          * @param PDO $db Database connection
          * @param string $type Log type: error, warning, info, debug, webhook
          * @param string $source Source of log (e.g., 'webhook', 'BusinessBot', 'LineAPI')
@@ -2661,7 +2686,7 @@ if (!$line) {
          */
         function getAISenderSettings($db, $lineAccountId = null, $overrideMode = null) {
             $defaultSender = [
-                'name' => 'ðŸ¤– AI Assistant',
+                'name' => '🤖 AI Assistant',
                 'iconUrl' => 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png'
             ];
             
@@ -2673,33 +2698,33 @@ if (!$line) {
                 if ($settings) {
                     $mode = $overrideMode ?? $settings['ai_mode'] ?? 'sales';
                     
-                    // à¹ƒà¸Šà¹‰ sender_name à¸ˆà¸²à¸ settings à¸–à¹‰à¸²à¸¡à¸µ
+                    // ใช้ sender_name จาก settings ถ้ามี
                     if (!empty($settings['sender_name'])) {
                         $defaultSender['name'] = $settings['sender_name'];
                     } else {
-                        // Default sender name à¸•à¸²à¸¡ ai_mode
+                        // Default sender name ตาม ai_mode
                         switch ($mode) {
                             case 'pharmacist':
                             case 'pharmacy':
-                                $defaultSender['name'] = 'ðŸ’Š à¹€à¸ à¸ªà¸±à¸Šà¸à¸£ AI';
+                                $defaultSender['name'] = '💊 เภสัชกร AI';
                                 break;
                             case 'mims':
-                                $defaultSender['name'] = 'ðŸ“š MIMS Pharmacist AI';
+                                $defaultSender['name'] = '📚 MIMS Pharmacist AI';
                                 break;
                             case 'triage':
-                                $defaultSender['name'] = 'ðŸ©º à¸‹à¸±à¸à¸›à¸£à¸°à¸§à¸±à¸•à¸´ AI';
+                                $defaultSender['name'] = '🩺 ซักประวัติ AI';
                                 break;
                             case 'support':
-                                $defaultSender['name'] = 'ðŸ’¬ à¸‹à¸±à¸žà¸žà¸­à¸£à¹Œà¸• AI';
+                                $defaultSender['name'] = '💬 ซัพพอร์ต AI';
                                 break;
                             case 'sales':
                             default:
-                                $defaultSender['name'] = 'ðŸ›’ à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸‚à¸²à¸¢ AI';
+                                $defaultSender['name'] = '🛒 พนักงานขาย AI';
                                 break;
                         }
                     }
                     
-                    // à¹ƒà¸Šà¹‰ sender_icon à¸ˆà¸²à¸ settings à¸–à¹‰à¸²à¸¡à¸µ
+                    // ใช้ sender_icon จาก settings ถ้ามี
                     if (!empty($settings['sender_icon'])) {
                         $defaultSender['iconUrl'] = $settings['sender_icon'];
                     }
@@ -2726,40 +2751,40 @@ if (!$line) {
         }
         
         /**
-         * à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¸¢à¸´à¸™à¸¢à¸­à¸¡ PDPA à¹à¸¥à¹‰à¸§à¸«à¸£à¸·à¸­à¸¢à¸±à¸‡
-         * - à¸–à¹‰à¸²à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¹€à¸„à¸¢ consent à¸à¸±à¸šà¸šà¸­à¸—à¹ƒà¸”à¸šà¸­à¸—à¸«à¸™à¸¶à¹ˆà¸‡à¹à¸¥à¹‰à¸§ à¸–à¸·à¸­à¸§à¹ˆà¸² consent à¹à¸¥à¹‰à¸§ (à¹ƒà¸Šà¹‰à¹„à¸”à¹‰à¸à¸±à¸šà¸—à¸¸à¸à¸šà¸­à¸—)
-         * - à¹€à¸Šà¹‡à¸„à¸ˆà¸²à¸ line_user_id à¹à¸—à¸™ user_id à¹€à¸žà¸·à¹ˆà¸­à¹ƒà¸«à¹‰ consent à¹ƒà¸Šà¹‰à¹„à¸”à¹‰à¸‚à¹‰à¸²à¸¡à¸šà¸­à¸—
+         * ตรวจสอบว่าผู้ใช้ยินยอม PDPA แล้วหรือยัง
+         * - ถ้าผู้ใช้เคย consent กับบอทใดบอทหนึ่งแล้ว ถือว่า consent แล้ว (ใช้ได้กับทุกบอท)
+         * - เช็คจาก line_user_id แทน user_id เพื่อให้ consent ใช้ได้ข้ามบอท
          */
         function checkUserConsent($db, $userId, $lineUserId = null) {
             try {
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µ column consent_privacy à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                // ตรวจสอบว่ามี column consent_privacy หรือไม่
                 $hasConsentCols = false;
                 try {
                     $checkCol = $db->query("SHOW COLUMNS FROM users LIKE 'consent_privacy'");
                     $hasConsentCols = $checkCol->rowCount() > 0;
                 } catch (Exception $e) {}
                 
-                // à¸–à¹‰à¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ columns à¹ƒà¸«à¹‰à¸œà¹ˆà¸²à¸™à¹„à¸›à¸à¹ˆà¸­à¸™ (à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰ run migration)
+                // ถ้ายังไม่มี columns ให้ผ่านไปก่อน (ยังไม่ได้ run migration)
                 if (!$hasConsentCols) {
                     return true;
                 }
                 
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µ column consent_at à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+                // ตรวจสอบว่ามี column consent_at หรือไม่
                 $hasConsentAt = false;
                 try {
                     $checkCol = $db->query("SHOW COLUMNS FROM users LIKE 'consent_at'");
                     $hasConsentAt = $checkCol->rowCount() > 0;
                 } catch (Exception $e) {}
                 
-                // à¸–à¹‰à¸²à¸¡à¸µ lineUserId à¹ƒà¸«à¹‰à¹€à¸Šà¹‡à¸„à¸ˆà¸²à¸ line_user_id (à¸‚à¹‰à¸²à¸¡à¸šà¸­à¸—à¹„à¸”à¹‰)
+                // ถ้ามี lineUserId ให้เช็คจาก line_user_id (ข้ามบอทได้)
                 if ($lineUserId) {
-                    // à¹€à¸Šà¹‡à¸„à¸§à¹ˆà¸²à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¸„à¸™à¸™à¸µà¹‰à¹€à¸„à¸¢ consent à¸à¸±à¸šà¸šà¸­à¸—à¹ƒà¸”à¸šà¸­à¸—à¸«à¸™à¸¶à¹ˆà¸‡à¹à¸¥à¹‰à¸§à¸«à¸£à¸·à¸­à¸¢à¸±à¸‡
+                    // เช็คว่าผู้ใช้คนนี้เคย consent กับบอทใดบอทหนึ่งแล้วหรือยัง
                     $stmt = $db->prepare("SELECT id, consent_privacy, consent_terms FROM users WHERE line_user_id = ? AND consent_privacy = 1 AND consent_terms = 1 LIMIT 1");
                     $stmt->execute([$lineUserId]);
                     $consentedUser = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if ($consentedUser) {
-                        // à¸–à¹‰à¸²à¹€à¸„à¸¢ consent à¹à¸¥à¹‰à¸§ à¹ƒà¸«à¹‰ copy consent à¹„à¸›à¸¢à¸±à¸‡ user record à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™ (à¸–à¹‰à¸²à¸•à¹ˆà¸²à¸‡ id)
+                        // ถ้าเคย consent แล้ว ให้ copy consent ไปยัง user record ปัจจุบัน (ถ้าต่าง id)
                         if ($consentedUser['id'] != $userId) {
                             try {
                                 if ($hasConsentAt) {
@@ -2776,7 +2801,7 @@ if (!$line) {
                     }
                 }
                 
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸ˆà¸²à¸ users table à¸•à¸²à¸¡ user_id
+                // ตรวจสอบจาก users table ตาม user_id
                 $stmt = $db->prepare("SELECT consent_privacy, consent_terms FROM users WHERE id = ?");
                 $stmt->execute([$userId]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2785,9 +2810,9 @@ if (!$line) {
                     return true;
                 }
                 
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸ˆà¸²à¸ user_consents table
+                // ตรวจสอบจาก user_consents table
                 try {
-                    // à¹€à¸Šà¹‡à¸„à¸ˆà¸²à¸ line_user_id à¸à¹ˆà¸­à¸™ (à¸‚à¹‰à¸²à¸¡à¸šà¸­à¸—à¹„à¸”à¹‰)
+                    // เช็คจาก line_user_id ก่อน (ข้ามบอทได้)
                     if ($lineUserId) {
                         $stmt = $db->prepare("
                             SELECT uc.consent_type, uc.is_accepted 
@@ -2810,7 +2835,7 @@ if (!$line) {
                     $hasTerms = !empty($consents['terms_of_service']);
                     
                     if ($hasPrivacy && $hasTerms) {
-                        // Copy consent à¹„à¸›à¸¢à¸±à¸‡ user record à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™
+                        // Copy consent ไปยัง user record ปัจจุบัน
                         try {
                             if ($hasConsentAt) {
                                 $stmt = $db->prepare("UPDATE users SET consent_privacy = 1, consent_terms = 1, consent_at = NOW() WHERE id = ?");
@@ -2824,35 +2849,35 @@ if (!$line) {
                     
                     return false;
                 } catch (Exception $e) {
-                    // à¸–à¹‰à¸² user_consents table à¹„à¸¡à¹ˆà¸¡à¸µ à¹ƒà¸«à¹‰à¸”à¸¹à¸ˆà¸²à¸ users table à¸­à¸¢à¹ˆà¸²à¸‡à¹€à¸”à¸µà¸¢à¸§
+                    // ถ้า user_consents table ไม่มี ให้ดูจาก users table อย่างเดียว
                     return false;
                 }
                 
             } catch (Exception $e) {
-                // à¸–à¹‰à¸² error à¹ƒà¸«à¹‰à¸œà¹ˆà¸²à¸™à¹„à¸›à¸à¹ˆà¸­à¸™ (à¹„à¸¡à¹ˆ block user)
+                // ถ้า error ให้ผ่านไปก่อน (ไม่ block user)
                 return true;
             }
         }
         
         /**
-         * Get or Create User - à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¹à¸¥à¸°à¸šà¸±à¸™à¸—à¸¶à¸à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¹€à¸ªà¸¡à¸­ (à¹„à¸¡à¹ˆà¸§à¹ˆà¸²à¸ˆà¸°à¸¡à¸²à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡à¸«à¸£à¸·à¸­à¹à¸Šà¸—à¸ªà¹ˆà¸§à¸™à¸•à¸±à¸§)
+         * Get or Create User - ตรวจสอบและบันทึกผู้ใช้เสมอ (ไม่ว่าจะมาจากกลุ่มหรือแชทส่วนตัว)
          */
         function getOrCreateUser($db, $line, $userId, $lineAccountId = null, $groupId = null) {
-            // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µà¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+            // ตรวจสอบว่ามีผู้ใช้อยู่แล้วหรือไม่
             $stmt = $db->prepare("SELECT id, display_name, picture_url, line_account_id FROM users WHERE line_user_id = ?");
             $stmt->execute([$userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            // à¸–à¹‰à¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ à¹ƒà¸«à¹‰à¸ªà¸£à¹‰à¸²à¸‡à¹ƒà¸«à¸¡à¹ˆ
+            // ถ้ายังไม่มี ให้สร้างใหม่
             if (!$user) {
-                // à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹‚à¸›à¸£à¹„à¸Ÿà¸¥à¹Œà¸ˆà¸²à¸ LINE
+                // ดึงข้อมูลโปรไฟล์จาก LINE
                 $profile = null;
                 try {
                     if ($groupId) {
-                        // à¸–à¹‰à¸²à¸¡à¸²à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡ à¹ƒà¸Šà¹‰ getGroupMemberProfile
+                        // ถ้ามาจากกลุ่ม ใช้ getGroupMemberProfile
                         $profile = $line->getGroupMemberProfile($groupId, $userId);
                     } else {
-                        // à¸–à¹‰à¸²à¸¡à¸²à¸ˆà¸²à¸à¹à¸Šà¸—à¸ªà¹ˆà¸§à¸™à¸•à¸±à¸§ à¹ƒà¸Šà¹‰ getProfile
+                        // ถ้ามาจากแชทส่วนตัว ใช้ getProfile
                         $profile = $line->getProfile($userId);
                     }
                 } catch (Exception $e) {
@@ -2863,7 +2888,7 @@ if (!$line) {
                 $pictureUrl = $profile['pictureUrl'] ?? '';
                 $statusMessage = $profile['statusMessage'] ?? '';
                 
-                // à¸šà¸±à¸™à¸—à¸¶à¸à¸œà¸¹à¹‰à¹ƒà¸Šà¹‰à¹ƒà¸«à¸¡à¹ˆ
+                // บันทึกผู้ใช้ใหม่
                 try {
                     $stmt = $db->query("SHOW COLUMNS FROM users LIKE 'line_account_id'");
                     if ($stmt->rowCount() > 0) {
@@ -2881,20 +2906,20 @@ if (!$line) {
                         'line_account_id' => $lineAccountId
                     ];
                     
-                    // à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸›à¹‡à¸™ follower à¸”à¹‰à¸§à¸¢ (à¸–à¹‰à¸²à¸¡à¸µ lineAccountId)
+                    // บันทึกเป็น follower ด้วย (ถ้ามี lineAccountId)
                     if ($lineAccountId) {
                         saveAccountFollower($db, $lineAccountId, $userId, $user['id'], $profile, true);
                     }
                     
                 } catch (Exception $e) {
                     error_log("getOrCreateUser insert error: " . $e->getMessage());
-                    // à¸¥à¸­à¸‡à¸”à¸¶à¸‡à¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡ (à¸­à¸²à¸ˆà¸¡à¸µ race condition)
+                    // ลองดึงอีกครั้ง (อาจมี race condition)
                     $stmt = $db->prepare("SELECT id, display_name, picture_url, line_account_id FROM users WHERE line_user_id = ?");
                     $stmt->execute([$userId]);
                     $user = $stmt->fetch(PDO::FETCH_ASSOC);
                 }
             } else {
-                // à¸–à¹‰à¸²à¸¡à¸µà¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§ à¹à¸•à¹ˆà¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ line_account_id à¹ƒà¸«à¹‰à¸­à¸±à¸žà¹€à¸”à¸—
+                // ถ้ามีอยู่แล้ว แต่ยังไม่มี line_account_id ให้อัพเดท
                 if ($lineAccountId && empty($user['line_account_id'])) {
                     try {
                         $stmt = $db->prepare("UPDATE users SET line_account_id = ? WHERE id = ? AND (line_account_id IS NULL OR line_account_id = 0)");
@@ -2908,7 +2933,7 @@ if (!$line) {
         }
         
         /**
-         * Save account follower - à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ follower à¹à¸¢à¸à¸•à¸²à¸¡à¸šà¸­à¸—
+         * Save account follower - บันทึกข้อมูล follower แยกตามบอท
          */
         function saveAccountFollower($db, $lineAccountId, $lineUserId, $dbUserId, $profile, $isFollow) {
             try {
@@ -2951,7 +2976,7 @@ if (!$line) {
         }
         
         /**
-         * Save account event - à¸šà¸±à¸™à¸—à¸¶à¸ event à¹à¸¢à¸à¸•à¸²à¸¡à¸šà¸­à¸—
+         * Save account event - บันทึก event แยกตามบอท
          */
         function saveAccountEvent($db, $lineAccountId, $eventType, $lineUserId, $dbUserId, $event) {
             // Skip if no line_user_id (required field)
@@ -2989,7 +3014,7 @@ if (!$line) {
         }
         
         /**
-         * Update account daily stats - à¸­à¸±à¸žà¹€à¸”à¸—à¸ªà¸–à¸´à¸•à¸´à¸£à¸²à¸¢à¸§à¸±à¸™
+         * Update account daily stats - อัพเดทสถิติรายวัน
          */
         function updateAccountDailyStats($db, $lineAccountId, $field) {
             try {
@@ -3009,7 +3034,7 @@ if (!$line) {
         }
         
         /**
-         * Update follower interaction - à¸­à¸±à¸žà¹€à¸”à¸—à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ interaction à¸‚à¸­à¸‡ follower
+         * Update follower interaction - อัพเดทข้อมูล interaction ของ follower
          */
         function updateFollowerInteraction($db, $lineAccountId, $lineUserId) {
             try {
@@ -3036,8 +3061,8 @@ if (!$line) {
 
             $telegram = new TelegramAPI();
             
-            // à¹€à¸žà¸´à¹ˆà¸¡à¸Šà¸·à¹ˆà¸­à¸šà¸­à¸—à¹ƒà¸™à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡
-            $botInfo = $accountName ? " [à¸šà¸­à¸—: {$accountName}]" : "";
+            // เพิ่มชื่อบอทในข้อความ
+            $botInfo = $accountName ? " [บอท: {$accountName}]" : "";
 
             switch ($type) {
                 case 'follow':
@@ -3063,16 +3088,16 @@ if (!$line) {
          */
         function getUserState($db, $userId) {
             try {
-                // à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹‚à¸”à¸¢à¹„à¸¡à¹ˆà¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š expires_at à¹ƒà¸™ SQL
+                // ดึงข้อมูลโดยไม่ตรวจสอบ expires_at ใน SQL
                 $stmt = $db->prepare("SELECT * FROM user_states WHERE user_id = ?");
                 $stmt->execute([$userId]);
                 $state = $stmt->fetch(PDO::FETCH_ASSOC);
                 
                 if ($state) {
-                    // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š expires_at à¹ƒà¸™ PHP
+                    // ตรวจสอบ expires_at ใน PHP
                     $expired = $state['expires_at'] && strtotime($state['expires_at']) < time();
                     if ($expired) {
-                        // State à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸ - à¸¥à¸šà¸—à¸´à¹‰à¸‡
+                        // State หมดอายุ - ลบทิ้ง
                         clearUserState($db, $userId);
                         return null;
                     }
@@ -3176,7 +3201,7 @@ if (!$line) {
                         $dbUserId,
                         $total,
                         $total,
-                        'à¸ªà¸£à¹‰à¸²à¸‡à¸ˆà¸²à¸à¹à¸Šà¸— - à¸¥à¸¹à¸à¸„à¹‰à¸²à¸¢à¸·à¸™à¸¢à¸±à¸™'
+                        'สร้างจากแชท - ลูกค้ายืนยัน'
                     ]);
                 } catch (PDOException $e) {
                     devLog($db, 'error', 'createOrderFromPendingState', 'Failed to insert transaction: ' . $e->getMessage(), [
@@ -3235,12 +3260,12 @@ if (!$line) {
                 $itemsList = '';
                 foreach ($items as $i => $item) {
                     $itemTotal = ($item['price'] ?? 0) * ($item['qty'] ?? 1);
-                    $itemsList .= ($i + 1) . ". {$item['name']}\n   à¸¿" . number_format($item['price'] ?? 0) . " x {$item['qty']} = à¸¿" . number_format($itemTotal) . "\n";
+                    $itemsList .= ($i + 1) . ". {$item['name']}\n   ฿" . number_format($item['price'] ?? 0) . " x {$item['qty']} = ฿" . number_format($itemTotal) . "\n";
                 }
                 
                 $confirmMessage = [
                     'type' => 'flex',
-                    'altText' => "âœ… à¸ªà¸£à¹‰à¸²à¸‡à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸ªà¸³à¹€à¸£à¹‡à¸ˆ #{$orderNumber}",
+                    'altText' => "✅ สร้างออเดอร์สำเร็จ #{$orderNumber}",
                     'contents' => [
                         'type' => 'bubble',
                         'size' => 'mega',
@@ -3250,7 +3275,7 @@ if (!$line) {
                             'backgroundColor' => '#10B981',
                             'paddingAll' => '15px',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'âœ… à¸ªà¸£à¹‰à¸²à¸‡à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'color' => '#FFFFFF', 'size' => 'lg', 'weight' => 'bold', 'align' => 'center']
+                                ['type' => 'text', 'text' => '✅ สร้างออเดอร์สำเร็จ', 'color' => '#FFFFFF', 'size' => 'lg', 'weight' => 'bold', 'align' => 'center']
                             ]
                         ],
                         'body' => [
@@ -3258,16 +3283,16 @@ if (!$line) {
                             'layout' => 'vertical',
                             'paddingAll' => '15px',
                             'contents' => [
-                                ['type' => 'text', 'text' => "à¹€à¸¥à¸‚à¸—à¸µà¹ˆ: #{$orderNumber}", 'size' => 'md', 'weight' => 'bold', 'color' => '#10B981'],
+                                ['type' => 'text', 'text' => "เลขที่: #{$orderNumber}", 'size' => 'md', 'weight' => 'bold', 'color' => '#10B981'],
                                 ['type' => 'separator', 'margin' => 'md'],
-                                ['type' => 'text', 'text' => 'ðŸ“¦ à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²', 'size' => 'sm', 'weight' => 'bold', 'margin' => 'md'],
+                                ['type' => 'text', 'text' => '📦 รายการสินค้า', 'size' => 'sm', 'weight' => 'bold', 'margin' => 'md'],
                                 ['type' => 'text', 'text' => $itemsList, 'size' => 'xs', 'color' => '#666666', 'wrap' => true, 'margin' => 'sm'],
                                 ['type' => 'separator', 'margin' => 'md'],
                                 ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'md', 'contents' => [
-                                    ['type' => 'text', 'text' => 'ðŸ’° à¸£à¸§à¸¡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”', 'size' => 'md', 'weight' => 'bold'],
-                                    ['type' => 'text', 'text' => 'à¸¿' . number_format($total), 'size' => 'lg', 'weight' => 'bold', 'color' => '#10B981', 'align' => 'end']
+                                    ['type' => 'text', 'text' => '💰 รวมทั้งหมด', 'size' => 'md', 'weight' => 'bold'],
+                                    ['type' => 'text', 'text' => '฿' . number_format($total), 'size' => 'lg', 'weight' => 'bold', 'color' => '#10B981', 'align' => 'end']
                                 ]],
-                                ['type' => 'text', 'text' => 'ðŸ“± à¸à¸£à¸¸à¸“à¸²à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™à¹à¸¥à¸°à¸ªà¹ˆà¸‡à¸ªà¸¥à¸´à¸›à¸¡à¸²à¸„à¹ˆà¸°', 'size' => 'sm', 'color' => '#666666', 'wrap' => true, 'margin' => 'lg']
+                                ['type' => 'text', 'text' => '📱 กรุณาชำระเงินและส่งสลิปมาค่ะ', 'size' => 'sm', 'color' => '#666666', 'wrap' => true, 'margin' => 'lg']
                             ]
                         ]
                     ]
@@ -3290,7 +3315,7 @@ if (!$line) {
                 // Send error message
                 $errorMessage = [
                     'type' => 'text',
-                    'text' => "âŒ à¸‚à¸­à¸­à¸ à¸±à¸¢à¸„à¹ˆà¸° à¹€à¸à¸´à¸”à¸‚à¹‰à¸­à¸œà¸´à¸”à¸žà¸¥à¸²à¸”à¹ƒà¸™à¸à¸²à¸£à¸ªà¸£à¹‰à¸²à¸‡à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ\n\nà¸à¸£à¸¸à¸“à¸²à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆà¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡à¸«à¸£à¸·à¸­à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆà¸„à¹ˆà¸° ðŸ™"
+                    'text' => "❌ ขออภัยค่ะ เกิดข้อผิดพลาดในการสร้างออเดอร์\n\nกรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่ค่ะ 🙏"
                 ];
                 $line->replyMessage($replyToken, [$errorMessage]);
                 
@@ -3299,12 +3324,12 @@ if (!$line) {
         }
 
         /**
-         * Handle slip command - à¹€à¸¡à¸·à¹ˆà¸­à¸¥à¸¹à¸à¸„à¹‰à¸²à¸žà¸´à¸¡à¸žà¹Œ "à¸ªà¸¥à¸´à¸›"
+         * Handle slip command - เมื่อลูกค้าพิมพ์ "สลิป"
          */
         function handleSlipCommand($db, $line, $dbUserId, $replyToken) {
             devLog($db, 'debug', 'handleSlipCommand', 'Start', ['user_id' => $dbUserId]);
             
-            // Check if user has pending order - à¸¥à¸­à¸‡à¸«à¸²à¸ˆà¸²à¸ transactions à¸à¹ˆà¸­à¸™ à¹à¸¥à¹‰à¸§à¸„à¹ˆà¸­à¸¢ orders
+            // Check if user has pending order - ลองหาจาก transactions ก่อน แล้วค่อย orders
             $order = null;
             $orderTable = 'orders';
             $itemsTable = 'order_items';
@@ -3335,7 +3360,7 @@ if (!$line) {
             }
             
             if (!$order) {
-                $line->replyMessage($replyToken, "âŒ à¸„à¸¸à¸“à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µà¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­à¸—à¸µà¹ˆà¸£à¸­à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™\n\nà¸žà¸´à¸¡à¸žà¹Œ 'shop' à¹€à¸žà¸·à¹ˆà¸­à¹€à¸£à¸´à¹ˆà¸¡à¸Šà¹‰à¸­à¸›à¸›à¸´à¹‰à¸‡");
+                $line->replyMessage($replyToken, "❌ คุณยังไม่มีคำสั่งซื้อที่รอชำระเงิน\n\nพิมพ์ 'shop' เพื่อเริ่มช้อปปิ้ง");
                 return true;
             }
             
@@ -3360,7 +3385,7 @@ if (!$line) {
                     'layout' => 'horizontal',
                     'contents' => [
                         ['type' => 'text', 'text' => "{$item['product_name']}  x{$item['quantity']}", 'size' => 'sm', 'flex' => 3, 'wrap' => true],
-                        ['type' => 'text', 'text' => 'à¸¿' . number_format($item['subtotal']), 'size' => 'sm', 'align' => 'end', 'flex' => 1]
+                        ['type' => 'text', 'text' => '฿' . number_format($item['subtotal']), 'size' => 'sm', 'align' => 'end', 'flex' => 1]
                     ]
                 ];
             }
@@ -3372,8 +3397,8 @@ if (!$line) {
                     'type' => 'box',
                     'layout' => 'horizontal',
                     'contents' => [
-                        ['type' => 'text', 'text' => 'ðŸ’š', 'size' => 'sm', 'flex' => 0],
-                        ['type' => 'text', 'text' => 'à¸žà¸£à¹‰à¸­à¸¡à¹€à¸žà¸¢à¹Œ: ' . $settings['promptpay_number'], 'size' => 'sm', 'margin' => 'sm', 'flex' => 1]
+                        ['type' => 'text', 'text' => '💚', 'size' => 'sm', 'flex' => 0],
+                        ['type' => 'text', 'text' => 'พร้อมเพย์: ' . $settings['promptpay_number'], 'size' => 'sm', 'margin' => 'sm', 'flex' => 1]
                     ]
                 ];
             }
@@ -3386,11 +3411,11 @@ if (!$line) {
                             'type' => 'box',
                             'layout' => 'horizontal',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'ðŸ¦', 'size' => 'sm', 'flex' => 0],
+                                ['type' => 'text', 'text' => '🏦', 'size' => 'sm', 'flex' => 0],
                                 ['type' => 'text', 'text' => "{$bank['name']}: {$bank['account']}", 'size' => 'sm', 'margin' => 'sm', 'flex' => 1]
                             ]
                         ],
-                        ['type' => 'text', 'text' => "   à¸Šà¸·à¹ˆà¸­: {$bank['holder']}", 'size' => 'xs', 'color' => '#888888']
+                        ['type' => 'text', 'text' => "   ชื่อ: {$bank['holder']}", 'size' => 'xs', 'color' => '#888888']
                     ]
                 ];
             }
@@ -3404,17 +3429,17 @@ if (!$line) {
                     'type' => 'box',
                     'layout' => 'vertical',
                     'contents' => [
-                        ['type' => 'text', 'text' => "à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ #{$orderNum}", 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755'],
+                        ['type' => 'text', 'text' => "ออเดอร์ #{$orderNum}", 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755'],
                         [
                             'type' => 'box',
                             'layout' => 'horizontal',
                             'margin' => 'md',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'â³ à¸£à¸­à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™', 'size' => 'sm', 'color' => '#FF6B6B', 'weight' => 'bold']
+                                ['type' => 'text', 'text' => '⏳ รอชำระเงิน', 'size' => 'sm', 'color' => '#FF6B6B', 'weight' => 'bold']
                             ]
                         ],
                         ['type' => 'separator', 'margin' => 'lg'],
-                        ['type' => 'text', 'text' => 'à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸²', 'weight' => 'bold', 'size' => 'sm', 'color' => '#06C755', 'margin' => 'lg'],
+                        ['type' => 'text', 'text' => 'รายการสินค้า', 'weight' => 'bold', 'size' => 'sm', 'color' => '#06C755', 'margin' => 'lg'],
                         [
                             'type' => 'box',
                             'layout' => 'vertical',
@@ -3428,12 +3453,12 @@ if (!$line) {
                             'layout' => 'horizontal',
                             'margin' => 'lg',
                             'contents' => [
-                                ['type' => 'text', 'text' => 'à¸¢à¸­à¸”à¸£à¸§à¸¡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”', 'weight' => 'bold', 'size' => 'sm', 'flex' => 1],
-                                ['type' => 'text', 'text' => 'à¸¿' . number_format($order['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end', 'flex' => 1]
+                                ['type' => 'text', 'text' => 'ยอดรวมทั้งหมด', 'weight' => 'bold', 'size' => 'sm', 'flex' => 1],
+                                ['type' => 'text', 'text' => '฿' . number_format($order['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end', 'flex' => 1]
                             ]
                         ],
                         ['type' => 'separator', 'margin' => 'lg'],
-                        ['type' => 'text', 'text' => 'ðŸ“Œ à¸Šà¹ˆà¸­à¸‡à¸—à¸²à¸‡à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™:', 'weight' => 'bold', 'size' => 'sm', 'margin' => 'lg'],
+                        ['type' => 'text', 'text' => '📌 ช่องทางชำระเงิน:', 'weight' => 'bold', 'size' => 'sm', 'margin' => 'lg'],
                         [
                             'type' => 'box',
                             'layout' => 'vertical',
@@ -3441,8 +3466,8 @@ if (!$line) {
                             'spacing' => 'sm',
                             'contents' => $paymentContents
                         ],
-                        ['type' => 'text', 'text' => 'ðŸ“¸ à¸à¸£à¸¸à¸“à¸²à¸ªà¹ˆà¸‡à¸£à¸¹à¸›à¸ªà¸¥à¸´à¸›à¸¡à¸²à¹€à¸¥à¸¢', 'size' => 'sm', 'color' => '#FF6B6B', 'weight' => 'bold', 'margin' => 'lg', 'wrap' => true],
-                        ['type' => 'text', 'text' => '(à¸ à¸²à¸¢à¹ƒà¸™ 10 à¸™à¸²à¸—à¸µ)', 'size' => 'xs', 'color' => '#888888']
+                        ['type' => 'text', 'text' => '📸 กรุณาส่งรูปสลิปมาเลย', 'size' => 'sm', 'color' => '#FF6B6B', 'weight' => 'bold', 'margin' => 'lg', 'wrap' => true],
+                        ['type' => 'text', 'text' => '(ภายใน 10 นาที)', 'size' => 'xs', 'color' => '#888888']
                     ]
                 ],
                 'footer' => [
@@ -3450,13 +3475,13 @@ if (!$line) {
                     'layout' => 'vertical',
                     'spacing' => 'sm',
                     'contents' => [
-                        ['type' => 'button', 'action' => ['type' => 'uri', 'label' => 'ðŸ“ž à¸•à¸´à¸”à¸•à¹ˆà¸­à¹€à¸£à¸²', 'uri' => 'tel:' . ($settings['contact_phone'] ?? '0000000000')], 'style' => 'link']
+                        ['type' => 'button', 'action' => ['type' => 'uri', 'label' => '📞 ติดต่อเรา', 'uri' => 'tel:' . ($settings['contact_phone'] ?? '0000000000')], 'style' => 'link']
                     ]
                 ]
             ];
             
             $line->replyMessage($replyToken, [
-                ['type' => 'flex', 'altText' => "à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ #{$orderNum} - à¸£à¸­à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™", 'contents' => $bubble]
+                ['type' => 'flex', 'altText' => "ออเดอร์ #{$orderNum} - รอชำระเงิน", 'contents' => $bubble]
             ]);
             return true;
         }
@@ -3465,18 +3490,18 @@ if (!$line) {
          * Handle payment slip for specific order
          */
         function handlePaymentSlipForOrder($db, $line, $dbUserId, $messageId, $replyToken, $orderId) {
-            // Get order - à¸¥à¸­à¸‡à¸«à¸²à¸ˆà¸²à¸à¸—à¸±à¹‰à¸‡ orders à¹à¸¥à¸° transactions
+            // Get order - ลองหาจากทั้ง orders และ transactions
             $order = null;
             $orderTable = 'orders';
             
-            // à¸¥à¸­à¸‡à¸«à¸²à¸ˆà¸²à¸ orders à¸à¹ˆà¸­à¸™
+            // ลองหาจาก orders ก่อน
             try {
                 $stmt = $db->prepare("SELECT * FROM orders WHERE id = ? AND user_id = ?");
                 $stmt->execute([$orderId, $dbUserId]);
                 $order = $stmt->fetch(PDO::FETCH_ASSOC);
             } catch (Exception $e) {}
             
-            // à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¹€à¸ˆà¸­ à¸¥à¸­à¸‡à¸«à¸²à¸ˆà¸²à¸ transactions
+            // ถ้าไม่เจอ ลองหาจาก transactions
             if (!$order) {
                 try {
                     $stmt = $db->prepare("SELECT * FROM transactions WHERE id = ? AND user_id = ?");
@@ -3489,14 +3514,14 @@ if (!$line) {
             }
             
             if (!$order) {
-                $line->replyMessage($replyToken, "âŒ à¹„à¸¡à¹ˆà¸žà¸šà¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­ à¸à¸£à¸¸à¸“à¸²à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆ");
+                $line->replyMessage($replyToken, "❌ ไม่พบคำสั่งซื้อ กรุณาลองใหม่");
                 return true;
             }
             
             // Download image from LINE and save
             $imageData = $line->getMessageContent($messageId);
             if (!$imageData || strlen($imageData) < 100) {
-                $line->replyMessage($replyToken, "âŒ à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸£à¸±à¸šà¸£à¸¹à¸›à¸ à¸²à¸žà¹„à¸”à¹‰ à¸à¸£à¸¸à¸“à¸²à¸ªà¹ˆà¸‡à¹ƒà¸«à¸¡à¹ˆà¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡");
+                $line->replyMessage($replyToken, "❌ ไม่สามารถรับรูปภาพได้ กรุณาส่งใหม่อีกครั้ง");
                 return true;
             }
             
@@ -3504,14 +3529,14 @@ if (!$line) {
             $uploadDir = __DIR__ . '/uploads/slips/';
             if (!is_dir($uploadDir)) {
                 if (!mkdir($uploadDir, 0755, true)) {
-                    $line->replyMessage($replyToken, "âŒ à¸£à¸°à¸šà¸šà¸¡à¸µà¸›à¸±à¸à¸«à¸² à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸šà¸±à¸™à¸—à¸¶à¸à¸£à¸¹à¸›à¹„à¸”à¹‰ à¸à¸£à¸¸à¸“à¸²à¸•à¸´à¸”à¸•à¹ˆà¸­à¹à¸­à¸”à¸¡à¸´à¸™");
+                    $line->replyMessage($replyToken, "❌ ระบบมีปัญหา ไม่สามารถบันทึกรูปได้ กรุณาติดต่อแอดมิน");
                     return true;
                 }
             }
             
             // Check if directory is writable
             if (!is_writable($uploadDir)) {
-                $line->replyMessage($replyToken, "âŒ à¸£à¸°à¸šà¸šà¸¡à¸µà¸›à¸±à¸à¸«à¸² (permission) à¸à¸£à¸¸à¸“à¸²à¸•à¸´à¸”à¸•à¹ˆà¸­à¹à¸­à¸”à¸¡à¸´à¸™");
+                $line->replyMessage($replyToken, "❌ ระบบมีปัญหา (permission) กรุณาติดต่อแอดมิน");
                 return true;
             }
             
@@ -3520,7 +3545,7 @@ if (!$line) {
             
             $bytesWritten = file_put_contents($filepath, $imageData);
             if ($bytesWritten === false || $bytesWritten < 100) {
-                $line->replyMessage($replyToken, "âŒ à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸šà¸±à¸™à¸—à¸¶à¸à¸£à¸¹à¸›à¹„à¸”à¹‰ à¸à¸£à¸¸à¸“à¸²à¸ªà¹ˆà¸‡à¹ƒà¸«à¸¡à¹ˆ");
+                $line->replyMessage($replyToken, "❌ ไม่สามารถบันทึกรูปได้ กรุณาส่งใหม่");
                 return true;
             }
             
@@ -3548,10 +3573,10 @@ if (!$line) {
             // Reply to customer with beautiful Flex Message
             $orderNum = str_replace(['ORD', 'TXN'], '', $order['order_number']);
             $slipBubble = FlexTemplates::slipReceived($orderNum, $order['grand_total']);
-            $slipMessage = FlexTemplates::toMessage($slipBubble, "à¹„à¸”à¹‰à¸£à¸±à¸šà¸ªà¸¥à¸´à¸›à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ #{$orderNum} à¹à¸¥à¹‰à¸§");
+            $slipMessage = FlexTemplates::toMessage($slipBubble, "ได้รับสลิปออเดอร์ #{$orderNum} แล้ว");
             $slipMessage = FlexTemplates::withQuickReply($slipMessage, [
-                ['label' => 'ðŸ“¦ à¹€à¸Šà¹‡à¸„à¸ªà¸–à¸²à¸™à¸°', 'text' => 'orders'],
-                ['label' => 'ðŸ›’ à¸Šà¹‰à¸­à¸›à¸•à¹ˆà¸­', 'text' => 'shop']
+                ['label' => '📦 เช็คสถานะ', 'text' => 'orders'],
+                ['label' => '🛒 ช้อปต่อ', 'text' => 'shop']
             ]);
             $line->replyMessage($replyToken, [$slipMessage]);
             
@@ -3577,18 +3602,18 @@ if (!$line) {
             $stmt->execute([$dbUserId]);
             $user = $stmt->fetch();
             
-            $caption = "ðŸ’³ <b>à¸ªà¸¥à¸´à¸›à¸à¸²à¸£à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™!</b>\n\n";
-            $caption .= "ðŸ“‹ à¸­à¸­à¹€à¸”à¸­à¸£à¹Œ: #{$order['order_number']}\n";
-            $caption .= "ðŸ‘¤ à¸¥à¸¹à¸à¸„à¹‰à¸²: {$user['display_name']}\n";
-            $caption .= "ðŸ’° à¸¢à¸­à¸”: à¸¿" . number_format($order['grand_total'], 2) . "\n";
-            $caption .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('d/m/Y H:i') . "\n\n";
-            $caption .= "ðŸ”— <a href=\"{$baseUrl}/shop/order-detail.php?id={$order['id']}\">à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š</a>";
+            $caption = "💳 <b>สลิปการชำระเงิน!</b>\n\n";
+            $caption .= "📋 ออเดอร์: #{$order['order_number']}\n";
+            $caption .= "👤 ลูกค้า: {$user['display_name']}\n";
+            $caption .= "💰 ยอด: ฿" . number_format($order['grand_total'], 2) . "\n";
+            $caption .= "📅 เวลา: " . date('d/m/Y H:i') . "\n\n";
+            $caption .= "🔗 <a href=\"{$baseUrl}/shop/order-detail.php?id={$order['id']}\">ตรวจสอบ</a>";
             
             $telegram->sendPhoto($imageData, $caption, $dbUserId);
         }
 
         /**
-         * Handle payment slip - à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¹à¸¥à¸°à¸šà¸±à¸™à¸—à¸¶à¸à¸ªà¸¥à¸´à¸›à¸à¸²à¸£à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™ (legacy - use transactions)
+         * Handle payment slip - ตรวจสอบและบันทึกสลิปการชำระเงิน (legacy - use transactions)
          */
         function handlePaymentSlip($db, $line, $dbUserId, $messageId, $replyToken) {
             // Check if user has pending/confirmed order waiting for payment (use transactions table)
@@ -3625,7 +3650,7 @@ if (!$line) {
             $stmt->execute([$order['id'], $dbUserId, $imageUrl]);
             
             // Reply to customer
-            $line->replyMessage($replyToken, "âœ… à¹„à¸”à¹‰à¸£à¸±à¸šà¸«à¸¥à¸±à¸à¸à¸²à¸™à¸à¸²à¸£à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™à¹à¸¥à¹‰à¸§!\n\nðŸ“‹ à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­: #{$order['order_number']}\nðŸ’° à¸¢à¸­à¸”: à¸¿" . number_format($order['grand_total'], 2) . "\n\nâ³ à¸à¸£à¸¸à¸“à¸²à¸£à¸­à¸à¸²à¸£à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸ˆà¸²à¸à¸—à¸²à¸‡à¸£à¹‰à¸²à¸™\nà¸ˆà¸°à¹à¸ˆà¹‰à¸‡à¸œà¸¥à¹ƒà¸«à¹‰à¸—à¸£à¸²à¸šà¹€à¸£à¹‡à¸§à¹† à¸™à¸µà¹‰");
+            $line->replyMessage($replyToken, "✅ ได้รับหลักฐานการชำระเงินแล้ว!\n\n📋 คำสั่งซื้อ: #{$order['order_number']}\n💰 ยอด: ฿" . number_format($order['grand_total'], 2) . "\n\n⏳ กรุณารอการตรวจสอบจากทางร้าน\nจะแจ้งผลให้ทราบเร็วๆ นี้");
             
             // Notify admin via Telegram
             $stmt = $db->prepare("SELECT * FROM telegram_settings WHERE id = 1");
@@ -3640,12 +3665,12 @@ if (!$line) {
                 $stmt->execute([$dbUserId]);
                 $user = $stmt->fetch();
                 
-                $caption = "ðŸ’³ <b>à¸ªà¸¥à¸´à¸›à¸à¸²à¸£à¸Šà¸³à¸£à¸°à¹€à¸‡à¸´à¸™!</b>\n\n";
-                $caption .= "ðŸ“‹ à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸‹à¸·à¹‰à¸­: #{$order['order_number']}\n";
-                $caption .= "ðŸ‘¤ à¸¥à¸¹à¸à¸„à¹‰à¸²: {$user['display_name']}\n";
-                $caption .= "ðŸ’° à¸¢à¸­à¸”: à¸¿" . number_format($order['grand_total'], 2) . "\n";
-                $caption .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('Y-m-d H:i:s') . "\n\n";
-                $caption .= "ðŸ”— <a href=\"{$baseUrl}/shop/order-detail.php?id={$order['id']}\">à¸”à¸¹à¸£à¸²à¸¢à¸¥à¸°à¹€à¸­à¸µà¸¢à¸”</a>";
+                $caption = "💳 <b>สลิปการชำระเงิน!</b>\n\n";
+                $caption .= "📋 คำสั่งซื้อ: #{$order['order_number']}\n";
+                $caption .= "👤 ลูกค้า: {$user['display_name']}\n";
+                $caption .= "💰 ยอด: ฿" . number_format($order['grand_total'], 2) . "\n";
+                $caption .= "📅 เวลา: " . date('Y-m-d H:i:s') . "\n\n";
+                $caption .= "🔗 <a href=\"{$baseUrl}/shop/order-detail.php?id={$order['id']}\">ดูรายละเอียด</a>";
                 
                 // Send slip image to Telegram
                 $telegram->sendPhoto($imageData, $caption, $dbUserId);
@@ -3673,10 +3698,10 @@ if (!$line) {
             }
 
             // For media messages
-            $caption = "ðŸ’¬ <b>à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹ƒà¸«à¸¡à¹ˆ!</b>\n\n";
-            $caption .= "ðŸ‘¤ à¸ˆà¸²à¸: {$displayName}\n";
-            $caption .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('Y-m-d H:i:s') . "\n";
-            $caption .= "\nðŸ’¡ <i>à¸•à¸­à¸šà¸à¸¥à¸±à¸š:</i> <code>/r {$dbUserId} à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡</code>";
+            $caption = "💬 <b>ข้อความใหม่!</b>\n\n";
+            $caption .= "👤 จาก: {$displayName}\n";
+            $caption .= "📅 เวลา: " . date('Y-m-d H:i:s') . "\n";
+            $caption .= "\n💡 <i>ตอบกลับ:</i> <code>/r {$dbUserId} ข้อความ</code>";
 
             if ($messageType === 'image') {
                 // Get image content from LINE
@@ -3684,59 +3709,59 @@ if (!$line) {
                 if ($imageData) {
                     $telegram->sendPhoto($imageData, $caption, $dbUserId);
                 } else {
-                    $telegram->notifyNewMessage($displayName, "[à¸£à¸¹à¸›à¸ à¸²à¸ž] à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¹‚à¸«à¸¥à¸”à¹„à¸”à¹‰", '', $dbUserId);
+                    $telegram->notifyNewMessage($displayName, "[รูปภาพ] ไม่สามารถโหลดได้", '', $dbUserId);
                 }
             } elseif ($messageType === 'video') {
-                $telegram->notifyNewMessage($displayName, "[à¸§à¸´à¸”à¸µà¹‚à¸­] ID: {$messageId}", '', $dbUserId);
+                $telegram->notifyNewMessage($displayName, "[วิดีโอ] ID: {$messageId}", '', $dbUserId);
             } elseif ($messageType === 'audio') {
-                $telegram->notifyNewMessage($displayName, "[à¹€à¸ªà¸µà¸¢à¸‡] ID: {$messageId}", '', $dbUserId);
+                $telegram->notifyNewMessage($displayName, "[เสียง] ID: {$messageId}", '', $dbUserId);
             } elseif ($messageType === 'sticker') {
                 $stickerId = $messageData['stickerId'] ?? '';
                 $packageId = $messageData['packageId'] ?? '';
                 // LINE sticker URL
                 $stickerUrl = "https://stickershop.line-scdn.net/stickershop/v1/sticker/{$stickerId}/iPhone/sticker.png";
-                $telegram->sendPhotoUrl($stickerUrl, "ðŸŽ¨ <b>à¸ªà¸•à¸´à¸à¹€à¸à¸­à¸£à¹Œ</b>\n\nðŸ‘¤ à¸ˆà¸²à¸: {$displayName}\n\nðŸ’¡ <code>/r {$dbUserId} à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡</code>", $dbUserId);
+                $telegram->sendPhotoUrl($stickerUrl, "🎨 <b>สติกเกอร์</b>\n\n👤 จาก: {$displayName}\n\n💡 <code>/r {$dbUserId} ข้อความ</code>", $dbUserId);
             } elseif ($messageType === 'location') {
                 $lat = $messageData['latitude'] ?? 0;
                 $lng = $messageData['longitude'] ?? 0;
                 $address = $messageData['address'] ?? '';
-                $telegram->sendLocation($lat, $lng, "ðŸ“ <b>à¸•à¸³à¹à¸«à¸™à¹ˆà¸‡</b>\n\nðŸ‘¤ à¸ˆà¸²à¸: {$displayName}\nðŸ“ {$address}\n\nðŸ’¡ <code>/r {$dbUserId} à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡</code>", $dbUserId);
+                $telegram->sendLocation($lat, $lng, "📍 <b>ตำแหน่ง</b>\n\n👤 จาก: {$displayName}\n📍 {$address}\n\n💡 <code>/r {$dbUserId} ข้อความ</code>", $dbUserId);
             } else {
                 $telegram->notifyNewMessage($displayName, "[{$messageType}]", '', $dbUserId);
             }
         }
 
         /**
-         * Ensure group exists in database - à¸ªà¸£à¹‰à¸²à¸‡à¸à¸¥à¸¸à¹ˆà¸¡à¸­à¸±à¸•à¹‚à¸™à¸¡à¸±à¸•à¸´à¸–à¹‰à¸²à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ
-         * à¹ƒà¸Šà¹‰à¹€à¸¡à¸·à¹ˆà¸­à¹„à¸”à¹‰à¸£à¸±à¸š event à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡à¸—à¸µà¹ˆà¸šà¸­à¸—à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§à¹à¸•à¹ˆà¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µà¹ƒà¸™à¸£à¸°à¸šà¸š
+         * Ensure group exists in database - สร้างกลุ่มอัตโนมัติถ้ายังไม่มี
+         * ใช้เมื่อได้รับ event จากกลุ่มที่บอทอยู่แล้วแต่ยังไม่มีในระบบ
          */
         function ensureGroupExists($db, $line, $lineAccountId, $groupId, $sourceType = 'group') {
             if (!$lineAccountId || !$groupId) return;
             
             try {
-                // à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸²à¸¡à¸µà¸à¸¥à¸¸à¹ˆà¸¡à¸™à¸µà¹‰à¹ƒà¸™à¸£à¸°à¸šà¸šà¸«à¸£à¸·à¸­à¸¢à¸±à¸‡
+                // ตรวจสอบว่ามีกลุ่มนี้ในระบบหรือยัง
                 $stmt = $db->prepare("SELECT id FROM line_groups WHERE line_account_id = ? AND group_id = ?");
                 $stmt->execute([$lineAccountId, $groupId]);
                 
                 if ($stmt->fetch()) {
-                    return; // à¸¡à¸µà¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§ à¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡à¸—à¸³à¸­à¸°à¹„à¸£
+                    return; // มีอยู่แล้ว ไม่ต้องทำอะไร
                 }
                 
-                // à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ - à¸”à¸¶à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸à¸¥à¸¸à¹ˆà¸¡à¸ˆà¸²à¸ LINE API
+                // ยังไม่มี - ดึงข้อมูลกลุ่มจาก LINE API
                 $groupInfo = [];
                 try {
                     if ($sourceType === 'group') {
                         $groupInfo = $line->getGroupSummary($groupId);
                     }
                 } catch (Exception $e) {
-                    // API à¸­à¸²à¸ˆ fail à¸–à¹‰à¸²à¸šà¸­à¸—à¹„à¸¡à¹ˆà¸¡à¸µà¸ªà¸´à¸—à¸˜à¸´à¹Œ
+                    // API อาจ fail ถ้าบอทไม่มีสิทธิ์
                 }
                 
                 $groupName = $groupInfo['groupName'] ?? 'Unknown Group';
                 $pictureUrl = $groupInfo['pictureUrl'] ?? null;
                 $memberCount = $groupInfo['memberCount'] ?? 0;
                 
-                // à¸šà¸±à¸™à¸—à¸¶à¸à¸à¸¥à¸¸à¹ˆà¸¡à¹ƒà¸«à¸¡à¹ˆ
+                // บันทึกกลุ่มใหม่
                 $stmt = $db->prepare("
                     INSERT INTO line_groups (line_account_id, group_id, group_type, group_name, picture_url, member_count, is_active, joined_at)
                     VALUES (?, ?, ?, ?, ?, ?, 1, NOW())
@@ -3754,7 +3779,7 @@ if (!$line) {
                 ]);
                 
             } catch (Exception $e) {
-                // Ignore errors - à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¸à¸£à¸°à¸—à¸š flow à¸«à¸¥à¸±à¸
+                // Ignore errors - ไม่ให้กระทบ flow หลัก
             }
         }
 
@@ -3797,11 +3822,11 @@ if (!$line) {
                 
                 // Log event (skip saveAccountEvent - no line_user_id for join events)
                 
-                // à¹„à¸¡à¹ˆà¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¹€à¸‚à¹‰à¸²à¸à¸¥à¸¸à¹ˆà¸¡à¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota
-                // (à¸–à¹‰à¸²à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸ªà¹ˆà¸‡ à¸ªà¸²à¸¡à¸²à¸£à¸–à¹€à¸›à¸´à¸” comment à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡à¹„à¸”à¹‰)
+                // ไม่ส่งข้อความเข้ากลุ่มเพื่อประหยัด quota
+                // (ถ้าต้องการส่ง สามารถเปิด comment ด้านล่างได้)
                 // $botName = getAccountName($db, $lineAccountId) ?: 'Bot';
                 // $welcomeBubble = FlexTemplates::groupWelcome($groupName, $botName);
-                // $welcomeMessage = FlexTemplates::toMessage($welcomeBubble, "à¸ªà¸§à¸±à¸ªà¸”à¸µà¸ˆà¸²à¸ {$botName}!");
+                // $welcomeMessage = FlexTemplates::toMessage($welcomeBubble, "สวัสดีจาก {$botName}!");
                 // $line->pushMessage($groupId, [$welcomeMessage]);
                 
                 // Notify via Telegram
@@ -3887,8 +3912,8 @@ if (!$line) {
                 $stmt = $db->prepare("UPDATE line_groups SET member_count = member_count + ? WHERE id = ?");
                 $stmt->execute([count($members), $dbGroupId]);
                 
-                // à¹„à¸¡à¹ˆà¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸•à¹‰à¸­à¸™à¸£à¸±à¸šà¸ªà¸¡à¸²à¸Šà¸´à¸à¹ƒà¸«à¸¡à¹ˆà¹€à¸žà¸·à¹ˆà¸­à¸›à¸£à¸°à¸«à¸¢à¸±à¸” quota
-                // (à¸–à¹‰à¸²à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸ªà¹ˆà¸‡ à¸ªà¸²à¸¡à¸²à¸£à¸–à¹€à¸›à¸´à¸” comment à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡à¹„à¸”à¹‰)
+                // ไม่ส่งข้อความต้อนรับสมาชิกใหม่เพื่อประหยัด quota
+                // (ถ้าต้องการส่ง สามารถเปิด comment ด้านล่างได้)
                 /*
                 if (count($members) > 0) {
                     $names = [];
@@ -3896,13 +3921,13 @@ if (!$line) {
                         $userId = $member['userId'] ?? null;
                         if ($userId) {
                             $profile = $line->getGroupMemberProfile($groupId, $userId);
-                            $names[] = $profile['displayName'] ?? 'à¸ªà¸¡à¸²à¸Šà¸´à¸à¹ƒà¸«à¸¡à¹ˆ';
+                            $names[] = $profile['displayName'] ?? 'สมาชิกใหม่';
                         }
                     }
                     $nameList = implode(', ', array_slice($names, 0, 3));
-                    if (count($names) > 3) $nameList .= ' à¹à¸¥à¸°à¸­à¸µà¸ ' . (count($names) - 3) . ' à¸„à¸™';
+                    if (count($names) > 3) $nameList .= ' และอีก ' . (count($names) - 3) . ' คน';
                     
-                    $welcomeText = "ðŸŽ‰ à¸¢à¸´à¸™à¸”à¸µà¸•à¹‰à¸­à¸™à¸£à¸±à¸š {$nameList} à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸à¸¥à¸¸à¹ˆà¸¡!\n\nðŸ’¡ à¸žà¸´à¸¡à¸žà¹Œ 'menu' à¹€à¸žà¸·à¹ˆà¸­à¸”à¸¹à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¸—à¸µà¹ˆà¹ƒà¸Šà¹‰à¹„à¸”à¹‰";
+                    $welcomeText = "🎉 ยินดีต้อนรับ {$nameList} เข้าสู่กลุ่ม!\n\n💡 พิมพ์ 'menu' เพื่อดูคำสั่งที่ใช้ได้";
                     $line->pushMessage($groupId, $welcomeText);
                 }
                 */
@@ -3988,7 +4013,7 @@ if (!$line) {
         }
         
         /**
-         * Update group stats - à¸­à¸±à¸žà¹€à¸”à¸—à¸ªà¸–à¸´à¸•à¸´à¸à¸¥à¸¸à¹ˆà¸¡
+         * Update group stats - อัพเดทสถิติกลุ่ม
          */
         function updateGroupStats($db, $lineAccountId, $groupId, $eventType) {
             try {
@@ -4026,18 +4051,18 @@ if (!$line) {
                 
                 $telegram = new TelegramAPI();
                 $accountName = getAccountName($db, $lineAccountId);
-                $botInfo = $accountName ? " [à¸šà¸­à¸—: {$accountName}]" : "";
+                $botInfo = $accountName ? " [บอท: {$accountName}]" : "";
                 
                 if ($type === 'join') {
-                    $message = "ðŸŽ‰ <b>à¸šà¸­à¸—à¸–à¸¹à¸à¹€à¸Šà¸´à¸à¹€à¸‚à¹‰à¸²à¸à¸¥à¸¸à¹ˆà¸¡!</b>\n\n";
-                    $message .= "ðŸ‘¥ à¸à¸¥à¸¸à¹ˆà¸¡: {$groupName}\n";
-                    $message .= "ðŸ¤– {$botInfo}\n";
-                    $message .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('d/m/Y H:i:s');
+                    $message = "🎉 <b>บอทถูกเชิญเข้ากลุ่ม!</b>\n\n";
+                    $message .= "👥 กลุ่ม: {$groupName}\n";
+                    $message .= "🤖 {$botInfo}\n";
+                    $message .= "📅 เวลา: " . date('d/m/Y H:i:s');
                 } else {
-                    $message = "ðŸ‘‹ <b>à¸šà¸­à¸—à¸­à¸­à¸à¸ˆà¸²à¸à¸à¸¥à¸¸à¹ˆà¸¡</b>\n\n";
-                    $message .= "ðŸ‘¥ à¸à¸¥à¸¸à¹ˆà¸¡: {$groupName}\n";
-                    $message .= "ðŸ¤– {$botInfo}\n";
-                    $message .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('d/m/Y H:i:s');
+                    $message = "👋 <b>บอทออกจากกลุ่ม</b>\n\n";
+                    $message .= "👥 กลุ่ม: {$groupName}\n";
+                    $message .= "🤖 {$botInfo}\n";
+                    $message .= "📅 เวลา: " . date('d/m/Y H:i:s');
                 }
                 
                 $telegram->sendMessage($message);
@@ -4050,7 +4075,7 @@ if (!$line) {
         // ==================== AI Pause/Resume Functions ====================
         
         /**
-         * à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸² AI à¸–à¸¹à¸ pause à¸ªà¸³à¸«à¸£à¸±à¸š user à¸™à¸µà¹‰à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
+         * ตรวจสอบว่า AI ถูก pause สำหรับ user นี้หรือไม่
          */
         function isAIPaused($db, $userId) {
             try {
@@ -4077,7 +4102,7 @@ if (!$line) {
         }
         
         /**
-         * Pause AI à¸ªà¸³à¸«à¸£à¸±à¸š user (à¸«à¸™à¹ˆà¸§à¸¢à¹€à¸›à¹‡à¸™à¸™à¸²à¸—à¸µ)
+         * Pause AI สำหรับ user (หน่วยเป็นนาที)
          */
         function pauseAI($db, $userId, $minutes = 20) {
             try {
@@ -4110,7 +4135,7 @@ if (!$line) {
         }
         
         /**
-         * Resume AI à¸ªà¸³à¸«à¸£à¸±à¸š user (à¸¢à¸à¹€à¸¥à¸´à¸ pause)
+         * Resume AI สำหรับ user (ยกเลิก pause)
          */
         function resumeAI($db, $userId) {
             try {
@@ -4125,7 +4150,7 @@ if (!$line) {
         // ==================== AI Mode Functions ====================
         
         /**
-         * à¸”à¸¶à¸‡ AI mode à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™à¸‚à¸­à¸‡ user
+         * ดึง AI mode ปัจจุบันของ user
          */
         function getUserAIMode($db, $userId) {
             try {
@@ -4153,7 +4178,7 @@ if (!$line) {
         }
         
         /**
-         * à¸•à¸±à¹‰à¸‡ AI mode à¸ªà¸³à¸«à¸£à¸±à¸š user (à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸à¹ƒà¸™ 10 à¸™à¸²à¸—à¸µ)
+         * ตั้ง AI mode สำหรับ user (หมดอายุใน 10 นาที)
          */
         function setUserAIMode($db, $userId, $mode, $minutes = 10) {
             try {
@@ -4186,7 +4211,7 @@ if (!$line) {
         }
         
         /**
-         * à¸¥à¸š AI mode à¸‚à¸­à¸‡ user (à¸­à¸­à¸à¸ˆà¸²à¸à¹‚à¸«à¸¡à¸”)
+         * ลบ AI mode ของ user (ออกจากโหมด)
          */
         function clearUserAIMode($db, $userId) {
             try {
@@ -4199,7 +4224,7 @@ if (!$line) {
         }
         
         /**
-         * à¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™à¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¹€à¸¡à¸·à¹ˆà¸­à¸¥à¸¹à¸à¸„à¹‰à¸²à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™à¸ˆà¸£à¸´à¸‡
+         * แจ้งเตือนเภสัชกรเมื่อลูกค้าขอคุยกับคนจริง
          */
         function notifyPharmacistForHumanRequest($db, $userId, $lineAccountId, $message) {
             try {
@@ -4211,7 +4236,7 @@ if (!$line) {
                 $displayName = $user['display_name'] ?? 'Unknown';
                 $lineUserId = $user['line_user_id'] ?? '';
                 
-                // 1. à¸šà¸±à¸™à¸—à¸¶à¸à¸¥à¸‡ pharmacist_queue (à¸–à¹‰à¸²à¸¡à¸µ table)
+                // 1. บันทึกลง pharmacist_queue (ถ้ามี table)
                 try {
                     $stmt = $db->prepare("
                         INSERT INTO pharmacist_queue (user_id, line_account_id, request_type, message, status, created_at)
@@ -4222,7 +4247,7 @@ if (!$line) {
                     // Table might not exist
                 }
                 
-                // 2. à¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™à¸œà¹ˆà¸²à¸™ Telegram
+                // 2. แจ้งเตือนผ่าน Telegram
                 $stmt = $db->prepare("SELECT * FROM telegram_settings WHERE id = 1");
                 $stmt->execute();
                 $telegramSettings = $stmt->fetch();
@@ -4231,13 +4256,13 @@ if (!$line) {
                     $telegram = new TelegramAPI();
                     $accountName = getAccountName($db, $lineAccountId);
                     
-                    $text = "ðŸš¨ <b>à¸¥à¸¹à¸à¸„à¹‰à¸²à¸‚à¸­à¸„à¸¸à¸¢à¸à¸±à¸šà¹€à¸ à¸ªà¸±à¸Šà¸à¸£à¸ˆà¸£à¸´à¸‡!</b>\n\n";
-                    $text .= "ðŸ‘¤ à¸¥à¸¹à¸à¸„à¹‰à¸²: {$displayName}\n";
-                    $text .= "ðŸ’¬ à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡: {$message}\n";
-                    if ($accountName) $text .= "ðŸ¤– à¸šà¸­à¸—: {$accountName}\n";
-                    $text .= "ðŸ“… à¹€à¸§à¸¥à¸²: " . date('d/m/Y H:i:s') . "\n\n";
-                    $text .= "â° à¸šà¸­à¸—à¸ˆà¸°à¸«à¸¢à¸¸à¸”à¸•à¸­à¸š 20 à¸™à¸²à¸—à¸µ\n";
-                    $text .= "ðŸ’¡ à¸•à¸­à¸šà¸à¸¥à¸±à¸š: <code>/r {$userId} à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡</code>";
+                    $text = "🚨 <b>ลูกค้าขอคุยกับเภสัชกรจริง!</b>\n\n";
+                    $text .= "👤 ลูกค้า: {$displayName}\n";
+                    $text .= "💬 ข้อความ: {$message}\n";
+                    if ($accountName) $text .= "🤖 บอท: {$accountName}\n";
+                    $text .= "📅 เวลา: " . date('d/m/Y H:i:s') . "\n\n";
+                    $text .= "⏰ บอทจะหยุดตอบ 20 นาที\n";
+                    $text .= "💡 ตอบกลับ: <code>/r {$userId} ข้อความ</code>";
                     
                     $telegram->sendMessage($text);
                 }
