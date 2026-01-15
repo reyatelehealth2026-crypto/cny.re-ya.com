@@ -50,26 +50,43 @@ try {
                 throw new Exception('ไม่มีข้อมูล Flex Message');
             }
             
+            // Validate flex structure
+            if (!isset($flex['type'])) {
+                throw new Exception('Flex Message ต้องมี type');
+            }
+            
+            // Ensure all image URLs are valid
+            $flexJson = json_encode($flex);
+            if (strpos($flexJson, 'https://via.placeholder.com') !== false) {
+                // Replace placeholder with actual image
+                $flexJson = str_replace('https://via.placeholder.com/100', 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png', $flexJson);
+                $flex = json_decode($flexJson, true);
+            }
+            
             $message = [
                 'type' => 'flex',
                 'altText' => $altText,
                 'contents' => $flex
             ];
             
+            // Log the message for debugging
+            error_log("Sending flex message: " . json_encode($message, JSON_UNESCAPED_UNICODE));
+            
             $result = $line->broadcastMessage([$message]);
             
             if ($result['code'] === 200) {
                 // Log broadcast
                 try {
-                    $stmt = $db->prepare("INSERT INTO broadcasts (account_id, type, content, status, created_at) VALUES (?, 'flex', ?, 'sent', NOW())");
-                    $stmt->execute([$currentBotId, json_encode($flex, JSON_UNESCAPED_UNICODE)]);
+                    $stmt = $db->prepare("INSERT INTO broadcasts (line_account_id, title, message_type, content, target_type, sent_count, status, sent_at) VALUES (?, ?, 'flex', ?, 'all', 0, 'sent', NOW())");
+                    $stmt->execute([$currentBotId, $altText, json_encode($flex, JSON_UNESCAPED_UNICODE)]);
                 } catch (Exception $e) {
-                    // Table might not exist
+                    error_log("Failed to log broadcast: " . $e->getMessage());
                 }
                 
                 echo json_encode(['success' => true, 'message' => 'Broadcast sent']);
             } else {
                 $errorMsg = $result['body']['message'] ?? json_encode($result['body']);
+                error_log("LINE API Error: " . json_encode($result));
                 throw new Exception("LINE API Error: $errorMsg");
             }
             break;

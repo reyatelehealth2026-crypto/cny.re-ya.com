@@ -362,27 +362,74 @@ function buildFlexFromData(bubblesData) {
         const rows = [];
         for (let i = 0; i < products.length; i += cfg.cols) {
             const rowItems = products.slice(i, i + cfg.cols);
-            const rowContents = rowItems.map(p => ({
-                type: 'box', layout: 'vertical', flex: 1, spacing: 'xs', paddingAll: 'xs',
-                contents: [
-                    { type: 'image', url: p.image || 'https://via.placeholder.com/100', size: 'full', aspectRatio: '1:1', aspectMode: 'cover' },
-                    { type: 'text', text: p.name.length > 10 ? p.name.slice(0,10)+'..' : p.name, size: 'xxs', color: '#333', wrap: false },
-                    { type: 'text', text: '฿'+Number(p.price).toLocaleString(), size: 'xs', color: bubble.theme, weight: 'bold' }
-                ]
-            }));
+            const rowContents = rowItems.map(p => {
+                // Ensure valid image URL
+                let imageUrl = p.image || 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png';
+                if (imageUrl.includes('via.placeholder.com')) {
+                    imageUrl = 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png';
+                }
+                
+                return {
+                    type: 'box', 
+                    layout: 'vertical', 
+                    flex: 1, 
+                    spacing: 'xs', 
+                    paddingAll: 'xs',
+                    contents: [
+                        { 
+                            type: 'image', 
+                            url: imageUrl, 
+                            size: 'full', 
+                            aspectRatio: '1:1', 
+                            aspectMode: 'cover' 
+                        },
+                        { 
+                            type: 'text', 
+                            text: p.name.length > 10 ? p.name.slice(0,10)+'..' : p.name, 
+                            size: 'xxs', 
+                            color: '#333333', 
+                            wrap: false 
+                        },
+                        { 
+                            type: 'text', 
+                            text: '฿'+Number(p.price).toLocaleString(), 
+                            size: 'xs', 
+                            color: bubble.theme, 
+                            weight: 'bold' 
+                        }
+                    ]
+                };
+            });
             while (rowContents.length < cfg.cols) rowContents.push({ type: 'box', layout: 'vertical', contents: [], flex: 1 });
             rows.push({ type: 'box', layout: 'horizontal', contents: rowContents, spacing: 'sm' });
         }
         return {
             type: 'bubble',
-            header: { type: 'box', layout: 'horizontal', paddingAll: 'lg', backgroundColor: bubble.theme + '15', contents: [
-                { type: 'text', text: bubble.title, weight: 'bold', size: 'md', color: bubble.theme, flex: 1 },
-                { type: 'text', text: products.length + ' รายการ', size: 'xs', color: '#888', align: 'end' }
-            ]},
+            header: { 
+                type: 'box', 
+                layout: 'horizontal', 
+                paddingAll: 'lg', 
+                backgroundColor: bubble.theme + '15', 
+                contents: [
+                    { type: 'text', text: bubble.title, weight: 'bold', size: 'md', color: bubble.theme, flex: 1 },
+                    { type: 'text', text: products.length + ' รายการ', size: 'xs', color: '#888888', align: 'end' }
+                ]
+            },
             body: { type: 'box', layout: 'vertical', contents: rows, spacing: 'sm', paddingAll: 'md' },
-            footer: { type: 'box', layout: 'horizontal', paddingAll: 'md', contents: [
-                { type: 'button', action: { type: 'message', label: '🛒 ดูทั้งหมด', text: 'shop' }, style: 'primary', color: bubble.theme, height: 'sm' }
-            ]}
+            footer: { 
+                type: 'box', 
+                layout: 'horizontal', 
+                paddingAll: 'md', 
+                contents: [
+                    { 
+                        type: 'button', 
+                        action: { type: 'message', label: '🛒 ดูทั้งหมด', text: 'shop' }, 
+                        style: 'primary', 
+                        color: bubble.theme, 
+                        height: 'sm' 
+                    }
+                ]
+            }
         };
     });
     return flexBubbles.length === 1 ? flexBubbles[0] : { type: 'carousel', contents: flexBubbles };
