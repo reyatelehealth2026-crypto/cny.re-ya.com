@@ -155,7 +155,8 @@ class LineAccountManager
         }
 
         // Generate webhook URL
-        $webhookUrl = BASE_URL . '/webhook.php?account=' . $accountId;
+        $baseUrl = rtrim(BASE_URL, '/'); // ตัด / ออกจากท้าย
+        $webhookUrl = $baseUrl . '/webhook.php?account=' . $accountId;
         $stmt = $this->db->prepare("UPDATE line_accounts SET webhook_url = ? WHERE id = ?");
         $stmt->execute([$webhookUrl, $accountId]);
 
