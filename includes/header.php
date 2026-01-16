@@ -98,6 +98,19 @@ if (isset($_GET['switch_bot'])) {
 }
 
 // Get accessible LINE accounts based on user permissions
+
+// Load SEO settings for admin pages
+$db = Database::getInstance()->getConnection();
+$currentBotId = $_SESSION['current_bot_id'] ?? $_SESSION['line_account_id'] ?? null;
+
+// Initialize SEO service for title and favicon
+require_once __DIR__ . '/../classes/LandingSEOService.php';
+$adminSeoService = new LandingSEOService($db, $currentBotId);
+$adminPageTitle = isset($pageTitle) ? $pageTitle : 'Admin';
+$adminFullTitle = $adminPageTitle . ' - ' . $adminSeoService->getAppName();
+$adminFaviconUrl = $adminSeoService->getFaviconUrl();
+
+// Get accessible LINE accounts based on user permissions
 $lineAccounts = [];
 $currentBot = null;
 try {
@@ -374,13 +387,20 @@ $menuGroups = [
     <meta name="theme-color" content="#06C755">
     <meta name="base-url" content="<?= $baseUrl ?>">
     <meta name="line-account-id" content="<?= $_SESSION['current_bot_id'] ?? $_SESSION['line_account_id'] ?? 1 ?>">
-    <title>Re-ya Pharmachy</title>
+    <title><?= htmlspecialchars($adminFullTitle) ?></title>
     
     <!-- Favicon & Icons -->
+    <?php if (!empty($adminFaviconUrl)): ?>
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars($adminFaviconUrl) ?>">
+    <link rel="shortcut icon" type="image/x-icon" href="<?= htmlspecialchars($adminFaviconUrl) ?>">
+    <link rel="apple-touch-icon" href="<?= htmlspecialchars($adminFaviconUrl) ?>">
+    <link rel="apple-touch-icon-precomposed" href="<?= htmlspecialchars($adminFaviconUrl) ?>">
+    <?php else: ?>
     <link rel="icon" type="image/png" href="/assets/images/3.png?v=2">
     <link rel="shortcut icon" type="image/png" href="/assets/images/3.png?v=2">
     <link rel="apple-touch-icon" href="/assets/images/3.png?v=2">
     <link rel="apple-touch-icon-precomposed" href="/assets/images/3.png?v=2">
+    <?php endif; ?>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

@@ -84,7 +84,18 @@
 <?php endif; ?>
 ```
 
-### 3. PWA Manifest (`api/manifest.php`)
+### 3. Admin Panel (`includes/header.php`)
+```php
+// ใช้ชื่อแอพจาก LandingSEOService
+<title><?= htmlspecialchars($adminFullTitle) ?></title>
+
+// Favicon
+<?php if (!empty($adminFaviconUrl)): ?>
+<link rel="icon" type="image/x-icon" href="<?= htmlspecialchars($adminFaviconUrl) ?>">
+<?php endif; ?>
+```
+
+### 4. PWA Manifest (`api/manifest.php`)
 ```json
 {
   "name": "ชื่อหน้าเว็บ (Page Title)",
@@ -108,6 +119,7 @@
 
 ### Frontend
 - `includes/landing/seo-meta.php` - Component สำหรับ meta tags
+- `includes/header.php` - Admin panel header (ใช้ title และ favicon)
 - `index.php` - Landing page
 - `liff/index.php` - LIFF app
 
