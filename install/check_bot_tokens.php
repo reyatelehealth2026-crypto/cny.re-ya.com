@@ -3,13 +3,21 @@
  * ตรวจสอบ LINE Channel Access Token ของแต่ละ Bot
  */
 
-require_once '../config/config.php';
-require_once '../classes/Database.php';
-
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-$db = Database::getInstance()->getConnection();
+// Database connection
+$host = 'localhost';
+$dbname = 'zrismpsz_cny';
+$username = 'zrismpsz_cny';
+$password = 'zrismpsz_cny';
+
+try {
+    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
 
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ตรวจสอบ Bot Tokens</title>";
 echo "<style>
