@@ -1022,7 +1022,21 @@ if (!$line) {
                         'message' => mb_substr($messageText, 0, 100),
                         'bot_mode' => $botMode
                     ], $userId);
-                    $line->replyMessage($replyToken, [$autoReply]);
+                    
+                    // ลอง reply ก่อน (ฟรี!)
+                    $replyResult = $line->replyMessage($replyToken, [$autoReply]);
+                    $replyCode = $replyResult['code'] ?? 0;
+                    
+                    // ถ้า reply ไม่สำเร็จ ให้ใช้ pushMessage แทน
+                    if ($replyCode !== 200) {
+                        devLog($db, 'warning', 'webhook', 'Reply failed, using push instead', [
+                            'user_id' => $userId,
+                            'reply_code' => $replyCode,
+                            'bot_mode' => $botMode
+                        ], $userId);
+                        $line->pushMessage($userId, [$autoReply]);
+                    }
+                    
                     saveOutgoingMessage($db, $user['id'], json_encode($autoReply));
                     return;
                 }
