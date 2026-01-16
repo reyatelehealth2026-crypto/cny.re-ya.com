@@ -1037,7 +1037,9 @@ if (!$line) {
                         $line->pushMessage($userId, [$autoReply]);
                     }
                     
-                    saveOutgoingMessage($db, $user['id'], json_encode($autoReply));
+                    // บันทึกข้อความ - ตรวจสอบ type ของ auto-reply
+                    $messageType = $autoReply['type'] ?? 'text';
+                    saveOutgoingMessage($db, $user['id'], json_encode($autoReply), 'system', $messageType);
                     return;
                 }
                 
