@@ -689,28 +689,247 @@ function formatThaiDateTime($datetime) {
 }
 ?>
 
-<!-- Tailwind CSS - Required for layout -->
-<script src="https://cdn.tailwindcss.com"></script>
-
 <!-- FAB & HUD Mode Switcher CSS -->
 <link rel="stylesheet" href="assets/css/inbox-v2-fab.css?v=<?= time() ?>">
 
 <!-- Inbox V2 Performance Upgrade - Animation Styles -->
 <link rel="stylesheet" href="assets/css/inbox-v2-animations.css?v=<?= time() ?>">
 
-<!-- Critical CSS - Prevent FOUC (Flash of Unstyled Content) -->
+<!-- Critical CSS - Complete Layout Styles (NO Tailwind CDN) -->
 <style>
-/* Critical layout styles - loaded immediately before Tailwind */
-#inboxContainer { display: flex !important; height: 100vh !important; background: white !important; overflow: hidden !important; position: relative !important; }
-#inboxSidebar { width: 18rem !important; background: white !important; border-right: 1px solid #e5e7eb !important; display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; }
-#chatArea { flex: 1 !important; display: flex !important; flex-direction: column !important; background: #f1f5f9 !important; min-width: 0 !important; }
-.user-item { display: block !important; padding: 0.75rem !important; border-bottom: 1px solid #f9fafb !important; }
-.user-item .flex { display: flex !important; align-items: center !important; gap: 0.75rem !important; }
-.user-item img { width: 2.5rem !important; height: 2.5rem !important; border-radius: 9999px !important; flex-shrink: 0 !important; }
-.user-item .flex-1 { flex: 1 !important; min-width: 0 !important; }
-.user-item h3 { font-size: 0.875rem !important; font-weight: 600 !important; color: #1f2937 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-.user-item p { font-size: 0.75rem !important; color: #6b7280 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-.hud-dashboard { position: fixed !important; top: 0 !important; right: 0 !important; width: 320px !important; height: 100vh !important; background: #f5f5f5 !important; border-left: 1px solid #e0e0e0 !important; overflow-y: auto !important; z-index: 40 !important; }
+/* ============================================
+   CRITICAL LAYOUT STYLES - Replaces Tailwind CDN
+   All necessary utility classes for inbox layout
+   ============================================ */
+
+/* Container Layout */
+#inboxContainer { 
+    display: flex !important; 
+    height: 100vh !important; 
+    background: white !important; 
+    overflow: hidden !important; 
+    position: relative !important; 
+}
+
+/* Sidebar */
+#inboxSidebar { 
+    width: 18rem !important; 
+    background: white !important; 
+    border-right: 1px solid #e5e7eb !important; 
+    display: flex !important; 
+    flex-direction: column !important; 
+    flex-shrink: 0 !important; 
+}
+
+/* Chat Area - CRITICAL: Prevent overlap with HUD */
+#chatArea { 
+    flex: 1 !important; 
+    display: flex !important; 
+    flex-direction: column !important; 
+    background: #f1f5f9 !important; 
+    min-width: 0 !important;
+    margin-right: 320px !important; /* HUD width - PREVENT OVERLAP */
+    transition: margin-right 0.3s ease !important;
+}
+
+#chatArea.hud-hidden {
+    margin-right: 0 !important;
+}
+
+/* HUD Dashboard */
+.hud-dashboard { 
+    position: fixed !important; 
+    top: 0 !important; 
+    right: 0 !important; 
+    width: 320px !important; 
+    height: 100vh !important; 
+    background: #f5f5f5 !important; 
+    border-left: 1px solid #e0e0e0 !important; 
+    overflow-y: auto !important; 
+    z-index: 40 !important; 
+}
+
+/* Flexbox Utilities */
+.flex { display: flex !important; }
+.flex-1 { flex: 1 !important; min-width: 0 !important; }
+.flex-col { flex-direction: column !important; }
+.flex-shrink-0 { flex-shrink: 0 !important; }
+.items-center { align-items: center !important; }
+.items-baseline { align-items: baseline !important; }
+.justify-between { justify-between: space-between !important; }
+.justify-end { justify-content: flex-end !important; }
+.justify-start { justify-content: flex-start !important; }
+.gap-1 { gap: 0.25rem !important; }
+.gap-2 { gap: 0.5rem !important; }
+.gap-3 { gap: 0.75rem !important; }
+
+/* Width & Height */
+.w-2 { width: 0.5rem !important; }
+.w-8 { width: 2rem !important; }
+.w-10 { width: 2.5rem !important; }
+.w-72 { width: 18rem !important; }
+.w-full { width: 100% !important; }
+.h-2 { height: 0.5rem !important; }
+.h-8 { height: 2rem !important; }
+.h-10 { height: 2.5rem !important; }
+.h-14 { height: 3.5rem !important; }
+.h-screen { height: 100vh !important; }
+.min-w-0 { min-width: 0 !important; }
+
+/* Spacing */
+.p-1 { padding: 0.25rem !important; }
+.p-2 { padding: 0.5rem !important; }
+.p-3 { padding: 0.75rem !important; }
+.p-4 { padding: 1rem !important; }
+.px-2 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+.px-3 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+.px-4 { padding-left: 1rem !important; padding-right: 1rem !important; }
+.py-0\.5 { padding-top: 0.125rem !important; padding-bottom: 0.125rem !important; }
+.py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+.py-1\.5 { padding-top: 0.375rem !important; padding-bottom: 0.375rem !important; }
+.py-2 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+.mr-1 { margin-right: 0.25rem !important; }
+.mr-2 { margin-right: 0.5rem !important; }
+.ml-2 { margin-left: 0.5rem !important; }
+.mt-1 { margin-top: 0.25rem !important; }
+.mb-2 { margin-bottom: 0.5rem !important; }
+.space-y-2 > * + * { margin-top: 0.5rem !important; }
+.space-y-3 > * + * { margin-top: 0.75rem !important; }
+
+/* Borders */
+.border { border-width: 1px !important; }
+.border-b { border-bottom-width: 1px !important; }
+.border-r { border-right-width: 1px !important; }
+.border-2 { border-width: 2px !important; }
+.border-gray-50 { border-color: #f9fafb !important; }
+.border-white { border-color: white !important; }
+.border-teal-600 { border-color: #0d9488 !important; }
+.rounded-full { border-radius: 9999px !important; }
+.rounded-lg { border-radius: 0.5rem !important; }
+
+/* Background Colors */
+.bg-white { background-color: white !important; }
+.bg-gray-50 { background-color: #f9fafb !important; }
+.bg-gray-100 { background-color: #f3f4f6 !important; }
+.bg-gray-200 { background-color: #e5e7eb !important; }
+.bg-slate-100 { background-color: #f1f5f9 !important; }
+.bg-teal-100 { background-color: #ccfbf1 !important; }
+.bg-teal-600 { background-color: #0d9488 !important; }
+.bg-teal-700 { background-color: #0f766e !important; }
+.bg-green-300 { background-color: #86efac !important; }
+.bg-red-500 { background-color: #ef4444 !important; }
+.bg-blue-100 { background-color: #dbeafe !important; }
+
+/* Text Colors */
+.text-white { color: white !important; }
+.text-gray-400 { color: #9ca3af !important; }
+.text-gray-500 { color: #6b7280 !important; }
+.text-gray-600 { color: #4b5563 !important; }
+.text-gray-700 { color: #374151 !important; }
+.text-gray-800 { color: #1f2937 !important; }
+.text-teal-700 { color: #0f766e !important; }
+.text-blue-700 { color: #1d4ed8 !important; }
+
+/* Font Sizes */
+.text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+.text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+.text-4xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+
+/* Font Weight */
+.font-medium { font-weight: 500 !important; }
+.font-semibold { font-weight: 600 !important; }
+.font-bold { font-weight: 700 !important; }
+
+/* Text Utilities */
+.text-center { text-align: center !important; }
+.truncate { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.whitespace-nowrap { white-space: nowrap !important; }
+
+/* Display */
+.block { display: block !important; }
+.hidden { display: none !important; }
+
+/* Position */
+.relative { position: relative !important; }
+.absolute { position: absolute !important; }
+.-top-1 { top: -0.25rem !important; }
+.-right-1 { right: -0.25rem !important; }
+
+/* Overflow */
+.overflow-hidden { overflow: hidden !important; }
+.overflow-y-auto { overflow-y: auto !important; }
+
+/* Shadows */
+.shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1) !important; }
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important; }
+
+/* Cursor */
+.cursor-pointer { cursor: pointer !important; }
+
+/* Transitions */
+.transition { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter !important; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important; transition-duration: 150ms !important; }
+
+/* Hover States */
+.hover\:bg-gray-200:hover { background-color: #e5e7eb !important; }
+.hover\:bg-teal-200:hover { background-color: #99f6e4 !important; }
+.hover\:bg-teal-700:hover { background-color: #0f766e !important; }
+.hover\:bg-white\/30:hover { background-color: rgba(255, 255, 255, 0.3) !important; }
+
+/* Focus States */
+.focus\:ring-2:focus { box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.5) !important; }
+.focus\:ring-teal-500:focus { box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.5) !important; }
+.outline-none { outline: 2px solid transparent !important; outline-offset: 2px !important; }
+
+/* Flex Wrap */
+.flex-wrap { flex-wrap: wrap !important; }
+
+/* User Item Styles */
+.user-item { 
+    display: block !important; 
+    padding: 0.75rem !important; 
+    border-bottom: 1px solid #f9fafb !important; 
+}
+
+.user-item .flex { 
+    display: flex !important; 
+    align-items: center !important; 
+    gap: 0.75rem !important; 
+}
+
+.user-item img { 
+    width: 2.5rem !important; 
+    height: 2.5rem !important; 
+    border-radius: 9999px !important; 
+    flex-shrink: 0 !important; 
+}
+
+.user-item .flex-1 { 
+    flex: 1 !important; 
+    min-width: 0 !important; 
+}
+
+.user-item h3 { 
+    font-size: 0.875rem !important; 
+    font-weight: 600 !important; 
+    color: #1f2937 !important; 
+    overflow: hidden !important; 
+    text-overflow: ellipsis !important; 
+    white-space: nowrap !important; 
+}
+
+.user-item p { 
+    font-size: 0.75rem !important; 
+    color: #6b7280 !important; 
+    overflow: hidden !important; 
+    text-overflow: ellipsis !important; 
+    white-space: nowrap !important; 
+}
+
+/* Object Fit */
+.object-cover { object-fit: cover !important; }
+
+/* Loading */
+.loading\:lazy { loading: lazy !important; }
 </style>
 
 <style>
