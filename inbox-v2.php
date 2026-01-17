@@ -698,6 +698,21 @@ function formatThaiDateTime($datetime) {
 <!-- Inbox V2 Performance Upgrade - Animation Styles -->
 <link rel="stylesheet" href="assets/css/inbox-v2-animations.css?v=<?= time() ?>">
 
+<!-- Critical CSS - Prevent FOUC (Flash of Unstyled Content) -->
+<style>
+/* Critical layout styles - loaded immediately before Tailwind */
+#inboxContainer { display: flex !important; height: 100vh !important; background: white !important; overflow: hidden !important; position: relative !important; }
+#inboxSidebar { width: 18rem !important; background: white !important; border-right: 1px solid #e5e7eb !important; display: flex !important; flex-direction: column !important; }
+#chatArea { flex: 1 !important; display: flex !important; flex-direction: column !important; background: #f1f5f9 !important; min-width: 0 !important; }
+.user-item { display: block !important; padding: 0.75rem !important; border-bottom: 1px solid #f9fafb !important; }
+.user-item .flex { display: flex !important; align-items: center !important; gap: 0.75rem !important; }
+.user-item img { width: 2.5rem !important; height: 2.5rem !important; border-radius: 9999px !important; flex-shrink: 0 !important; }
+.user-item .flex-1 { flex: 1 !important; min-width: 0 !important; }
+.user-item h3 { font-size: 0.875rem !important; font-weight: 600 !important; color: #1f2937 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.user-item p { font-size: 0.75rem !important; color: #6b7280 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.hud-dashboard { position: fixed !important; top: 0 !important; right: 0 !important; width: 320px !important; height: 100vh !important; background: #f5f5f5 !important; border-left: 1px solid #e0e0e0 !important; overflow-y: auto !important; z-index: 40 !important; }
+</style>
+
 <style>
 :root { --primary: #0C665D; --primary-dark: #0A5550; }
 .chat-scroll::-webkit-scrollbar { width: 5px; }
