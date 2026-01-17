@@ -363,10 +363,23 @@ class ChatPanelManager {
             }
             
             // Store cursor for next page
-            this.currentCursor = data.next_cursor || null;
-            this.hasMoreMessages = !!data.next_cursor;
+            this.currentCursor = data.next_cursor || data.data?.next_cursor || null;
+            this.hasMoreMessages = data.has_more || data.data?.has_more || false;
             
-            return data.data || data.messages || [];
+            // Extract messages array from response
+            // API can return: data.data.messages, data.messages, or data.data (if data is array)
+            let messages = [];
+            if (data.data) {
+                if (Array.isArray(data.data)) {
+                    messages = data.data;
+                } else if (data.data.messages && Array.isArray(data.data.messages)) {
+                    messages = data.data.messages;
+                }
+            } else if (data.messages && Array.isArray(data.messages)) {
+                messages = data.messages;
+            }
+            
+            return messages;
             
         } catch (error) {
             // Track failed API call (Requirements: 12.4)
