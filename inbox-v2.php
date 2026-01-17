@@ -6915,6 +6915,44 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
+ * Handle conversation click from ConversationListManager
+ * Called when user clicks on a conversation in the list
+ * @param {Object} conversation - Conversation object with user data
+ */
+function handleConversationClick(conversation) {
+    if (!conversation) {
+        console.error('[AJAX] No conversation data provided');
+        return;
+    }
+    
+    // Extract user ID and data
+    const userId = conversation.id || conversation.user_id;
+    
+    if (!userId) {
+        console.error('[AJAX] No user ID in conversation data');
+        return;
+    }
+    
+    // Prepare user data for loadConversationAJAX
+    const userData = {
+        id: userId,
+        user_id: userId,
+        display_name: conversation.display_name || 'Unknown User',
+        picture_url: conversation.picture_url || '',
+        chat_status: conversation.chat_status || 'open',
+        tags: conversation.tags || [],
+        last_message: conversation.last_message || '',
+        last_message_at: conversation.last_message_at || '',
+        unread_count: conversation.unread_count || 0
+    };
+    
+    console.log('[AJAX] Conversation clicked:', userId, userData);
+    
+    // Load the conversation via AJAX
+    loadConversationAJAX(userId, userData);
+}
+
+/**
  * Initialize AJAX conversation switching with all managers
  * Task 17.1, 17.2, 17.3, 17.4
  */
