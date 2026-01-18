@@ -1652,8 +1652,7 @@ function formatThaiDateTime($datetime) {
                     $chatStatus = $user['chat_status'] ?? '';
                     $statusBadge = $chatStatusBadges[$chatStatus] ?? null;
                 ?>
-                <a href="?user=<?= $user['id'] ?>" 
-                   class="user-item block p-3 border-b border-gray-50 <?= ($selectedUser && $selectedUser['id'] == $user['id']) ? 'active' : '' ?> <?= $hasSlaWarning ? 'sla-warning' : '' ?>" 
+                <div class="user-item block p-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 <?= ($selectedUser && $selectedUser['id'] == $user['id']) ? 'active' : '' ?> <?= $hasSlaWarning ? 'sla-warning' : '' ?>" 
                    data-user-id="<?= $user['id'] ?>"
                    data-name="<?= strtolower($user['display_name']) ?>"
                    data-chat-status="<?= htmlspecialchars($chatStatus) ?>"
@@ -1700,7 +1699,7 @@ function formatThaiDateTime($datetime) {
                             </div>
                         </div>
                     </div>
-                </a>
+                </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
@@ -7300,23 +7299,23 @@ function setupConversationClickHandlers() {
     
     // Use event delegation for better performance
     conversationListContainer.addEventListener('click', function(e) {
-        // Find the conversation link
-        const conversationLink = e.target.closest('a.user-item[data-user-id]');
+        // Find the conversation item (changed from <a> to <div>)
+        const conversationItem = e.target.closest('.user-item[data-user-id]');
         
-        if (conversationLink) {
-            // Prevent default page reload (Requirement 1.1)
+        if (conversationItem) {
+            // Prevent any default behavior
             e.preventDefault();
             
-            const userId = conversationLink.getAttribute('data-user-id');
-            const userName = conversationLink.getAttribute('data-name');
+            const userId = conversationItem.getAttribute('data-user-id');
+            const userName = conversationItem.getAttribute('data-name');
             
             if (!userId) {
-                console.warn('[AJAX] No user ID found on conversation link');
+                console.warn('[AJAX] No user ID found on conversation item');
                 return;
             }
             
-            // Get user data from the link
-            const userData = extractUserDataFromElement(conversationLink);
+            // Get user data from the item
+            const userData = extractUserDataFromElement(conversationItem);
             
             // Load conversation via AJAX (Requirement 1.1)
             loadConversationAJAX(userId, userData);
