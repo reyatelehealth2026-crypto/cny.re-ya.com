@@ -63,6 +63,13 @@ define('CNY_API_URL', '');
 define('CNY_API_KEY', '');
 
 // ============================================
+// GOOGLE MAPS API (Optional)
+// ============================================
+// Google Maps API Key for location message static maps
+// Get your API key from: https://console.cloud.google.com/google/maps-apis
+define('GOOGLE_MAPS_API_KEY', '');
+
+// ============================================
 // TABLE NAMES
 // ============================================
 define('TABLE_USERS', 'users');
