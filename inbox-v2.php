@@ -2620,6 +2620,49 @@ window.ghostDraftState = {
 };
 
 /**
+ * Toggle HUD Dashboard visibility (defined early for onclick handlers)
+ * Full implementation is in the main script section below
+ */
+function toggleHUD() {
+    const hud = document.getElementById('hudDashboard');
+    const chatArea = document.getElementById('chatArea');
+    
+    if (hud) {
+        hud.classList.toggle('collapsed');
+        
+        // Adjust chat area margin
+        if (chatArea) {
+            if (hud.classList.contains('collapsed')) {
+                chatArea.classList.add('hud-hidden');
+            } else {
+                chatArea.classList.remove('hud-hidden');
+            }
+        }
+        
+        // On mobile, toggle mobile-visible class
+        if (window.innerWidth <= 768) {
+            hud.classList.toggle('mobile-visible');
+        }
+    }
+}
+
+/**
+ * Toggle customer info panel (alias for toggleHUD)
+ */
+function togglePanel() {
+    toggleHUD();
+}
+
+/**
+ * Generate Ghost Draft (defined early for onclick handlers)
+ * Full implementation is in the main script section below
+ */
+function generateGhostDraft() {
+    // This will be overridden by the full implementation later in the page
+    console.log('Ghost Draft function called - waiting for full implementation to load');
+}
+
+/**
  * Consultation Analytics Tracker
  * Records analytics when switching conversations or leaving page
  * Requirements: 8.4
