@@ -7299,29 +7299,48 @@ function setupConversationClickHandlers() {
     
     // Use event delegation for better performance
     conversationListContainer.addEventListener('click', function(e) {
+        console.log('[CLICK] Conversation list clicked', e.target);
+        
         // Find the conversation item (changed from <a> to <div>)
         const conversationItem = e.target.closest('.user-item[data-user-id]');
         
         if (conversationItem) {
+            console.log('[CLICK] Conversation item found:', conversationItem);
+            
             // Prevent any default behavior
             e.preventDefault();
+            e.stopPropagation();
             
             const userId = conversationItem.getAttribute('data-user-id');
             const userName = conversationItem.getAttribute('data-name');
+            
+            console.log('[CLICK] User ID:', userId);
             
             if (!userId) {
                 console.warn('[AJAX] No user ID found on conversation item');
                 return;
             }
             
+            // Update URL immediately for better UX
+            const newUrl = `${window.location.pathname}?user=${userId}`;
+            window.history.pushState({ userId: userId }, '', newUrl);
+            console.log('[CLICK] URL updated to:', newUrl);
+            
             // Get user data from the item
             const userData = extractUserDataFromElement(conversationItem);
+            console.log('[CLICK] User data:', userData);
+            
+            // Update active state immediately (Requirement 1.2)
+            updateActiveConversation(userId);
             
             // Load conversation via AJAX (Requirement 1.1)
-            loadConversationAJAX(userId, userData);
-            
-            // Update active state (Requirement 1.2)
-            updateActiveConversation(userId);
+            if (chatPanelManager) {
+                loadConversationAJAX(userId, userData);
+            } else {
+                console.warn('[CLICK] ChatPanelManager not ready, falling back to page reload');
+                // Fallback: reload page with user parameter
+                window.location.href = newUrl;
+            }
             
             // Hide mobile sidebar if on mobile
             if (window.innerWidth <= 768) {
@@ -7330,6 +7349,8 @@ function setupConversationClickHandlers() {
                     sidebar.classList.add('hidden-mobile');
                 }
             }
+        } else {
+            console.log('[CLICK] No conversation item found');
         }
     });
     
