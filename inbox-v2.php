@@ -1799,6 +1799,18 @@ function formatThaiDateTime($datetime) {
                 <img src="<?= $selectedUser['picture_url'] ?: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 28 28%22%3E%3Ccircle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e5e7eb%22/%3E%3Cpath d=%22M14 15.4c2.3 0 4.2-1.9 4.2-4.2s-1.9-4.2-4.2-4.2-4.2 1.9-4.2 4.2 1.9 4.2 4.2 4.2zm0 2.1c-2.8 0-8.4 1.4-8.4 4.2v2.1h16.8v-2.1c0-2.8-5.6-4.2-8.4-4.2z%22 fill=%22%239ca3af%22/%3E%3C/svg%3E' ?>" class="w-8 h-8 rounded-full self-end mr-2 flex-shrink-0" onerror="this.style.display='none'">
                 <?php endif; ?>
                 <div class="msg-content-wrapper" style="max-width: 70%; display: flex; flex-direction: column; <?= $isMe ? 'align-items: flex-end;' : 'align-items: flex-start;' ?>">
+                    <?php 
+                    // Check if text content is actually a video URL
+                    $isVideoUrl = false;
+                    if ($type === 'text' && (
+                        strpos($content, '/uploads/line_videos/') !== false ||
+                        preg_match('/\.(mp4|mov|avi|webm)$/i', $content)
+                    )) {
+                        $isVideoUrl = true;
+                        $type = 'video'; // Treat as video
+                    }
+                    ?>
+                    
                     <?php if ($type === 'text'): ?>
                         <?php
                         // Parse JSON content if it's a JSON message object
