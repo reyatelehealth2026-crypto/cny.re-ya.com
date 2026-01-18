@@ -161,7 +161,7 @@ try {
     $stmt = $db->query("
         SELECT 
             id,
-            name,
+            display_name,
             reply_token,
             reply_token_expires,
             CASE 
@@ -185,7 +185,7 @@ try {
             $tokenPreview = substr($user['reply_token'], 0, 20) . '...';
             echo "<tr>";
             echo "<td>{$user['id']}</td>";
-            echo "<td>{$user['name']}</td>";
+            echo "<td>{$user['display_name']}</td>";
             echo "<td><code>{$tokenPreview}</code></td>";
             echo "<td>{$user['reply_token_expires']}</td>";
             echo "<td>{$user['token_status']}</td>";
