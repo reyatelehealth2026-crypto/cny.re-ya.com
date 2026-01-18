@@ -208,6 +208,17 @@ if (!$line) {
             $sourceType = $event['source']['type'] ?? 'user';
             $groupId = $event['source']['groupId'] ?? $event['source']['roomId'] ?? null;
             
+            // DEBUG: Log replyToken extraction for Account 3
+            if ($lineAccountId == 3) {
+                error_log("=== ACCOUNT 3 DEBUG ===");
+                error_log("Event Type: " . ($event['type'] ?? 'unknown'));
+                error_log("User ID: " . ($userId ?? 'none'));
+                error_log("Reply Token from event: " . ($event['replyToken'] ?? 'NULL'));
+                error_log("Reply Token variable: " . ($replyToken ?? 'NULL'));
+                error_log("Full event JSON: " . json_encode($event));
+                error_log("======================");
+            }
+            
             // Handle join/leave events (ไม่ต้องมี userId)
             if ($event['type'] === 'join') {
                 handleJoinGroup($event, $db, $line, $lineAccountId);
@@ -822,10 +833,29 @@ if (!$line) {
                     $expires = date('Y-m-d H:i:s', time() + 50); // หมดอายุใน 50 วินาที (เผื่อ delay)
                     $stmt = $db->prepare("UPDATE users SET reply_token = ?, reply_token_expires = ? WHERE id = ?");
                     $stmt->execute([$replyToken, $expires, $user['id']]);
+                    
+                    // DEBUG: Log for Account 3
+                    if ($lineAccountId == 3) {
+                        error_log("=== ACCOUNT 3 TOKEN SAVE ===");
+                        error_log("User ID: " . $user['id']);
+                        error_log("Reply Token: " . substr($replyToken, 0, 30) . "...");
+                        error_log("Expires: " . $expires);
+                        error_log("===========================");
+                    }
+                    
                     error_log("Reply token saved for user {$user['id']}, expires: {$expires}");
                 } catch (Exception $e) {
                     error_log('Reply token save failed: ' . $e->getMessage());
                     error_log('User ID: ' . ($user['id'] ?? 'unknown') . ', Token: ' . substr($replyToken, 0, 20));
+                }
+            } else {
+                // DEBUG: Log when no token for Account 3
+                if ($lineAccountId == 3) {
+                    error_log("=== ACCOUNT 3 NO TOKEN ===");
+                    error_log("User ID: " . ($user['id'] ?? 'unknown'));
+                    error_log("Message Type: " . $messageType);
+                    error_log("Message Content: " . mb_substr($messageContent, 0, 50));
+                    error_log("==========================");
                 }
             }
             
