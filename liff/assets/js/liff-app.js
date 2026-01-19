@@ -7777,19 +7777,26 @@ class LiffApp {
     }
 
     async confirmRedeem(rewardId) {
+        console.log('confirmRedeem called with rewardId:', rewardId);
+        
         const profile = window.store?.get('profile');
+        console.log('Profile:', profile);
+        
         if (!profile?.userId) {
+            console.error('No userId in profile');
             this.showToast('กรุณาเข้าสู่ระบบ', 'error');
             return;
         }
 
         // Show confirmation
         if (!confirm('ยืนยันการแลกรางวัลนี้?')) {
+            console.log('User cancelled confirmation');
             return;
         }
 
         // Show loading
         const btn = document.querySelector('.reward-redeem-btn');
+        console.log('Button found:', btn);
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังแลก...';
@@ -7801,13 +7808,23 @@ class LiffApp {
             formData.append('line_user_id', profile.userId);
             formData.append('line_account_id', this.config.ACCOUNT_ID);
             formData.append('reward_id', rewardId);
+            
+            console.log('Sending request to:', `${this.config.BASE_URL}/api/points-history.php`);
+            console.log('FormData:', {
+                action: 'redeem',
+                line_user_id: profile.userId,
+                line_account_id: this.config.ACCOUNT_ID,
+                reward_id: rewardId
+            });
 
             const response = await fetch(`${this.config.BASE_URL}/api/points-history.php`, {
                 method: 'POST',
                 body: formData
             });
 
+            console.log('Response status:', response.status);
             const data = await response.json();
+            console.log('Response data:', data);
 
             if (data.success) {
                 // Update member points
