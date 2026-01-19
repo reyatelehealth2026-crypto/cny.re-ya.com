@@ -7663,9 +7663,186 @@ class LiffApp {
         }
     }
 
-    showRewardDetail(rewardId) {
-        // TODO: Show reward detail modal
-        this.showToast('เร็วๆ นี้', 'info');
+    async showRewardDetail(rewardId) {
+        try {
+            // Fetch reward details
+            const response = await fetch(`${this.config.BASE_URL}/api/points.php?action=rewards&line_account_id=${this.config.ACCOUNT_ID}`);
+            const data = await response.json();
+
+            if (!data.success || !data.rewards) {
+                this.showToast('ไม่สามารถโหลดข้อมูลรางวัลได้', 'error');
+                return;
+            }
+
+            const reward = data.rewards.find(r => r.id == rewardId);
+            if (!reward) {
+                this.showToast('ไม่พบรางวัลนี้', 'error');
+                return;
+            }
+
+            const member = window.store?.get('member');
+            const userPoints = member?.points || 0;
+            const canRedeem = userPoints >= reward.points_required;
+
+            // Show modal
+            const modalHtml = `
+                <div class="modal-overlay" id="rewardDetailModal" onclick="if(event.target === this) window.liffApp.closeRewardModal()">
+                    <div class="modal-content reward-detail-modal">
+                        <button class="modal-close" onclick="window.liffApp.closeRewardModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+
+                        <div class="reward-detail-image">
+                            <img src="${reward.image_url || this.config.BASE_URL + '/assets/images/image-placeholder.svg'}"
+                                 alt="${reward.name}"
+                                 onerror="this.src='${this.config.BASE_URL}/assets/images/image-placeholder.svg'">
+                        </div>
+
+                        <div class="reward-detail-content">
+                            <h2 class="reward-detail-title">${reward.name}</h2>
+
+                            <div class="reward-detail-points">
+                                <i class="fas fa-coins"></i>
+                                <span>${this.formatNumber(reward.points_required)} แต้ม</span>
+                            </div>
+
+                            ${reward.description ? `
+                                <div class="reward-detail-description">
+                                    <h3>รายละเอียด</h3>
+                                    <p>${reward.description}</p>
+                                </div>
+                            ` : ''}
+
+                            ${reward.terms ? `
+                                <div class="reward-detail-terms">
+                                    <h3>เงื่อนไข</h3>
+                                    <p>${reward.terms}</p>
+                                </div>
+                            ` : ''}
+
+                            ${reward.stock && reward.stock > 0 && reward.stock <= 10 ? `
+                                <div class="reward-stock-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    เหลือเพียง ${reward.stock} รางวัล
+                                </div>
+                            ` : ''}
+
+                            <div class="reward-detail-balance">
+                                <span>แต้มของคุณ:</span>
+                                <strong class="${canRedeem ? 'text-success' : 'text-danger'}">
+                                    ${this.formatNumber(userPoints)} แต้ม
+                                </strong>
+                            </div>
+
+                            ${!canRedeem ? `
+                                <div class="reward-insufficient-notice">
+                                    <i class="fas fa-info-circle"></i>
+                                    ต้องการอีก ${this.formatNumber(reward.points_required - userPoints)} แต้ม
+                                </div>
+                            ` : ''}
+
+                            <button class="btn ${canRedeem ? 'btn-primary' : 'btn-disabled'} btn-lg btn-block reward-redeem-btn"
+                                    onclick="window.liffApp.confirmRedeem(${reward.id})"
+                                    ${!canRedeem ? 'disabled' : ''}>
+                                <i class="fas fa-gift"></i>
+                                ${canRedeem ? 'แลกรางวัลนี้' : 'แต้มไม่เพียงพอ'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Append to body
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = modalHtml;
+            document.body.appendChild(tempDiv.firstElementChild);
+
+            // Trigger animation
+            setTimeout(() => {
+                const modal = document.getElementById('rewardDetailModal');
+                if (modal) modal.classList.add('show');
+            }, 10);
+
+        } catch (error) {
+            console.error('Error showing reward detail:', error);
+            this.showToast('เกิดข้อผิดพลาด', 'error');
+        }
+    }
+
+    closeRewardModal() {
+        const modal = document.getElementById('rewardDetailModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+    }
+
+    async confirmRedeem(rewardId) {
+        const profile = window.store?.get('profile');
+        if (!profile?.userId) {
+            this.showToast('กรุณาเข้าสู่ระบบ', 'error');
+            return;
+        }
+
+        // Show confirmation
+        if (!confirm('ยืนยันการแลกรางวัลนี้?')) {
+            return;
+        }
+
+        // Show loading
+        const btn = document.querySelector('.reward-redeem-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังแลก...';
+        }
+
+        try {
+            const response = await fetch(`${this.config.BASE_URL}/api/points.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'redeem',
+                    line_user_id: profile.userId,
+                    line_account_id: this.config.ACCOUNT_ID,
+                    reward_id: rewardId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Update member points
+                const member = window.store?.get('member');
+                if (member && data.new_balance !== undefined) {
+                    member.points = data.new_balance;
+                    window.store?.set('member', member);
+                }
+
+                // Close modal
+                this.closeRewardModal();
+
+                // Show success
+                this.showToast('แลกรางวัลสำเร็จ! 🎉', 'success');
+
+                // Reload rewards list
+                setTimeout(() => this.loadRewards(), 500);
+
+            } else {
+                throw new Error(data.message || 'ไม่สามารถแลกรางวัลได้');
+            }
+
+        } catch (error) {
+            console.error('Error redeeming reward:', error);
+            this.showToast(error.message || 'เกิดข้อผิดพลาด', 'error');
+
+            // Restore button
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-gift"></i> แลกรางวัลนี้';
+            }
+        }
     }
 
     /**
