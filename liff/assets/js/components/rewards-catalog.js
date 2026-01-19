@@ -104,12 +104,18 @@ class RewardsCatalog {
      */
     async loadUserPoints(lineUserId) {
         try {
-            const url = `${this.config.baseUrl}/api/points-history.php?action=dashboard&line_user_id=${lineUserId}`;
+            const url = `${this.config.baseUrl}/api/points-history.php?action=dashboard&line_user_id=${lineUserId}&line_account_id=${this.config.accountId}`;
+            console.log('RewardsCatalog: Loading user points from:', url);
             const response = await fetch(url);
             const data = await response.json();
+            console.log('RewardsCatalog: User points response:', data);
 
             if (data.success && data.user) {
                 this.userPoints = parseInt(data.user.available_points) || 0;
+                console.log('RewardsCatalog: User points loaded:', this.userPoints);
+            } else {
+                console.warn('RewardsCatalog: Failed to load user points:', data.message);
+                this.userPoints = 0;
             }
         } catch (error) {
             console.error('RewardsCatalog: Failed to load user points', error);
@@ -307,9 +313,10 @@ class RewardsCatalog {
         if (isInsufficientPoints && !isOutOfStock) cardClasses += ' insufficient-points';
 
         return `
-            <div class="${cardClasses}" 
+            <div class="${cardClasses}"
                  data-reward-id="${reward.id}"
-                 onclick="${!isDisabled ? `window.rewardsCatalog?.showRewardDetail(${reward.id})` : ''}">
+                 onclick="window.rewardsCatalog?.showRewardDetail(${reward.id})"
+                 style="cursor: pointer;">
                 <div class="reward-card-image">
                     ${reward.image_url 
                         ? `<img src="${this.escapeHtml(reward.image_url)}" alt="${this.escapeHtml(reward.name)}" loading="lazy">`
@@ -619,15 +626,21 @@ class RewardsCatalog {
         const reward = this.rewards.find(r => r.id === rewardId);
         if (!reward) return;
 
+        console.log('RewardsCatalog: showRewardDetail called');
+        console.log('  - Reward ID:', rewardId);
+        console.log('  - Reward points required:', reward.points_required);
+        console.log('  - User points available:', this.userPoints);
+        console.log('  - Can redeem:', this.userPoints >= reward.points_required);
+
         this.selectedReward = reward;
-        
+
         // Remove existing modal if any
         const existingModal = document.getElementById('rewardDetailModal');
         if (existingModal) existingModal.remove();
 
         // Add modal to DOM
         document.body.insertAdjacentHTML('beforeend', this.renderRewardDetailModal(reward));
-        
+
         // Animate in
         setTimeout(() => {
             const modal = document.getElementById('rewardDetailModal');
