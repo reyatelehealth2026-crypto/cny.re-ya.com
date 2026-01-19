@@ -7636,8 +7636,8 @@ class LiffApp {
                     const canRedeem = userPoints >= reward.points_required && (reward.stock === null || reward.stock === -1 || reward.stock > 0);
                     const isOutOfStock = reward.stock !== null && reward.stock !== -1 && reward.stock <= 0;
                     html += `
-                        <div class="reward-card ${!canRedeem ? 'disabled' : ''}" onclick="${canRedeem ? `window.liffApp.showRewardDetail(${reward.id})` : ''}">
-                            <img src="${reward.image_url || this.config.BASE_URL + '/assets/images/image-placeholder.svg'}" 
+                        <div class="reward-card ${!canRedeem ? 'disabled' : ''}" data-reward-id="${reward.id}" data-can-redeem="${canRedeem}">
+                            <img src="${reward.image_url || this.config.BASE_URL + '/assets/images/image-placeholder.svg'}"
                                  class="reward-image"
                                  onerror="this.src='${this.config.BASE_URL}/assets/images/image-placeholder.svg'">
                             <div class="reward-info">
@@ -7649,6 +7649,19 @@ class LiffApp {
                     `;
                 });
                 container.innerHTML = html;
+
+                // Add click event listeners
+                container.querySelectorAll('.reward-card').forEach(card => {
+                    const rewardId = card.getAttribute('data-reward-id');
+                    const canRedeem = card.getAttribute('data-can-redeem') === 'true';
+
+                    if (canRedeem) {
+                        card.style.cursor = 'pointer';
+                        card.addEventListener('click', () => {
+                            this.showRewardDetail(parseInt(rewardId));
+                        });
+                    }
+                });
             } else {
                 container.innerHTML = `
                     <div class="empty-state" style="padding: 40px 20px; text-align: center;">
