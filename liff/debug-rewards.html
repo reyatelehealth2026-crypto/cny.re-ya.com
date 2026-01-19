@@ -381,6 +381,14 @@
                 // Log summary instead of full data
                 if (data.rewards) {
                     console.log(`📦 Received ${data.rewards.length} rewards`);
+                    // Show first reward as sample
+                    if (data.rewards.length > 0) {
+                        console.log('Sample reward:', {
+                            id: data.rewards[0].id,
+                            name: data.rewards[0].name,
+                            points: data.rewards[0].points_required
+                        });
+                    }
                 } else {
                     console.log('Response summary:', {
                         success: data.success,
