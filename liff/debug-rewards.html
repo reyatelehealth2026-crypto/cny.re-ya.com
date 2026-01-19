@@ -375,16 +375,21 @@
                 console.log('Response status:', response.status);
                 console.log('Response headers:', Object.fromEntries(response.headers.entries()));
                 
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
+                // Try to parse as JSON first
+                let data;
+                try {
+                    data = await response.json();
+                    console.log('✅ JSON parsed successfully');
+                    console.log('Response data:', data);
+                } catch (jsonError) {
+                    // If JSON parsing fails, get text and show error
+                    console.error('❌ JSON parsing failed:', jsonError.message);
                     const text = await response.text();
-                    console.error('Non-JSON response received:', text.substring(0, 500));
-                    console.error('Full response:', text);
-                    throw new Error('API returned non-JSON response. Check console for details.');
+                    console.error('Response text (first 1000 chars):', text.substring(0, 1000));
+                    console.error('Response text (last 500 chars):', text.substring(Math.max(0, text.length - 500)));
+                    console.error('Total response length:', text.length, 'characters');
+                    throw new Error('Failed to parse JSON response. Check console for details.');
                 }
-                
-                const data = await response.json();
-                console.log('Response data:', data);
                 
                 // If response has error details, log them
                 if (!data.success && data.error) {
@@ -401,20 +406,25 @@
                     rewards = data.rewards;
                     console.log(`✅ Loaded ${rewards.length} rewards`);
                     
+                    if (rewards.length === 0) {
+                        rewardsDiv.innerHTML = '<p class="log-entry warning">⚠️ No rewards found for this account</p>';
+                        return;
+                    }
+                    
                     let html = '';
                     rewards.forEach((reward, index) => {
                         html += `
                             <div class="reward-card">
                                 <h3>
                                     ${reward.name}
-                                    <span class="status-badge ${reward.is_active ? 'active' : 'inactive'}">
-                                        ${reward.is_active ? 'Active' : 'Inactive'}
+                                    <span class="status-badge ${reward.is_active == '1' ? 'active' : 'inactive'}">
+                                        ${reward.is_active == '1' ? 'Active' : 'Inactive'}
                                     </span>
                                 </h3>
                                 <p>
                                     <strong>ID:</strong> ${reward.id} | 
                                     <strong>Points:</strong> ${reward.points_required} | 
-                                    <strong>Stock:</strong> ${reward.stock === null || reward.stock === -1 ? 'Unlimited' : reward.stock}
+                                    <strong>Stock:</strong> ${reward.stock === null || reward.stock === '-1' ? 'Unlimited' : reward.stock}
                                 </p>
                                 <button class="btn btn-success" onclick="testRedeemSpecific(${reward.id})">
                                     Test Redeem This
@@ -423,10 +433,10 @@
                         `;
                     });
                     
-                    rewardsDiv.innerHTML = html || '<p>No rewards found</p>';
+                    rewardsDiv.innerHTML = html;
                 } else {
-                    console.warn('⚠️ No rewards in response');
-                    rewardsDiv.innerHTML = '<p class="log-entry warning">No rewards available</p>';
+                    console.warn('⚠️ No rewards in response or request failed');
+                    rewardsDiv.innerHTML = `<p class="log-entry warning">No rewards available. Error: ${data.error || 'Unknown'}</p>`;
                 }
                 
             } catch (error) {
