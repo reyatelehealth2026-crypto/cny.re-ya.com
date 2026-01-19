@@ -7624,7 +7624,7 @@ class LiffApp {
         if (!container) return;
 
         try {
-            const response = await fetch(`${this.config.BASE_URL}/api/points-history.php?action=rewards&line_account_id=${this.config.ACCOUNT_ID}`);
+            const response = await fetch(`${this.config.BASE_URL}/api/rewards.php?action=rewards&line_account_id=${this.config.ACCOUNT_ID}`);
             const data = await response.json();
 
             if (data.success && data.rewards?.length > 0) {
@@ -7667,7 +7667,7 @@ class LiffApp {
     async showRewardDetail(rewardId) {
         try {
             // Fetch reward details
-            const response = await fetch(`${this.config.BASE_URL}/api/points-history.php?action=rewards&line_account_id=${this.config.ACCOUNT_ID}`);
+            const response = await fetch(`${this.config.BASE_URL}/api/rewards.php?action=rewards&line_account_id=${this.config.ACCOUNT_ID}`);
             const data = await response.json();
 
             if (!data.success || !data.rewards) {
@@ -7818,10 +7818,10 @@ class LiffApp {
                 reward_id: rewardId
             };
             
-            console.log('📤 Sending request to:', `${this.config.BASE_URL}/api/points-history.php`);
+            console.log('📤 Sending request to:', `${this.config.BASE_URL}/api/rewards.php`);
             console.log('📤 Request data:', requestData);
 
-            const response = await fetch(`${this.config.BASE_URL}/api/points-history.php`, {
+            const response = await fetch(`${this.config.BASE_URL}/api/rewards.php`, {
                 method: 'POST',
                 body: formData
             });

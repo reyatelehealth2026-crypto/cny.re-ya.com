@@ -504,6 +504,13 @@ class LoyaltyPoints
 
     public function updateRedemptionStatus($redemptionId, $status, $adminId = null, $notes = null)
     {
+        // Validate status against ENUM values
+        $validStatuses = ['pending', 'approved', 'delivered', 'cancelled'];
+        if (!in_array($status, $validStatuses)) {
+            error_log("Invalid redemption status: $status. Must be one of: " . implode(', ', $validStatuses));
+            return false;
+        }
+        
         $updates = ['status = ?'];
         $params = [$status];
         if ($status === 'approved') { $updates[] = 'approved_by = ?'; $updates[] = 'approved_at = NOW()'; $params[] = $adminId; }
