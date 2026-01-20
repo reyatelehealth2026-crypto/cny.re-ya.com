@@ -17,31 +17,7 @@ $messageType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['member_action'])) {
     $action = $_POST['member_action'];
 
-    if ($action === 'add_points') {
-        $userId = (int) $_POST['user_id'];
-        $points = (int) $_POST['points'];
-        $description = trim($_POST['description'] ?? 'เพิ่มแต้มโดยแอดมิน');
-
-        if ($userId && $points != 0) {
-            // Get current points
-            $stmt = $db->prepare("SELECT points FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-            $user = $stmt->fetch();
-            $newBalance = ($user['points'] ?? 0) + $points;
-
-            // Update points
-            $stmt = $db->prepare("UPDATE users SET points = ? WHERE id = ?");
-            $stmt->execute([$newBalance, $userId]);
-
-            // Log
-            $type = 'adjust';
-            $stmt = $db->prepare("INSERT INTO points_history (user_id, points, type, description, balance_after) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$userId, $points, $type, $description, $newBalance]);
-
-            $message = ($points > 0 ? 'เพิ่ม' : 'หัก') . 'แต้มสำเร็จ!';
-            $messageType = 'success';
-        }
-    } elseif ($action === 'update_tier') {
+    if ($action === 'update_tier') {
         $userId = (int) $_POST['user_id'];
         $tier = $_POST['tier'];
 
@@ -192,7 +168,8 @@ try {
             <option value="">ทุกระดับ</option>
             <?php foreach ($allTiers as $t): ?>
                 <option value="<?= $t['tier_code'] ?>" <?= $tier === $t['tier_code'] ? 'selected' : '' ?>>
-                    <?= $t['icon'] ?? '🏅' ?>     <?= htmlspecialchars($t['tier_name']) ?></option>
+                    <?= $t['icon'] ?? '🏅' ?>     <?= htmlspecialchars($t['tier_name']) ?>
+                </option>
             <?php endforeach; ?>
         </select>
         <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
@@ -255,16 +232,11 @@ try {
                             <?= ($hasRegisteredAt && $member['registered_at']) ? date('d/m/Y', strtotime($member['registered_at'])) : '-' ?>
                         </td>
                         <td class="px-4 py-3 text-center">
-                            <button
-                                onclick="openPointsModal(<?= $member['id'] ?>, '<?= htmlspecialchars($member['first_name'] ?? '') ?>', <?= $hasPoints ? ($member['points'] ?? 0) : 0 ?>)"
-                                class="px-3 py-1 bg-purple-100 text-purple-600 rounded-lg text-sm hover:bg-purple-200"
-                                title="จัดการแต้ม">
-                                <i class="fas fa-coins"></i>
-                            </button>
                             <a href="user-detail.php?id=<?= $member['id'] ?>"
-                                class="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200"
-                                title="ดูรายละเอียด">
+                                class="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200 inline-flex items-center gap-1"
+                                title="ดูรายละเอียด / จัดการแต้ม">
                                 <i class="fas fa-eye"></i>
+                                <span class="hidden sm:inline">ดูรายละเอียด</span>
                             </a>
                         </td>
                     </tr>
@@ -295,51 +267,3 @@ try {
         </div>
     <?php endif; ?>
 </div>
-
-<!-- Points Modal -->
-<div id="pointsModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-lg font-bold mb-4"><i class="fas fa-coins text-yellow-500 mr-2"></i>จัดการแต้ม</h3>
-        <form method="POST">
-            <input type="hidden" name="member_action" value="add_points">
-            <input type="hidden" name="user_id" id="modal_user_id">
-
-            <p class="mb-2">สมาชิก: <b id="modal_user_name"></b></p>
-            <p class="mb-4">แต้มปัจจุบัน: <b id="modal_current_points" class="text-purple-600"></b></p>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium mb-1">จำนวนแต้ม (ใส่ - เพื่อหัก)</label>
-                <input type="number" name="points" required class="w-full px-4 py-2 border rounded-lg"
-                    placeholder="เช่น 100 หรือ -50">
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium mb-1">หมายเหตุ</label>
-                <input type="text" name="description" class="w-full px-4 py-2 border rounded-lg"
-                    placeholder="เหตุผลในการเพิ่ม/หักแต้ม">
-            </div>
-
-            <div class="flex gap-2">
-                <button type="button" onclick="closePointsModal()"
-                    class="flex-1 py-2 border rounded-lg hover:bg-gray-50">ยกเลิก</button>
-                <button type="submit"
-                    class="flex-1 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">บันทึก</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-    function openPointsModal(userId, name, points) {
-        document.getElementById('modal_user_id').value = userId;
-        document.getElementById('modal_user_name').textContent = name;
-        document.getElementById('modal_current_points').textContent = points.toLocaleString();
-        document.getElementById('pointsModal').classList.remove('hidden');
-        document.getElementById('pointsModal').classList.add('flex');
-    }
-
-    function closePointsModal() {
-        document.getElementById('pointsModal').classList.add('hidden');
-        document.getElementById('pointsModal').classList.remove('flex');
-    }
-</script>
