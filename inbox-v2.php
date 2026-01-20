@@ -1003,6 +1003,7 @@ function formatThaiDateTime($datetime) {
 .user-item.active { background: #E0F2F1; border-left: 3px solid #0C665D; }
 .user-item:hover { background: #F5F5F5; }
 .user-item.sla-warning { border-left: 3px solid #F97316; background: #FFF7ED; }
+.user-item.filter-hidden { display: none !important; }
 .tag-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 9999px; font-weight: 500; }
 
 /* Chat area background - Light gray like LINE OA */
@@ -5931,8 +5932,15 @@ function applyFilters() {
             }
         }
 
-        item.style.display = show ? '' : 'none';
-        if (show) showCount++;
+        // Apply visibility using class instead of inline style
+        if (show) {
+            item.classList.remove('filter-hidden');
+            item.style.display = '';
+            showCount++;
+        } else {
+            item.classList.add('filter-hidden');
+            item.style.display = 'none';
+        }
     });
 
     console.log(`[Filter] Showing ${showCount} of ${totalCount} conversations`);
