@@ -10,6 +10,7 @@
 // This file is included from membership.php
 // Variables available: $db, $lineAccountId, $adminId, $loyalty
 // AJAX handlers are now in membership.php (before HTML output)
+// Notification function is in includes/functions/reward_notifications.php
 
 // Check if required tables exist
 try {
@@ -54,39 +55,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     }
     fclose($output);
     exit;
-}
-
-// Helper function to send LINE notification
-function sendRedemptionNotification($db, $lineAccountId, $redemptionId, $status) {
-    try {
-        $stmt = $db->prepare("SELECT rr.*, r.name as reward_name, u.line_user_id FROM reward_redemptions rr
-            JOIN rewards r ON rr.reward_id = r.id JOIN users u ON rr.user_id = u.id WHERE rr.id = ?");
-        $stmt->execute([$redemptionId]);
-        $redemption = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$redemption) return false;
-        
-        $stmt = $db->prepare("SELECT channel_access_token FROM line_accounts WHERE id = ?");
-        $stmt->execute([$lineAccountId]);
-        $account = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$account || empty($account['channel_access_token'])) return false;
-        
-        $messages = [
-            'approved' => "✅ รางวัลได้รับการอนุมัติ\n\nรางวัล: {$redemption['reward_name']}\nรหัส: {$redemption['redemption_code']}\n\nกรุณาติดต่อรับรางวัลที่ร้าน",
-            'delivered' => "🎁 ส่งมอบรางวัลแล้ว\n\nรางวัล: {$redemption['reward_name']}\nรหัส: {$redemption['redemption_code']}\n\nขอบคุณที่ใช้บริการ",
-            'cancelled' => "❌ ยกเลิกการแลกรางวัล\n\nรางวัล: {$redemption['reward_name']}\n\nแต้มได้ถูกคืนเข้าบัญชีของคุณแล้ว"
-        ];
-        $msg = $messages[$status] ?? null;
-        if (!$msg) return false;
-        
-        $data = ['to' => $redemption['line_user_id'], 'messages' => [['type' => 'text', 'text' => $msg]]];
-        $ch = curl_init('https://api.line.me/v2/bot/message/push');
-        curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . $account['channel_access_token']],
-            CURLOPT_POSTFIELDS => json_encode($data)]);
-        curl_exec($ch);
-        curl_close($ch);
-        return true;
-    } catch (Exception $e) { return false; }
 }
 
 // Get data for display

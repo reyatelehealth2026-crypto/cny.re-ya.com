@@ -8631,7 +8631,8 @@ async function checkForNewMessages() {
 
 /**
  * Progressive Conversation Loader
- * Uses Intersection Observer for infinite scroll
+ * Auto-loads all conversations for complete search capability
+ * Uses batch loading with delays to prevent UI blocking
  */
 class ConversationLoader {
     constructor() {
@@ -8640,6 +8641,8 @@ class ConversationLoader {
         this.cursor = null;
         this.loadedCount = 0;
         this.observer = null;
+        this.autoLoadEnabled = true; // Auto load all conversations
+        this.batchDelay = 100; // Delay between batches (ms) for smooth UI
 
         this.init();
     }
@@ -8655,18 +8658,67 @@ class ConversationLoader {
         this.hasMore = sentinel.dataset.hasMore === 'true';
         this.loadedCount = document.querySelectorAll('#userList .user-item').length;
 
-        // Setup Intersection Observer
+        // Setup Intersection Observer for manual scroll (fallback)
         this.observer = new IntersectionObserver(
             (entries) => this.handleIntersection(entries),
             {
                 root: document.getElementById('userList'),
-                rootMargin: '200px', // Start loading 200px before reaching bottom
+                rootMargin: '200px',
                 threshold: 0
             }
         );
 
         this.observer.observe(sentinel);
         console.log(`[Progressive Load] Initialized with ${this.loadedCount} conversations, cursor: ${this.cursor}`);
+
+        // Auto-load all conversations in background
+        if (this.autoLoadEnabled && this.hasMore) {
+            this.autoLoadAll();
+        }
+    }
+
+    /**
+     * Auto-load all remaining conversations
+     * Runs in background with small delays to keep UI responsive
+     */
+    async autoLoadAll() {
+        console.log('[Progressive Load] Starting auto-load of all conversations...');
+
+        while (this.hasMore && !this.isLoading) {
+            await this.loadMore();
+
+            // Small delay between batches to keep UI responsive
+            if (this.hasMore) {
+                await new Promise(resolve => setTimeout(resolve, this.batchDelay));
+            }
+        }
+
+        console.log(`[Progressive Load] Auto-load complete. Total: ${this.loadedCount} conversations`);
+
+        // Notify that all conversations are loaded
+        this.onAllLoaded();
+    }
+
+    /**
+     * Called when all conversations are loaded
+     */
+    onAllLoaded() {
+        // Update UI to show all loaded
+        const infoEl = document.getElementById('loadMoreInfo');
+        if (infoEl) {
+            infoEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> โหลดครบ ${this.loadedCount} รายการ`;
+        }
+
+        // Hide sentinel
+        const sentinel = document.getElementById('loadMoreSentinel');
+        if (sentinel) {
+            sentinel.style.display = 'none';
+        }
+
+        // Dispatch event for other components
+        window.dispatchEvent(new CustomEvent('conversationsFullyLoaded', {
+            detail: { count: this.loadedCount }
+        }));
     }
 
     async handleIntersection(entries) {
@@ -8732,11 +8784,14 @@ class ConversationLoader {
     createConversationElement(conv) {
         const userId = conv.id || conv.user_id;
         const displayName = conv.display_name || 'Unknown';
-        const lastMsg = this.getMessagePreview(conv.last_message || conv.last_msg, conv.last_type);
+        const lastMsg = this.getMessagePreview(conv.last_message_preview || conv.last_message || conv.last_msg, conv.last_message_type || conv.last_type);
         const lastTime = this.formatThaiTime(conv.last_message_at || conv.last_time);
         const unreadCount = conv.unread_count || conv.unread || 0;
         const pictureUrl = conv.picture_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23e5e7eb'/%3E%3Cpath d='M20 22c3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6 2.7 6 6 6zm0 3c-4 0-12 2-12 6v3h24v-3c0-4-8-6-12-6z' fill='%239ca3af'/%3E%3C/svg%3E";
         const chatStatus = conv.chat_status || '';
+        const assignees = conv.assignees || [];
+        const tags = conv.tags || [];
+        const tagIds = tags.map(t => t.id || t).join(',');
 
         const element = document.createElement('a');
         element.href = `?user=${userId}`;
@@ -8744,7 +8799,13 @@ class ConversationLoader {
         element.dataset.userId = userId;
         element.dataset.name = displayName.toLowerCase();
         element.dataset.chatStatus = chatStatus;
+        element.dataset.tags = tagIds;
+        element.dataset.assigned = assignees.length > 0 ? '1' : '0';
         element.tabIndex = 0;
+
+        // Store assignees for filter
+        if (!window.conversationAssignees) window.conversationAssignees = {};
+        window.conversationAssignees[userId] = assignees.map(a => typeof a === 'object' ? a.admin_id || a : a);
 
         // Chat status badge HTML
         const statusBadges = {
@@ -8780,6 +8841,11 @@ class ConversationLoader {
                     <p class="last-msg text-xs text-gray-500 truncate">${this.escapeHtml(lastMsg)}</p>
                     <div class="flex items-center gap-1 mt-1 flex-wrap">
                         ${statusBadgeHtml}
+                        ${assignees.length > 0 ? `
+                            <span class="text-[9px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                                <i class="fas fa-user-check"></i> ${assignees.length === 1 ? 'มอบหมายแล้ว' : assignees.length + ' คน'}
+                            </span>
+                        ` : ''}
                     </div>
                 </div>
             </div>

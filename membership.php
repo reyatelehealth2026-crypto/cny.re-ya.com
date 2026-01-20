@@ -34,6 +34,9 @@ try {
     // LoyaltyPoints class not available
 }
 
+// Include reward notification functions (just the function, no display logic)
+require_once __DIR__ . '/includes/functions/reward_notifications.php';
+
 // Handle AJAX requests BEFORE any HTML output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reward_action'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -116,30 +119,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reward_action'])) {
             case 'approve_redemption':
                 $redemptionId = (int)($_POST['redemption_id'] ?? 0);
                 $notes = trim($_POST['notes'] ?? '');
+
+                // Get redemption details for notification
+                $stmt = $db->prepare("
+                    SELECT rr.*, r.name as reward_name, u.line_user_id, u.display_name
+                    FROM reward_redemptions rr
+                    JOIN rewards r ON rr.reward_id = r.id
+                    JOIN users u ON rr.user_id = u.id
+                    WHERE rr.id = ?
+                ");
+                $stmt->execute([$redemptionId]);
+                $redemption = $stmt->fetch(PDO::FETCH_ASSOC);
+
                 $loyalty->updateRedemptionStatus($redemptionId, 'approved', $adminId, $notes);
-                // Send notification (defined later in the file)
+
+                // Send LINE notification
+                if ($redemption) {
+                    sendRedemptionNotification($db, $lineAccountId, $redemption, 'approved');
+                }
+
                 echo json_encode(['success' => true, 'message' => 'อนุมัติสำเร็จ']);
                 exit;
                 
             case 'deliver_redemption':
                 $redemptionId = (int)($_POST['redemption_id'] ?? 0);
                 $notes = trim($_POST['notes'] ?? '');
+
+                // Get redemption details for notification
+                $stmt = $db->prepare("
+                    SELECT rr.*, r.name as reward_name, u.line_user_id, u.display_name
+                    FROM reward_redemptions rr
+                    JOIN rewards r ON rr.reward_id = r.id
+                    JOIN users u ON rr.user_id = u.id
+                    WHERE rr.id = ?
+                ");
+                $stmt->execute([$redemptionId]);
+                $redemption = $stmt->fetch(PDO::FETCH_ASSOC);
+
                 $loyalty->updateRedemptionStatus($redemptionId, 'delivered', $adminId, $notes);
+
+                // Send LINE notification
+                if ($redemption) {
+                    sendRedemptionNotification($db, $lineAccountId, $redemption, 'delivered');
+                }
+
                 echo json_encode(['success' => true, 'message' => 'บันทึกการส่งมอบสำเร็จ']);
                 exit;
                 
             case 'cancel_redemption':
                 $redemptionId = (int)($_POST['redemption_id'] ?? 0);
                 $notes = trim($_POST['notes'] ?? '');
-                $stmt = $db->prepare("SELECT * FROM reward_redemptions WHERE id = ?");
+
+                // Get redemption details with reward and user info
+                $stmt = $db->prepare("
+                    SELECT rr.*, r.name as reward_name, u.line_user_id, u.display_name
+                    FROM reward_redemptions rr
+                    JOIN rewards r ON rr.reward_id = r.id
+                    JOIN users u ON rr.user_id = u.id
+                    WHERE rr.id = ?
+                ");
                 $stmt->execute([$redemptionId]);
                 $redemption = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($redemption && $redemption['status'] !== 'delivered') {
                     $loyalty->addPoints($redemption['user_id'], $redemption['points_used'], 'refund', $redemptionId, 'คืนแต้มจากการยกเลิก');
                     $stmt = $db->prepare("UPDATE rewards SET stock = stock + 1 WHERE id = ? AND stock >= 0");
                     $stmt->execute([$redemption['reward_id']]);
                     $loyalty->updateRedemptionStatus($redemptionId, 'cancelled', $adminId, $notes);
+
+                    // Send LINE notification
+                    sendRedemptionNotification($db, $lineAccountId, $redemption, 'cancelled');
+
                     echo json_encode(['success' => true, 'message' => 'ยกเลิกและคืนแต้มสำเร็จ']);
                 } else {
                     echo json_encode(['success' => false, 'message' => 'ไม่สามารถยกเลิกได้']);

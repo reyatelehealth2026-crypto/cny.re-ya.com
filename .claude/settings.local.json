@@ -14,7 +14,15 @@
       "Bash(npm install:*)",
       "Bash(claude --version:*)",
       "Bash(claude setup-token)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(cat:*)",
+      "Bash(bash:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(grep:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }

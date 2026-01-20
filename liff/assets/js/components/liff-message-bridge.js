@@ -21,7 +21,7 @@ class LiffMessageBridge {
             'order_placed': (data) => `สั่งซื้อสำเร็จ #${data.orderId}`,
             'appointment_booked': (data) => `นัดหมายสำเร็จ ${data.date} ${data.time}`,
             'consult_request': (data) => `ขอปรึกษาเภสัชกร`,
-            'points_redeemed': (data) => `แลกแต้มสำเร็จ ${data.points} แต้ม`,
+            'points_redeemed': (data) => `แลกสำเร็จ!\nรหัสรับรางวัลของคุณ\n${data.redemption_code}`,
             'health_updated': (data) => `อัพเดทข้อมูลสุขภาพ`,
             'prescription_request': (data) => `ขออนุมัติยา Rx #${data.productId || ''}`,
             'video_call_ended': (data) => `สิ้นสุดการปรึกษา ${data.duration || ''}`,

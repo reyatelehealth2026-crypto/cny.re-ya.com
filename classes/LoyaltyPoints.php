@@ -44,9 +44,50 @@ class LoyaltyPoints
 
     public function getUserPoints($userId)
     {
-        $stmt = $this->db->prepare("SELECT total_points, available_points, used_points FROM users WHERE id = ?");
+        // First, try to get from points_transactions
+        $stmt = $this->db->prepare("
+            SELECT
+                COALESCE(SUM(CASE WHEN points > 0 THEN points ELSE 0 END), 0) as total_points,
+                COALESCE(SUM(points), 0) as available_points,
+                COALESCE(SUM(CASE WHEN points < 0 THEN ABS(points) ELSE 0 END), 0) as used_points
+            FROM points_transactions
+            WHERE user_id = ?
+        ");
         $stmt->execute([$userId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_points' => 0, 'available_points' => 0, 'used_points' => 0];
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        error_log("getUserPoints: Query points_transactions result: " . json_encode($result));
+
+        // If no data in points_transactions, fallback to users table
+        if (!$result || (int)$result['available_points'] === 0) {
+            error_log("getUserPoints: No data in points_transactions, checking users table");
+            $stmt = $this->db->prepare("SELECT total_points, available_points, used_points, points FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $userResult = $stmt->fetch(PDO::FETCH_ASSOC);
+            error_log("getUserPoints: Users table result: " . json_encode($userResult));
+
+            if ($userResult) {
+                // Use 'points' column if available_points is 0 but points has value (same logic as points-history.php)
+                if (empty($userResult['available_points']) && !empty($userResult['points'])) {
+                    $userResult['available_points'] = $userResult['points'];
+                    $userResult['total_points'] = $userResult['points'];
+                    error_log("getUserPoints: Using 'points' column as fallback: " . $userResult['points']);
+                }
+
+                if ((int)$userResult['available_points'] > 0) {
+                    return $userResult;
+                }
+            }
+        }
+
+        if (!$result) {
+            return ['total_points' => 0, 'available_points' => 0, 'used_points' => 0];
+        }
+
+        // Ensure available_points is not negative
+        $result['available_points'] = max(0, (int)$result['available_points']);
+
+        return $result;
     }
     
     /**
@@ -375,7 +416,18 @@ class LoyaltyPoints
         }
 
         $userPoints = $this->getUserPoints($userId);
+
+        error_log("LoyaltyPoints: Checking points for redemption");
+        error_log("  - userId: $userId");
+        error_log("  - rewardId: $rewardId");
+        error_log("  - lineAccountId: {$this->lineAccountId}");
+        error_log("  - userPoints: " . json_encode($userPoints));
+        error_log("  - available_points: {$userPoints['available_points']}");
+        error_log("  - points_required: {$reward['points_required']}");
+        error_log("  - has enough: " . ($userPoints['available_points'] >= $reward['points_required'] ? 'YES' : 'NO'));
+
         if ($userPoints['available_points'] < $reward['points_required']) {
+            error_log("LoyaltyPoints: Points not enough - returning error");
             return ['success' => false, 'message' => 'แต้มไม่เพียงพอ'];
         }
 
@@ -529,20 +581,41 @@ class LoyaltyPoints
     public function updateRedemptionStatus($redemptionId, $status, $adminId = null, $notes = null)
     {
         // Validate status against ENUM values
-        $validStatuses = ['pending', 'approved', 'delivered', 'cancelled'];
-        if (!in_array($status, $validStatuses)) {
+        $validStatuses = ['pending', 'approved', 'delivered', 'cancelled', 'expired'];
+
+        error_log("updateRedemptionStatus called:");
+        error_log("  - redemptionId: $redemptionId");
+        error_log("  - status: '$status' (length: " . strlen($status) . ")");
+        error_log("  - adminId: $adminId");
+        error_log("  - notes: $notes");
+        error_log("  - status type: " . gettype($status));
+        error_log("  - status hex: " . bin2hex($status));
+
+        if (!in_array($status, $validStatuses, true)) {
             error_log("Invalid redemption status: $status. Must be one of: " . implode(', ', $validStatuses));
             return false;
         }
-        
+
         $updates = ['status = ?'];
         $params = [$status];
         if ($status === 'approved') { $updates[] = 'approved_by = ?'; $updates[] = 'approved_at = NOW()'; $params[] = $adminId; }
         elseif ($status === 'delivered') { $updates[] = 'delivered_at = NOW()'; }
         if ($notes) { $updates[] = 'notes = ?'; $params[] = $notes; }
         $params[] = $redemptionId;
-        $stmt = $this->db->prepare("UPDATE reward_redemptions SET " . implode(', ', $updates) . " WHERE id = ?");
-        return $stmt->execute($params);
+
+        $sql = "UPDATE reward_redemptions SET " . implode(', ', $updates) . " WHERE id = ?";
+        error_log("  - SQL: $sql");
+        error_log("  - Params: " . json_encode($params));
+
+        $stmt = $this->db->prepare($sql);
+        $result = $stmt->execute($params);
+
+        error_log("  - Execute result: " . ($result ? 'SUCCESS' : 'FAILED'));
+        if (!$result) {
+            error_log("  - Error info: " . json_encode($stmt->errorInfo()));
+        }
+
+        return $result;
     }
 
     public function getPointsSummary()

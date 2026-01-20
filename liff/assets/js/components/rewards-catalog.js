@@ -355,9 +355,15 @@ class RewardsCatalog {
      * @returns {string} HTML string
      */
     renderRewardDetailModal(reward) {
-        const canRedeem = this.userPoints >= reward.points_required && 
+        const canRedeem = this.userPoints >= reward.points_required &&
                          (reward.stock_quantity < 0 || reward.stock_quantity > 0);
-        
+
+        console.log('RewardsCatalog: renderRewardDetailModal');
+        console.log('  - this.userPoints:', this.userPoints);
+        console.log('  - reward.points_required:', reward.points_required);
+        console.log('  - reward.stock_quantity:', reward.stock_quantity);
+        console.log('  - canRedeem:', canRedeem);
+
         let stockText = '';
         if (reward.stock_quantity < 0) {
             stockText = '<i class="fas fa-infinity"></i> ไม่จำกัดจำนวน';
@@ -426,14 +432,18 @@ class RewardsCatalog {
                             <button class="btn btn-outline" onclick="window.rewardsCatalog?.closeRewardDetail()">
                                 ยกเลิก
                             </button>
-                            <button class="btn btn-primary ${!canRedeem ? 'disabled' : ''}" 
+                            <button class="btn btn-primary ${!canRedeem ? 'disabled' : ''}"
                                     onclick="${canRedeem ? `window.rewardsCatalog?.confirmRedemption(${reward.id})` : ''}"
                                     ${!canRedeem ? 'disabled' : ''}>
-                                ${!canRedeem 
+                                ${!canRedeem
                                     ? '<i class="fas fa-lock"></i> แต้มไม่พอ'
                                     : '<i class="fas fa-exchange-alt"></i> แลกเลย'}
                             </button>
                         </div>
+                        <script>
+                            console.log('Button HTML generated - canRedeem:', ${canRedeem});
+                            console.log('Button text should be:', ${canRedeem ? '"แลกเลย"' : '"แต้มไม่พอ"'});
+                        </script>
                     </div>
                 </div>
             </div>
@@ -669,11 +679,32 @@ class RewardsCatalog {
         const reward = this.rewards.find(r => r.id === rewardId);
         if (!reward) return;
 
+        console.log('RewardsCatalog: confirmRedemption - checking points');
+        console.log('  - this.userPoints:', this.userPoints);
+        console.log('  - reward.points_required:', reward.points_required);
+        console.log('  - Has enough:', this.userPoints >= reward.points_required);
+
         // Check if user has enough points
         if (this.userPoints < reward.points_required) {
+            console.log('RewardsCatalog: Not enough points!');
             this.showToast('แต้มไม่เพียงพอ', 'error');
             return;
         }
+
+        // Show confirmation dialog
+        const confirmed = confirm(
+            `ยืนยันการแลกรางวัล\n\n` +
+            `${reward.name}\n` +
+            `ใช้แต้ม: ${reward.points_required} คะแนน\n\n` +
+            `คุณแน่ใจหรือไม่ที่จะแลกรางวัลนี้?`
+        );
+
+        if (!confirmed) {
+            console.log('RewardsCatalog: User cancelled redemption');
+            return;
+        }
+
+        console.log('RewardsCatalog: User confirmed, proceeding with redemption');
 
         // Show loading state
         const btn = document.querySelector('.reward-detail-actions .btn-primary');
@@ -683,28 +714,61 @@ class RewardsCatalog {
         }
 
         try {
+            // Get LINE user ID
+            const lineUserId = window.APP_CONFIG?.LINE_USER_ID ||
+                             (window.liff?.isLoggedIn() ? (await window.liff.getProfile()).userId : null);
+
+            console.log('RewardsCatalog: confirmRedemption');
+            console.log('  - LINE_USER_ID:', lineUserId);
+            console.log('  - reward_id:', rewardId);
+            console.log('  - line_account_id:', this.config.accountId);
+
+            if (!lineUserId) {
+                this.showToast('กรุณาเข้าสู่ระบบ LINE', 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-exchange-alt"></i> แลกเลย';
+                }
+                return;
+            }
+
             // Use rewards.php API for redemption
             const formData = new FormData();
             formData.append('action', 'redeem');
-            formData.append('line_user_id', window.APP_CONFIG?.LINE_USER_ID || '');
+            formData.append('line_user_id', lineUserId);
             formData.append('line_account_id', this.config.accountId);
             formData.append('reward_id', rewardId);
+
+            console.log('RewardsCatalog: Sending API request to:', `${this.config.baseUrl}/api/rewards.php`);
 
             const response = await fetch(`${this.config.baseUrl}/api/rewards.php`, {
                 method: 'POST',
                 body: formData
             });
+
+            console.log('RewardsCatalog: API response status:', response.status);
+
             const data = await response.json();
 
+            console.log('RewardsCatalog: API response data:', data);
+
             if (data.success) {
+                console.log('RewardsCatalog: Redemption successful!');
+                console.log('  - data:', data);
+                console.log('  - reward object:', reward);
+
                 // Close detail modal
                 this.closeRewardDetail();
+
+                // Get points from API response or local reward object
+                const pointsUsed = data.reward?.points_required || reward.points_required || 0;
+                console.log('  - pointsUsed:', pointsUsed);
 
                 // Update user points from response (Requirement 23.7 - deduct points)
                 if (data.new_balance !== undefined) {
                     this.userPoints = parseInt(data.new_balance) || 0;
                 } else {
-                    this.userPoints -= reward.points_required;
+                    this.userPoints -= pointsUsed;
                 }
 
                 // Update reward stock
@@ -712,18 +776,27 @@ class RewardsCatalog {
                     reward.stock_quantity--;
                 }
 
+                // Create reward object with all needed data
+                const rewardData = {
+                    name: data.reward?.name || reward.name,
+                    points_required: pointsUsed,
+                    points: pointsUsed // Add fallback field
+                };
+
                 // Show success modal (Requirement 23.8)
                 this.showSuccessModal({
                     redemption_code: data.redemption_code,
-                    reward_name: data.reward?.name || reward.name
+                    reward_name: rewardData.name,
+                    points_used: pointsUsed
                 });
 
                 // Send LINE notification (Requirement 23.9)
-                this.sendLineNotification(data.redemption_code, reward);
+                this.sendLineNotification(data.redemption_code, rewardData);
 
                 // Refresh data
                 await this.refreshData();
             } else {
+                console.log('RewardsCatalog: Redemption failed:', data.message || data.error);
                 this.showToast(data.message || data.error || 'ไม่สามารถแลกรางวัลได้', 'error');
                 if (btn) {
                     btn.disabled = false;
@@ -731,7 +804,7 @@ class RewardsCatalog {
                 }
             }
         } catch (error) {
-            console.error('RewardsCatalog: Redemption failed', error);
+            console.error('RewardsCatalog: Redemption exception:', error);
             this.showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
             if (btn) {
                 btn.disabled = false;
@@ -809,19 +882,22 @@ class RewardsCatalog {
      */
     async sendLineNotification(code, reward) {
         try {
+            console.log('RewardsCatalog: sendLineNotification');
+            console.log('  - code:', code);
+            console.log('  - reward.name:', reward.name);
+
             // Use LIFF message bridge if available
             if (window.LiffMessageBridge) {
                 const bridge = new window.LiffMessageBridge(this.config);
                 await bridge.sendActionMessage('points_redeemed', {
                     redemption_code: code,
-                    reward_name: reward.name,
-                    points_used: reward.points_required
+                    reward_name: reward.name
                 });
             } else if (typeof liff !== 'undefined' && liff.isInClient()) {
                 // Fallback to direct LIFF message
                 await liff.sendMessages([{
                     type: 'text',
-                    text: `แลกแต้มสำเร็จ ${reward.points_required} แต้ม\nรหัส: ${code}`
+                    text: `แลกสำเร็จ!\nรหัสรับรางวัลของคุณ\n${code}`
                 }]);
             }
         } catch (error) {
