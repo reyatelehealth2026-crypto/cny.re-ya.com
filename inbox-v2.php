@@ -5913,7 +5913,7 @@ function applyFilters() {
         if (assignee) {
             const userId = item.dataset.userId;
             const isAssigned = item.dataset.assigned === '1';
-            const itemAssignees = item.dataset.assignees ? item.dataset.assignees.split(',') : [];
+            const itemAssignees = item.dataset.assignees ? item.dataset.assignees.split(',').map(a => a.trim()) : [];
 
             if (assignee === 'me') {
                 // Check if assigned to current admin
@@ -5923,14 +5923,15 @@ function applyFilters() {
             } else if (assignee === 'unassigned') {
                 show = show && !isAssigned;
             } else {
-                // Check if assigned to specific admin
-                const assignedToAdmin = itemAssignees.includes(String(assignee)) ||
+                // Check if assigned to specific admin (compare as strings)
+                const assignedToAdmin = itemAssignees.includes(assignee) ||
+                                        itemAssignees.includes(String(assignee)) ||
                                         checkIfAssignedToAdmin(userId, assignee);
                 show = show && assignedToAdmin;
             }
         }
 
-        item.style.display = show ? 'block' : 'none';
+        item.style.display = show ? '' : 'none';
         if (show) showCount++;
     });
 
