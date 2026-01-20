@@ -694,15 +694,17 @@ class LiffApp {
             }
         }, 8000);
     }
-
     /**
-     * Check and show onboarding for first-time visitors
+     * Check and show onboarding for visitors
+     * Shows every time until user completes it by clicking "เริ่มใช้งาน"
      */
     checkAndShowOnboarding() {
-        const onboardingKey = `liff_onboarding_seen_${this.config.ACCOUNT_ID || 0}`;
-        const hasSeenOnboarding = localStorage.getItem(onboardingKey);
+        const onboardingKey = `liff_onboarding_completed_${this.config.ACCOUNT_ID || 0}`;
+        const hasCompletedOnboarding = localStorage.getItem(onboardingKey);
 
-        if (!hasSeenOnboarding) {
+        // Show onboarding if user hasn't completed it (clicked "เริ่มใช้งาน")
+        // Skipping won't save the preference - they'll see it again next time
+        if (!hasCompletedOnboarding) {
             // Small delay to let the page render first
             setTimeout(() => {
                 this.showOnboarding();
@@ -714,7 +716,7 @@ class LiffApp {
      * Show onboarding slides for first-time visitors
      */
     showOnboarding() {
-        const onboardingKey = `liff_onboarding_seen_${this.config.ACCOUNT_ID || 0}`;
+        const onboardingKey = `liff_onboarding_completed_${this.config.ACCOUNT_ID || 0}`;
 
         const slides = [
             {
@@ -783,8 +785,8 @@ class LiffApp {
         container.className = 'onboarding-overlay';
         container.innerHTML = `
             <div class="onboarding-modal">
-                <button class="onboarding-skip" onclick="this.closest('.onboarding-overlay').remove(); localStorage.setItem('${onboardingKey}', 'true');">
-                    ข้าม
+                <button class="onboarding-skip" onclick="this.closest('.onboarding-overlay').remove();">
+                    ข้าม (จะแสดงอีกครั้ง)
                 </button>
                 <div class="onboarding-slide-content">
                     <div class="onboarding-icon">${slides[0].icon}</div>
