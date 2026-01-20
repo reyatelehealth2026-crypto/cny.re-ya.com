@@ -213,24 +213,22 @@ try {
                         </td>
                         <td class="px-4 py-3">
                             <?php
-                            // Calculate tier from points using TierService (not stored member_tier)
-                            $memberPoints = $hasPoints ? (int) ($member['points'] ?? 0) : 0;
-                            $calculatedTier = $tierService->calculateTier($memberPoints);
-                            $t = strtolower($calculatedTier['tier_code']);
-                            $tierIcons = ['bronze' => '🥉', 'silver' => '🥈', 'gold' => '🥇', 'platinum' => '💎', 'vip' => '👑'];
-                            $tierColors = ['bronze' => 'bg-amber-100 text-amber-700', 'silver' => 'bg-gray-100 text-gray-700', 'gold' => 'bg-yellow-100 text-yellow-700', 'platinum' => 'bg-purple-100 text-purple-700', 'vip' => 'bg-pink-100 text-pink-700'];
+                            // Use available_points if exists, otherwise fallback to total_points or points
+                            $displayPoints = $member['available_points'] ?? $member['total_points'] ?? $member['points'] ?? 0;
+
+                            // Calculate tier dynamicallly
+                            $tierInfo = $tierService->calculateTier($displayPoints);
+                            $tierName = $tierInfo['tier_name'];
+                            $tierColor = $tierInfo['color'];
+                            $tierIcon = $tierInfo['icon'];
                             ?>
-                            <span class="px-2 py-1 rounded-full text-xs font-medium <?= $tierColors[$t] ?? '' ?>">
-                                <?= $tierIcons[$t] ?? '' ?>     <?= ucfirst($t) ?>
+                            <span class="px-2 py-1 rounded-full text-xs font-medium border"
+                                style="background-color: <?= $tierColor ?>15; color: <?= $tierColor ?>; border-color: <?= $tierColor ?>30;">
+                                <?= $tierIcon ?>     <?= htmlspecialchars($tierName) ?>
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right font-bold text-purple-600">
-                            <?php
-                            // Use available_points if exists, otherwise fallback to total_points or points
-                            // This matches logic in LoyaltyPoints::getUserPoints
-                            $displayPoints = $member['available_points'] ?? $member['total_points'] ?? $member['points'] ?? 0;
-                            echo number_format($displayPoints);
-                            ?>
+                            <?= number_format($displayPoints) ?>
                         </td>
                         <td class="px-4 py-3 text-sm"><?= $member['phone'] ?: '-' ?></td>
                         <td class="px-4 py-3 text-sm text-gray-500">

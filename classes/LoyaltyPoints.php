@@ -179,6 +179,9 @@ class LoyaltyPoints
         $stmt = $this->db->prepare("UPDATE users SET total_points = total_points + ?, available_points = available_points + ? WHERE id = ?");
         $stmt->execute([$points, $points, $userId]);
 
+        // Update tier
+        $this->updateUserTier($userId, $newBalance);
+
         // Keep referenceId as integer or null (don't convert to string for INT column)
         $referenceIdValue = ($referenceId !== null && $referenceId !== '') ? (int) $referenceId : null;
 
@@ -198,6 +201,9 @@ class LoyaltyPoints
 
         $stmt = $this->db->prepare("UPDATE users SET available_points = available_points - ?, used_points = used_points + ? WHERE id = ?");
         $stmt->execute([$points, $points, $userId]);
+
+        // Update tier
+        $this->updateUserTier($userId, $newBalance);
 
         // Keep referenceId as integer or null (don't convert to string for INT column)
         $referenceIdValue = ($referenceId !== null && $referenceId !== '') ? (int) $referenceId : null;
@@ -241,6 +247,7 @@ class LoyaltyPoints
             }
 
             $sql .= " ORDER BY points_required ASC";
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $rewards = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -256,11 +263,33 @@ class LoyaltyPoints
             }
 
             return $rewards;
-        } catch (PDOException $e) {
-            error_log("Error getting rewards: " . $e->getMessage());
+        } catch (Exception $e) {
             return [];
         }
     }
+
+    /**
+     * Update user tier based on points
+     * Uses TierService to calculate correct tier
+     */
+    private function updateUserTier($userId, $points)
+    {
+        try {
+            require_once __DIR__ . '/TierService.php';
+            $tierService = new TierService($this->db, $this->lineAccountId);
+            $tierInfo = $tierService->calculateTier($points);
+
+            // Update member_tier column in users table
+            // Use tier_code (lowercase) for consistency
+            if (isset($tierInfo['tier_code'])) {
+                $stmt = $this->db->prepare("UPDATE users SET member_tier = ? WHERE id = ?");
+                $stmt->execute([$tierInfo['tier_code'], $userId]);
+            }
+        } catch (Exception $e) {
+            error_log("Failed to update user tier: " . $e->getMessage());
+        }
+    }
+
 
     /**
      * Get active rewards (alias for getRewards with activeOnly=true)
