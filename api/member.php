@@ -379,9 +379,15 @@ function handleGetCard($db)
 
     // Calculate tier from points using TierService (not from stored member_tier)
     require_once __DIR__ . '/../classes/TierService.php';
+    require_once __DIR__ . '/../classes/LoyaltyPoints.php';
+
+    // Use LoyaltyPoints::getUserPoints for consistent points (same as points-history.php)
+    $loyalty = new LoyaltyPoints($db, $lineAccountId);
+    $pointsData = $loyalty->getUserPoints($user['id']);
+    $userPoints = (int) ($pointsData['available_points'] ?? $pointsData['total_points'] ?? 0);
+
     $tierService = new TierService($db, $lineAccountId);
-    $userPoints = $user['points'] ?? 0;
-    $tierInfo = $tierService->calculateTier((int) $userPoints);
+    $tierInfo = $tierService->calculateTier($userPoints);
 
     // Format tier data for response
     $tier = [
@@ -451,7 +457,7 @@ function handleGetCard($db)
             'height' => $user['height'] ?? null,
             'medical_conditions' => $user['medical_conditions'] ?? null,
             'drug_allergies' => $user['drug_allergies'] ?? null,
-            'points' => (int) ($user['points'] ?? 0),
+            'points' => $userPoints,
             'total_spent' => (float) ($user['total_spent'] ?? 0),
             'total_orders' => (int) ($user['total_orders'] ?? 0),
             'registered_at' => $user['registered_at']
