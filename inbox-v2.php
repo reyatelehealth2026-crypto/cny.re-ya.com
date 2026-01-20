@@ -1733,18 +1733,23 @@ function formatThaiDateTime($datetime) {
                 <?php endforeach; ?>
             <?php endif; ?>
 
-            <?php if ($hasMoreConversations): ?>
-            <!-- Load More Sentinel for Infinite Scroll -->
-            <div id="loadMoreSentinel" class="p-4 text-center" data-cursor="<?= htmlspecialchars($lastConversationCursor ?? '') ?>" data-has-more="true">
-                <div id="loadMoreSpinner" class="hidden">
+            <!-- Load More Sentinel for Infinite Scroll - Always show for auto-load -->
+            <div id="loadMoreSentinel" class="p-4 text-center"
+                 data-cursor="<?= htmlspecialchars($lastConversationCursor ?? '') ?>"
+                 data-has-more="<?= $hasMoreConversations ? 'true' : 'false' ?>"
+                 data-total="<?= $totalConversations ?>">
+                <div id="loadMoreSpinner" class="<?= $hasMoreConversations ? '' : 'hidden' ?>">
                     <i class="fas fa-spinner fa-spin text-teal-500 text-xl"></i>
                     <p class="text-xs text-gray-400 mt-1">กำลังโหลดเพิ่มเติม...</p>
                 </div>
-                <div id="loadMoreInfo" class="text-xs text-gray-400">
+                <div id="loadMoreInfo" class="text-xs text-gray-400 <?= $hasMoreConversations ? 'hidden' : '' ?>">
+                    <?php if ($hasMoreConversations): ?>
                     แสดง <?= count($users) ?> จาก <?= $totalConversations ?> รายการ
+                    <?php else: ?>
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i> โหลดครบ <?= count($users) ?> รายการ
+                    <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -8683,15 +8688,46 @@ class ConversationLoader {
      */
     async autoLoadAll() {
         console.log('[Progressive Load] Starting auto-load of all conversations...');
+        console.log('[Progressive Load] hasMore:', this.hasMore, 'cursor:', this.cursor);
 
-        while (this.hasMore) {
-            // Wait if currently loading
-            if (this.isLoading) {
-                await new Promise(resolve => setTimeout(resolve, 50));
-                continue;
+        let batchCount = 0;
+        const maxBatches = 50; // Safety limit to prevent infinite loop
+
+        while (this.hasMore && batchCount < maxBatches) {
+            batchCount++;
+            console.log(`[Progressive Load] Loading batch ${batchCount}...`);
+
+            try {
+                const response = await fetch(`/api/inbox-v2.php?action=getConversations&cursor=${encodeURIComponent(this.cursor || '')}&limit=50`);
+                const data = await response.json();
+
+                console.log('[Progressive Load] API response:', data.success, 'has_more:', data.data?.has_more, 'count:', data.data?.conversations?.length);
+
+                if (data.success && data.data && data.data.conversations) {
+                    const conversations = data.data.conversations;
+
+                    if (conversations.length > 0) {
+                        this.appendConversations(conversations);
+                        this.cursor = data.data.next_cursor;
+                        this.hasMore = data.data.has_more === true;
+                        this.loadedCount += conversations.length;
+
+                        // Update sentinel
+                        this.updateSentinel();
+
+                        console.log(`[Progressive Load] Batch ${batchCount}: loaded ${conversations.length} (total: ${this.loadedCount}, hasMore: ${this.hasMore})`);
+                    } else {
+                        console.log('[Progressive Load] No more conversations returned');
+                        this.hasMore = false;
+                    }
+                } else {
+                    console.error('[Progressive Load] Invalid response:', data);
+                    this.hasMore = false;
+                }
+            } catch (error) {
+                console.error('[Progressive Load] Error loading batch:', error);
+                this.hasMore = false;
             }
-
-            await this.loadMoreForAutoLoad();
 
             // Small delay between batches to keep UI responsive
             if (this.hasMore) {
@@ -8699,52 +8735,14 @@ class ConversationLoader {
             }
         }
 
+        if (batchCount >= maxBatches) {
+            console.warn('[Progressive Load] Reached max batch limit');
+        }
+
         console.log(`[Progressive Load] Auto-load complete. Total: ${this.loadedCount} conversations`);
 
         // Notify that all conversations are loaded
         this.onAllLoaded();
-    }
-
-    /**
-     * Load more conversations (for auto-load, bypasses isLoading check)
-     */
-    async loadMoreForAutoLoad() {
-        if (!this.hasMore) return;
-
-        this.isLoading = true;
-        this.showLoadingSpinner();
-
-        try {
-            const response = await fetch(`/api/inbox-v2.php?action=getConversations&cursor=${encodeURIComponent(this.cursor || '')}&limit=50`);
-            const data = await response.json();
-
-            if (data.success && data.data && data.data.conversations) {
-                const conversations = data.data.conversations;
-
-                if (conversations.length > 0) {
-                    this.appendConversations(conversations);
-                    this.cursor = data.data.next_cursor;
-                    this.hasMore = data.data.has_more;
-                    this.loadedCount += conversations.length;
-
-                    // Update sentinel
-                    this.updateSentinel();
-
-                    console.log(`[Progressive Load] Auto-loaded ${conversations.length} conversations (total: ${this.loadedCount})`);
-                } else {
-                    this.hasMore = false;
-                }
-            } else {
-                console.error('[Progressive Load] Invalid response:', data);
-                this.hasMore = false;
-            }
-        } catch (error) {
-            console.error('[Progressive Load] Error loading conversations:', error);
-            this.hasMore = false;
-        } finally {
-            this.isLoading = false;
-            this.hideLoadingSpinner();
-        }
     }
 
     /**
