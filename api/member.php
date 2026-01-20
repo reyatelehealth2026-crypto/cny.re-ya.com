@@ -51,20 +51,21 @@ try {
 /**
  * สมัครสมาชิก
  */
-function handleRegister($db, $data) {
+function handleRegister($db, $data)
+{
     $lineUserId = $data['line_user_id'] ?? '';
     $lineAccountId = $data['line_account_id'] ?? 1;
-    
+
     if (empty($lineUserId)) {
         jsonResponse(false, 'กรุณาเข้าสู่ระบบผ่าน LINE');
     }
-    
+
     // Validate required fields
     $firstName = trim($data['first_name'] ?? '');
     $lastName = trim($data['last_name'] ?? '');
     $birthday = $data['birthday'] ?? null;
     $gender = $data['gender'] ?? null;
-    
+
     if (empty($firstName)) {
         jsonResponse(false, 'กรุณากรอกชื่อ');
     }
@@ -74,7 +75,7 @@ function handleRegister($db, $data) {
     if (empty($gender)) {
         jsonResponse(false, 'กรุณาเลือกเพศ');
     }
-    
+
     // Optional fields
     $phone = trim($data['phone'] ?? '');
     $email = trim($data['email'] ?? '');
@@ -86,44 +87,45 @@ function handleRegister($db, $data) {
     $district = trim($data['district'] ?? '');
     $province = trim($data['province'] ?? '');
     $postalCode = trim($data['postal_code'] ?? '');
-    
+
     // Check which columns exist in users table
     $existingColumns = [];
     try {
         $cols = $db->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
         $existingColumns = array_flip($cols);
-    } catch (Exception $e) {}
-    
+    } catch (Exception $e) {
+    }
+
     // Check if user exists - first try exact match, then try without account filter
     $stmt = $db->prepare("SELECT id, member_id, is_registered, line_account_id FROM users WHERE line_user_id = ? AND line_account_id = ?");
     $stmt->execute([$lineUserId, $lineAccountId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // If not found, try without account filter (user might exist with NULL or different account)
     if (!$user) {
         $stmt = $db->prepare("SELECT id, member_id, is_registered, line_account_id FROM users WHERE line_user_id = ?");
         $stmt->execute([$lineUserId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     if ($user && $user['is_registered']) {
         jsonResponse(false, 'คุณเป็นสมาชิกอยู่แล้ว', ['member_id' => $user['member_id']]);
     }
-    
+
     // Generate member ID
     $memberId = generateMemberId($db, $lineAccountId);
-    
+
     // Prepare real_name
     $realName = $firstName . ($lastName ? ' ' . $lastName : '');
-    
+
     // Build dynamic UPDATE/INSERT based on existing columns
     $phoneValue = !empty($phone) ? $phone : null;
     $emailValue = !empty($email) ? $email : null;
-    
+
     if ($user) {
         // Update existing user - build dynamic SQL
         error_log("Register: Updating existing user ID={$user['id']}, line_user_id=$lineUserId");
-        
+
         $updates = [
             'first_name = ?',
             'last_name = ?',
@@ -141,17 +143,17 @@ function handleRegister($db, $data) {
             'updated_at = NOW()'
         ];
         $params = [$firstName, $lastName, $realName, $birthday, $gender, $phoneValue, $weight, $height, $medicalConditions, $drugAllergies, $memberId];
-        
+
         // Add member_tier if column exists
         if (isset($existingColumns['member_tier'])) {
             $updates[] = "member_tier = 'bronze'";
         }
-        
+
         // Add points if column exists
         if (isset($existingColumns['points'])) {
             $updates[] = 'points = 0';
         }
-        
+
         // Add optional columns if they exist
         if (isset($existingColumns['email'])) {
             $updates[] = 'email = IFNULL(?, email)';
@@ -173,39 +175,39 @@ function handleRegister($db, $data) {
             $updates[] = 'postal_code = ?';
             $params[] = $postalCode ?: null;
         }
-        
+
         $params[] = $user['id'];
-        
+
         $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ?";
         $stmt = $db->prepare($sql);
         $result = $stmt->execute($params);
-        
+
         $userId = $user['id'];
     } else {
         // Create new user - build dynamic SQL
         $columns = ['line_account_id', 'line_user_id', 'first_name', 'last_name', 'real_name', 'birthday', 'gender', 'phone', 'weight', 'height', 'medical_conditions', 'drug_allergies', 'member_id', 'is_registered'];
         $values = [$lineAccountId, $lineUserId, $firstName, $lastName, $realName, $birthday, $gender, $phone ?: null, $weight, $height, $medicalConditions ?: null, $drugAllergies ?: null, $memberId, 1];
-        
+
         // Add member_tier if column exists
         if (isset($existingColumns['member_tier'])) {
             $columns[] = 'member_tier';
             $values[] = 'bronze';
         }
-        
+
         // Add points if column exists
         if (isset($existingColumns['points'])) {
             $columns[] = 'points';
             $values[] = 0;
         }
-        
+
         // Add registered_at and created_at
         $columns[] = 'registered_at';
         $columns[] = 'created_at';
-        
+
         $placeholders = array_fill(0, count($values), '?');
         $placeholders[] = 'NOW()';
         $placeholders[] = 'NOW()';
-        
+
         // Add optional columns if they exist
         if (isset($existingColumns['email']) && $email) {
             $columns[] = 'email';
@@ -232,14 +234,14 @@ function handleRegister($db, $data) {
             $values[] = $postalCode;
             $placeholders[] = '?';
         }
-        
+
         // Build and execute dynamic INSERT
         $sql = "INSERT INTO users (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
         $stmt = $db->prepare($sql);
         $stmt->execute($values);
         $userId = $db->lastInsertId();
     }
-    
+
     // Add welcome bonus points if points column exists
     $welcomeBonus = 50;
     try {
@@ -249,7 +251,7 @@ function handleRegister($db, $data) {
         // points column might not exist
         error_log("Update points error: " . $e->getMessage());
     }
-    
+
     // Log points
     try {
         $stmt = $db->prepare("
@@ -261,7 +263,7 @@ function handleRegister($db, $data) {
         // points_history table might not exist
         error_log("points_history insert error: " . $e->getMessage());
     }
-    
+
     jsonResponse(true, 'สมัครสมาชิกสำเร็จ!', [
         'member_id' => $memberId,
         'welcome_bonus' => $welcomeBonus,
@@ -272,14 +274,15 @@ function handleRegister($db, $data) {
 /**
  * ตรวจสอบสถานะสมาชิก
  */
-function handleCheck($db) {
+function handleCheck($db)
+{
     $lineUserId = $_GET['line_user_id'] ?? '';
     $lineAccountId = $_GET['line_account_id'] ?? 1;
-    
+
     if (empty($lineUserId)) {
         jsonResponse(false, 'Missing line_user_id');
     }
-    
+
     // Try exact match first - use only columns that definitely exist
     $stmt = $db->prepare("
         SELECT id, member_id, is_registered, first_name, last_name, points
@@ -288,7 +291,7 @@ function handleCheck($db) {
     ");
     $stmt->execute([$lineUserId, $lineAccountId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // If not found, try without account filter
     if (!$user) {
         $stmt = $db->prepare("
@@ -299,40 +302,47 @@ function handleCheck($db) {
         $stmt->execute([$lineUserId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     if (!$user) {
         error_log("check: User not found for line_user_id=$lineUserId");
         jsonResponse(true, 'User not found', ['is_registered' => false, 'exists' => false]);
     }
-    
+
     error_log("check: Found user id={$user['id']}, is_registered={$user['is_registered']}, member_id={$user['member_id']}");
-    
+
     // has_profile = true ถ้ามี first_name (กรอกข้อมูลแล้วจริงๆ)
     $hasProfile = !empty($user['first_name']);
-    
+
+    // Calculate actual tier using TierService
+    require_once __DIR__ . '/../classes/TierService.php';
+    $tierService = new TierService($db, $lineAccountId);
+    $tierInfo = $tierService->calculateTier((int) ($user['points'] ?? 0));
+
     jsonResponse(true, 'OK', [
         'exists' => true,
-        'is_registered' => (bool)$user['is_registered'],
+        'is_registered' => (bool) $user['is_registered'],
         'has_profile' => $hasProfile,
         'member_id' => $user['member_id'] ?? null,
         'first_name' => $user['first_name'] ?? null,
         'last_name' => $user['last_name'] ?? null,
-        'tier' => 'bronze',
-        'points' => (int)($user['points'] ?? 0)
+        'tier' => $tierInfo['tier_code'],
+        'tier_name' => $tierInfo['tier_name'],
+        'points' => (int) ($user['points'] ?? 0)
     ]);
 }
 
 /**
  * ดึงข้อมูลบัตรสมาชิก
  */
-function handleGetCard($db) {
+function handleGetCard($db)
+{
     $lineUserId = $_GET['line_user_id'] ?? '';
     $lineAccountId = $_GET['line_account_id'] ?? 1;
-    
+
     if (empty($lineUserId)) {
         jsonResponse(false, 'Missing line_user_id');
     }
-    
+
     // Get user data - try exact match first
     $stmt = $db->prepare("
         SELECT u.*, 
@@ -342,7 +352,7 @@ function handleGetCard($db) {
     ");
     $stmt->execute([$lineUserId, $lineAccountId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // If not found, try without account filter
     if (!$user) {
         $stmt = $db->prepare("
@@ -354,50 +364,48 @@ function handleGetCard($db) {
         $stmt->execute([$lineUserId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     // Debug log
-    error_log("get_card: line_user_id=$lineUserId, line_account_id=$lineAccountId, user_found=" . ($user ? 'yes (id='.$user['id'].')' : 'no') . ", is_registered=" . ($user['is_registered'] ?? 'null'));
-    
+    error_log("get_card: line_user_id=$lineUserId, line_account_id=$lineAccountId, user_found=" . ($user ? 'yes (id=' . $user['id'] . ')' : 'no') . ", is_registered=" . ($user['is_registered'] ?? 'null'));
+
     if (!$user) {
         jsonResponse(false, 'ไม่พบข้อมูลผู้ใช้', ['is_registered' => false, 'user_exists' => false]);
     }
-    
+
     if (!$user['is_registered']) {
         error_log("get_card: User exists but not registered. user_id={$user['id']}, first_name=" . ($user['first_name'] ?? 'null') . ", member_id=" . ($user['member_id'] ?? 'null'));
         jsonResponse(false, 'ยังไม่ได้ลงทะเบียนสมาชิก', ['is_registered' => false, 'user_exists' => true, 'user_id' => $user['id']]);
     }
-    
-    // Get tier info - handle missing member_tier column
-    $memberTier = $user['member_tier'] ?? 'bronze';
-    $tier = null;
-    try {
-        $stmt = $db->prepare("
-            SELECT * FROM member_tiers 
-            WHERE tier_code = ? AND (line_account_id = ? OR line_account_id IS NULL)
-            LIMIT 1
-        ");
-        $stmt->execute([$memberTier, $lineAccountId]);
-        $tier = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        // member_tiers table might not exist
-    }
-    
-    // Get next tier
-    $nextTier = null;
+
+    // Calculate tier from points using TierService (not from stored member_tier)
+    require_once __DIR__ . '/../classes/TierService.php';
+    $tierService = new TierService($db, $lineAccountId);
     $userPoints = $user['points'] ?? 0;
-    try {
-        $stmt = $db->prepare("
-            SELECT * FROM member_tiers 
-            WHERE min_points > ? AND (line_account_id = ? OR line_account_id IS NULL)
-            ORDER BY min_points ASC
-            LIMIT 1
-        ");
-        $stmt->execute([$userPoints, $lineAccountId]);
-        $nextTier = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        // member_tiers table might not exist
-    }
-    
+    $tierInfo = $tierService->calculateTier((int) $userPoints);
+
+    // Format tier data for response
+    $tier = [
+        'tier_code' => $tierInfo['tier_code'],
+        'tier_name' => $tierInfo['tier_name'],
+        'name' => $tierInfo['tier_name'],
+        'color' => $tierInfo['color'],
+        'icon' => $tierInfo['icon'],
+        'discount_percent' => $tierInfo['discount_percent'],
+        'min_points' => $tierInfo['min_points'],
+        'current_tier_points' => $tierInfo['min_points'],
+        'next_tier_points' => $tierInfo['next_tier_points'],
+        'next_tier_name' => $tierInfo['next_tier_name'],
+        'points_to_next' => $tierInfo['points_to_next'],
+        'progress_percent' => $tierInfo['progress_percent']
+    ];
+
+    // Next tier is already calculated in tierInfo
+    $nextTier = $tierInfo['next_tier_code'] ? [
+        'tier_code' => $tierInfo['next_tier_code'],
+        'tier_name' => $tierInfo['next_tier_name'],
+        'min_points' => $tierInfo['next_tier_points']
+    ] : null;
+
     // Get shop info - handle missing logo_url column
     $shop = null;
     try {
@@ -414,19 +422,19 @@ function handleGetCard($db) {
         // If shop_settings table doesn't exist or other error
         $shop = null;
     }
-    
+
     // Get LINE account name
     $stmt = $db->prepare("SELECT name FROM line_accounts WHERE id = ? LIMIT 1");
     $stmt->execute([$lineAccountId]);
     $lineAccount = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     $shopName = $shop['shop_name'] ?? $lineAccount['name'] ?? 'ร้านค้า';
-    
+
     jsonResponse(true, 'OK', [
         'member' => [
             'id' => $user['id'],
             'member_id' => $user['member_id'],
-            'is_registered' => (bool)$user['is_registered'],
+            'is_registered' => (bool) $user['is_registered'],
             'first_name' => $user['first_name'],
             'last_name' => $user['last_name'],
             'display_name' => $user['display_name'],
@@ -443,9 +451,9 @@ function handleGetCard($db) {
             'height' => $user['height'] ?? null,
             'medical_conditions' => $user['medical_conditions'] ?? null,
             'drug_allergies' => $user['drug_allergies'] ?? null,
-            'points' => (int)($user['points'] ?? 0),
-            'total_spent' => (float)($user['total_spent'] ?? 0),
-            'total_orders' => (int)($user['total_orders'] ?? 0),
+            'points' => (int) ($user['points'] ?? 0),
+            'total_spent' => (float) ($user['total_spent'] ?? 0),
+            'total_orders' => (int) ($user['total_orders'] ?? 0),
             'registered_at' => $user['registered_at']
         ],
         'tier' => $tier ?: [
@@ -467,9 +475,10 @@ function handleGetCard($db) {
 /**
  * ดึงข้อมูลระดับสมาชิกทั้งหมด
  */
-function handleGetTiers($db) {
+function handleGetTiers($db)
+{
     $lineAccountId = $_GET['line_account_id'] ?? 1;
-    
+
     $stmt = $db->prepare("
         SELECT * FROM member_tiers 
         WHERE (line_account_id = ? OR line_account_id IS NULL) AND is_active = 1
@@ -477,41 +486,52 @@ function handleGetTiers($db) {
     ");
     $stmt->execute([$lineAccountId]);
     $tiers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     jsonResponse(true, 'OK', ['tiers' => $tiers]);
 }
 
 /**
  * อัพเดทข้อมูลสมาชิก
  */
-function handleUpdateProfile($db, $data) {
+function handleUpdateProfile($db, $data)
+{
     $lineUserId = $data['line_user_id'] ?? '';
-    
+
     if (empty($lineUserId)) {
         jsonResponse(false, 'กรุณาเข้าสู่ระบบ');
     }
-    
+
     $updates = [];
     $params = [];
-    
+
     $allowedFields = [
-        'first_name', 'last_name', 'phone', 'email',
-        'weight', 'height', 'medical_conditions', 'drug_allergies',
-        'address', 'district', 'province', 'postal_code',
-        'birthday', 'gender'
+        'first_name',
+        'last_name',
+        'phone',
+        'email',
+        'weight',
+        'height',
+        'medical_conditions',
+        'drug_allergies',
+        'address',
+        'district',
+        'province',
+        'postal_code',
+        'birthday',
+        'gender'
     ];
-    
+
     foreach ($allowedFields as $field) {
         if (isset($data[$field])) {
             $updates[] = "$field = ?";
             $params[] = $data[$field];
         }
     }
-    
+
     if (empty($updates)) {
         jsonResponse(false, 'ไม่มีข้อมูลที่ต้องอัพเดท');
     }
-    
+
     // Update real_name if first_name or last_name changed
     if (isset($data['first_name']) || isset($data['last_name'])) {
         $firstName = $data['first_name'] ?? '';
@@ -520,23 +540,24 @@ function handleUpdateProfile($db, $data) {
         $updates[] = "real_name = ?";
         $params[] = $realName;
     }
-    
+
     $params[] = $lineUserId;
-    
+
     $sql = "UPDATE users SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE line_user_id = ?";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
-    
+
     jsonResponse(true, 'อัพเดทข้อมูลสำเร็จ');
 }
 
 /**
  * สร้างรหัสสมาชิก
  */
-function generateMemberId($db, $lineAccountId) {
+function generateMemberId($db, $lineAccountId)
+{
     $prefix = 'M';
     $year = date('y');
-    
+
     // Get last member ID
     $stmt = $db->prepare("
         SELECT member_id FROM users 
@@ -545,20 +566,21 @@ function generateMemberId($db, $lineAccountId) {
     ");
     $stmt->execute([$prefix . $year . '%', $lineAccountId]);
     $last = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if ($last && preg_match('/^M\d{2}(\d{5})$/', $last['member_id'], $matches)) {
         $nextNum = intval($matches[1]) + 1;
     } else {
         $nextNum = 1;
     }
-    
+
     return $prefix . $year . str_pad($nextNum, 5, '0', STR_PAD_LEFT);
 }
 
 /**
  * JSON Response
  */
-function jsonResponse($success, $message, $data = []) {
+function jsonResponse($success, $message, $data = [])
+{
     echo json_encode([
         'success' => $success,
         'message' => $message,

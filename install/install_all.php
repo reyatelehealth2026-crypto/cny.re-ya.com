@@ -59,70 +59,59 @@ $errors = [];
 
 // ============ MIGRATION FILES ============
 $migrations = [
-    'Core Tables' => [
-        'database/install.sql',
-        'database/schema.sql',
+    'Core Schema' => [
+        'database/install_complete.sql',
     ],
-    'User & Auth' => [
-        'database/migration_admin_users.sql',
-        'database/migration_user_details.sql',
+    'POS System' => [
+        'database/migration_pos.sql',
+        'database/migration_pos_features.sql',
     ],
-    'LINE Integration' => [
-        'database/migration_add_line_account_id.sql',
-        'database/migration_line_groups.sql',
-        'database/migration_bot_mode.sql',
-        'database/migration_welcome_settings.sql',
+    'Accounting' => [
+        'database/migration_accounting.sql',
     ],
-    'Shop & Products' => [
-        'database/migration_liff_shop.sql',
-        'database/migration_unified_shop.sql',
-        'database/migration_shop_complete.sql',
-        'database/migration_shop_settings_account.sql',
-        'database/migration_shop_settings_multi_bot.sql',
-        'database/migration_product_details.sql',
-        'database/migration_checkout_options.sql',
-        'database/migration_v2.5_business_items.sql',
+    'Inventory & WMS' => [
+        'database/migration_wms.sql',
+        'database/migration_put_away_location.sql',
+        'database/migration_zone_types.sql',
+        'database/migration_add_frozen_zone.sql',
+        'database/migration_add_storage_condition.sql',
+        'database/migration_stock_movement_value.sql',
+        'database/migration_fix_movement_type.sql',
+        'database/migration_gr_batch_fields.sql',
     ],
-    'Payments' => [
-        'database/migration_fix_payment_slips.sql',
-        'database/migration_unify_payment_slips.sql',
-        'database/migration_fix_cart_fk.sql',
+    'Products & Shop' => [
+        'database/migration_business_items_html_fields.sql',
+        'database/migration_product_cny_fields.sql',
+        'database/migration_cny_products.sql',
     ],
-    'CRM Features' => [
-        'database/migration_advanced_crm.sql',
+    'Inbox & Messaging' => [
+        'database/migration_inbox_chat.sql',
+        'database/migration_inbox_chat_indexes.sql',
+        'database/migration_inbox_v2_performance.sql',
+        'database/migration_chat_status.sql',
+        'database/migration_multi_assignee.sql',
+        'database/migration_mark_as_read_token.sql',
+        'database/migration_add_quick_reply_column.sql',
+        'database/migration_auto_reply_rules.sql',
+        'database/migration_broadcasts_target_type.sql',
+    ],
+    'Vibe Selling & AI' => [
+        'database/migration_vibe_selling_v2.sql',
+        'database/migration_ai_sales_mode.sql',
+    ],
+    'Landing Page & SEO' => [
+        'database/migration_landing_page.sql',
+        'database/migration_landing_banners.sql',
+        'database/migration_health_articles.sql',
+    ],
+    'Membership & Loyalty' => [
         'database/migration_loyalty_points.sql',
-        'database/migration_auto_tags.sql',
-        'database/migration_unify_tags.sql',
-        'database/migration_drip_campaigns.sql',
     ],
-    'Messaging' => [
-        'database/migration_auto_reply_upgrade.sql',
-        'database/migration_broadcast_tracking.sql',
-        'database/migration_flex_templates.sql',
-        'database/migration_share_flex.sql',
-        'database/migration_is_read.sql',
+    'Pharmacy' => [
+        'database/migration_pharmacist_notifications.sql',
     ],
-    'Medical & Pharmacy' => [
-        'database/migration_medical_info.sql',
-        'database/migration_pharmacist_system.sql',
-        'database/migration_symptom_assessment.sql',
-        'database/migration_triage_system.sql',
-    ],
-    'Appointments & Video' => [
-        'database/migration_appointments.sql',
-        'database/migration_video_calls.sql',
-        'database/migration_video_calls_v2.sql',
-    ],
-    'Sync & Reports' => [
-        'database/migration_cny_sync.sql',
-        'database/migration_sync_queue.sql',
-        'database/migration_scheduled_reports.sql',
-        'database/migration_quick_access.sql',
-    ],
-    'System' => [
-        'database/migration_dev_logs.sql',
-        'database/migration_account_events.sql',
-        'database/migration_fix_user_states.sql',
+    'System Features' => [
+        'database/migration_performance_feature_flags.sql',
     ],
 ];
 
@@ -164,28 +153,45 @@ if (isset($_POST['install'])) {
     
     echo "</pre></div>";
     
-    // Create essential columns if missing
-    echo "<div class='card'><h2>🔧 Fixing Essential Columns...</h2><pre>";
+    // Create essential columns if missing (MySQL compatible)
+    echo "<div class='card'><h2>🔧 Verifying Essential Columns...</h2><pre>";
     
-    $essentialFixes = [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reply_token VARCHAR(255) DEFAULT NULL",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reply_token_expires DATETIME DEFAULT NULL",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS line_account_id INT DEFAULT NULL",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_registered TINYINT(1) DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS membership_level VARCHAR(20) DEFAULT 'bronze'",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS loyalty_points INT DEFAULT 0",
-        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read TINYINT(1) DEFAULT 0",
-        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by VARCHAR(100) DEFAULT NULL",
-        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS line_account_id INT DEFAULT NULL",
+    $essentialColumns = [
+        'users' => [
+            'reply_token' => "VARCHAR(255) DEFAULT NULL",
+            'reply_token_expires' => "DATETIME DEFAULT NULL",
+            'line_account_id' => "INT DEFAULT NULL",
+            'is_registered' => "TINYINT(1) DEFAULT 0",
+            'membership_level' => "VARCHAR(20) DEFAULT 'bronze'",
+            'loyalty_points' => "INT DEFAULT 0",
+        ],
+        'messages' => [
+            'is_read' => "TINYINT(1) DEFAULT 0",
+            'sent_by' => "VARCHAR(100) DEFAULT NULL",
+            'line_account_id' => "INT DEFAULT NULL",
+        ],
     ];
     
-    foreach ($essentialFixes as $sql) {
-        try {
-            $db->exec($sql);
-            echo "<span class='success'>✓</span> " . substr($sql, 0, 60) . "...\n";
-        } catch (PDOException $e) {
-            if (strpos($e->getMessage(), 'Duplicate') === false) {
-                echo "<span class='warning'>⚠️</span> " . substr($sql, 0, 60) . "...\n";
+    foreach ($essentialColumns as $table => $columns) {
+        // Check if table exists
+        $tableExists = $db->query("SHOW TABLES LIKE '$table'")->rowCount() > 0;
+        if (!$tableExists) {
+            echo "<span class='warning'>⚠️</span> Table '$table' not found, skipping...\n";
+            continue;
+        }
+        
+        foreach ($columns as $column => $definition) {
+            // Check if column exists
+            $columnExists = $db->query("SHOW COLUMNS FROM $table LIKE '$column'")->rowCount() > 0;
+            if (!$columnExists) {
+                try {
+                    $db->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+                    echo "<span class='success'>✓</span> Added $table.$column\n";
+                } catch (PDOException $e) {
+                    echo "<span class='error'>✗</span> Failed to add $table.$column: " . $e->getMessage() . "\n";
+                }
+            } else {
+                echo "<span class='info'>ℹ️</span> $table.$column already exists\n";
             }
         }
     }
@@ -211,11 +217,41 @@ if (isset($_POST['install'])) {
     }
     echo "</pre></div>";
     
+    // System Verification
+    echo "<div class='card'><h2>🔍 System Verification</h2><pre>";
+    
+    $verifications = [
+        'Core Tables' => ['users', 'messages', 'admin_users', 'line_accounts'],
+        'POS' => ['pos_sales', 'pos_shifts', 'pos_payments'],
+        'Accounting' => ['account_payables', 'account_receivables', 'expenses'],
+        'Inventory' => ['products', 'stock_movements', 'batches', 'locations'],
+        'WMS' => ['wms_orders', 'wms_picks', 'wms_shipments'],
+        'Inbox' => ['chat_templates', 'customer_notes'],
+        'Vibe Selling' => ['drug_recommendations', 'ghost_drafts', 'health_profiles'],
+        'Landing' => ['landing_faqs', 'landing_testimonials', 'health_articles'],
+    ];
+    
+    foreach ($verifications as $category => $tables) {
+        $found = 0;
+        foreach ($tables as $table) {
+            if ($db->query("SHOW TABLES LIKE '$table'")->rowCount() > 0) {
+                $found++;
+            }
+        }
+        $total = count($tables);
+        $status = $found == $total ? "<span class='success'>✓</span>" : 
+                 ($found > 0 ? "<span class='warning'>⚠️</span>" : "<span class='error'>✗</span>");
+        echo "$status $category: $found/$total tables\n";
+    }
+    
+    echo "</pre></div>";
+    
     echo "<div class='card' style='background: #D1FAE5;'>";
     echo "<h2 class='success'>✅ Installation Complete!</h2>";
     echo "<p>ระบบติดตั้งเสร็จสมบูรณ์แล้ว</p>";
     echo "<a href='check_system.php' class='btn'>🔍 ตรวจสอบระบบ</a>";
     echo "<a href='../admin/' class='btn btn-warning'>🏠 ไปหน้าหลัก</a>";
+    echo "<p class='warning' style='margin-top: 15px;'>⚠️ อย่าลืมลบไฟล์ install_all.php เพื่อความปลอดภัย!</p>";
     echo "</div>";
     
 } else {

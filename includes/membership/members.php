@@ -16,38 +16,38 @@ $messageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['member_action'])) {
     $action = $_POST['member_action'];
-    
+
     if ($action === 'add_points') {
-        $userId = (int)$_POST['user_id'];
-        $points = (int)$_POST['points'];
+        $userId = (int) $_POST['user_id'];
+        $points = (int) $_POST['points'];
         $description = trim($_POST['description'] ?? 'เพิ่มแต้มโดยแอดมิน');
-        
+
         if ($userId && $points != 0) {
             // Get current points
             $stmt = $db->prepare("SELECT points FROM users WHERE id = ?");
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
             $newBalance = ($user['points'] ?? 0) + $points;
-            
+
             // Update points
             $stmt = $db->prepare("UPDATE users SET points = ? WHERE id = ?");
             $stmt->execute([$newBalance, $userId]);
-            
+
             // Log
             $type = 'adjust';
             $stmt = $db->prepare("INSERT INTO points_history (user_id, points, type, description, balance_after) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$userId, $points, $type, $description, $newBalance]);
-            
+
             $message = ($points > 0 ? 'เพิ่ม' : 'หัก') . 'แต้มสำเร็จ!';
             $messageType = 'success';
         }
     } elseif ($action === 'update_tier') {
-        $userId = (int)$_POST['user_id'];
+        $userId = (int) $_POST['user_id'];
         $tier = $_POST['tier'];
-        
+
         $stmt = $db->prepare("UPDATE users SET member_tier = ? WHERE id = ?");
         $stmt->execute([$tier, $userId]);
-        
+
         $message = 'อัพเดทระดับสมาชิกสำเร็จ!';
         $messageType = 'success';
     }
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['member_action'])) {
 // Filters
 $search = $_GET['search'] ?? '';
 $tier = $_GET['tier'] ?? '';
-$page = max(1, (int)($_GET['page'] ?? 1));
+$page = max(1, (int) ($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($page - 1) * $perPage;
 
@@ -74,7 +74,8 @@ try {
     $hasRegisteredAt = in_array('registered_at', $cols);
     $hasPoints = in_array('points', $cols);
     $hasMemberId = in_array('member_id', $cols);
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 // Build query based on available columns
 $where = "WHERE 1=1";
@@ -109,24 +110,23 @@ $stmt = $db->prepare("SELECT * FROM users {$where} {$orderBy} LIMIT {$perPage} O
 $stmt->execute($params);
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get tiers
+// Get tiers from TierService (unified source)
 $tiers = [];
 try {
-    $tiers = $db->query("SELECT * FROM member_tiers ORDER BY min_points ASC")->fetchAll(PDO::FETCH_ASSOC);
+    require_once __DIR__ . '/../../classes/TierService.php';
+    $tierService = new TierService($db, $lineAccountId ?? null);
+    $tiers = $tierService->getTiers();
 } catch (Exception $e) {
-    $tiers = [
-        ['name' => 'bronze', 'min_points' => 0],
-        ['name' => 'silver', 'min_points' => 500],
-        ['name' => 'gold', 'min_points' => 2000],
-        ['name' => 'platinum', 'min_points' => 5000]
-    ];
+    // Use TierService defaults
+    $tiers = TierService::DEFAULT_TIERS;
 }
 ?>
 
 <?php if ($message): ?>
-<div class="mb-4 p-4 rounded-lg <?= $messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
-    <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-times-circle' ?> mr-2"></i><?= $message ?>
-</div>
+    <div
+        class="mb-4 p-4 rounded-lg <?= $messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
+        <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-times-circle' ?> mr-2"></i><?= $message ?>
+    </div>
 <?php endif; ?>
 
 <!-- Stats -->
@@ -171,8 +171,8 @@ try {
 <div class="bg-white rounded-xl shadow p-4 mb-6">
     <form method="GET" class="flex flex-wrap gap-4">
         <input type="hidden" name="tab" value="members">
-        <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="ค้นหาชื่อ, รหัสสมาชิก, เบอร์โทร..." 
-            class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg">
+        <input type="text" name="search" value="<?= htmlspecialchars($search) ?>"
+            placeholder="ค้นหาชื่อ, รหัสสมาชิก, เบอร์โทร..." class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg">
         <select name="tier" class="px-4 py-2 border rounded-lg">
             <option value="">ทุกระดับ</option>
             <option value="bronze" <?= $tier === 'bronze' ? 'selected' : '' ?>>🥉 Bronze</option>
@@ -203,61 +203,75 @@ try {
             </thead>
             <tbody class="divide-y">
                 <?php foreach ($members as $member): ?>
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3">
-                        <div class="flex items-center gap-3">
-                            <img src="<?= $member['picture_url'] ?: 'https://via.placeholder.com/40' ?>" class="w-10 h-10 rounded-full object-cover">
-                            <div>
-                                <p class="font-medium text-gray-800"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></p>
-                                <p class="text-xs text-gray-500"><?= htmlspecialchars($member['display_name'] ?? '') ?></p>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <img src="<?= $member['picture_url'] ?: 'https://via.placeholder.com/40' ?>"
+                                    class="w-10 h-10 rounded-full object-cover">
+                                <div>
+                                    <p class="font-medium text-gray-800">
+                                        <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></p>
+                                    <p class="text-xs text-gray-500"><?= htmlspecialchars($member['display_name'] ?? '') ?>
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    </td>
-                    <td class="px-4 py-3 font-mono text-sm"><?= $hasMemberId ? ($member['member_id'] ?? '-') : '-' ?></td>
-                    <td class="px-4 py-3">
-                        <?php
-                        $tierIcons = ['bronze' => '🥉', 'silver' => '🥈', 'gold' => '🥇', 'platinum' => '💎', 'vip' => '👑'];
-                        $tierColors = ['bronze' => 'bg-amber-100 text-amber-700', 'silver' => 'bg-gray-100 text-gray-700', 'gold' => 'bg-yellow-100 text-yellow-700', 'platinum' => 'bg-purple-100 text-purple-700', 'vip' => 'bg-pink-100 text-pink-700'];
-                        $t = $hasMemberTier ? ($member['member_tier'] ?? 'bronze') : 'bronze';
-                        ?>
-                        <span class="px-2 py-1 rounded-full text-xs font-medium <?= $tierColors[$t] ?? '' ?>">
-                            <?= $tierIcons[$t] ?? '' ?> <?= ucfirst($t) ?>
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-right font-bold text-purple-600"><?= number_format($hasPoints ? ($member['points'] ?? 0) : 0) ?></td>
-                    <td class="px-4 py-3 text-sm"><?= $member['phone'] ?: '-' ?></td>
-                    <td class="px-4 py-3 text-sm text-gray-500"><?= ($hasRegisteredAt && $member['registered_at']) ? date('d/m/Y', strtotime($member['registered_at'])) : '-' ?></td>
-                    <td class="px-4 py-3 text-center">
-                        <button onclick="openPointsModal(<?= $member['id'] ?>, '<?= htmlspecialchars($member['first_name'] ?? '') ?>', <?= $hasPoints ? ($member['points'] ?? 0) : 0 ?>)" 
-                            class="px-3 py-1 bg-purple-100 text-purple-600 rounded-lg text-sm hover:bg-purple-200" title="จัดการแต้ม">
-                            <i class="fas fa-coins"></i>
-                        </button>
-                        <a href="user-detail.php?id=<?= $member['id'] ?>" class="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200" title="ดูรายละเอียด">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                    </td>
-                </tr>
+                        </td>
+                        <td class="px-4 py-3 font-mono text-sm"><?= $hasMemberId ? ($member['member_id'] ?? '-') : '-' ?>
+                        </td>
+                        <td class="px-4 py-3">
+                            <?php
+                            $tierIcons = ['bronze' => '🥉', 'silver' => '🥈', 'gold' => '🥇', 'platinum' => '💎', 'vip' => '👑'];
+                            $tierColors = ['bronze' => 'bg-amber-100 text-amber-700', 'silver' => 'bg-gray-100 text-gray-700', 'gold' => 'bg-yellow-100 text-yellow-700', 'platinum' => 'bg-purple-100 text-purple-700', 'vip' => 'bg-pink-100 text-pink-700'];
+                            $t = $hasMemberTier ? ($member['member_tier'] ?? 'bronze') : 'bronze';
+                            ?>
+                            <span class="px-2 py-1 rounded-full text-xs font-medium <?= $tierColors[$t] ?? '' ?>">
+                                <?= $tierIcons[$t] ?? '' ?>     <?= ucfirst($t) ?>
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right font-bold text-purple-600">
+                            <?= number_format($hasPoints ? ($member['points'] ?? 0) : 0) ?></td>
+                        <td class="px-4 py-3 text-sm"><?= $member['phone'] ?: '-' ?></td>
+                        <td class="px-4 py-3 text-sm text-gray-500">
+                            <?= ($hasRegisteredAt && $member['registered_at']) ? date('d/m/Y', strtotime($member['registered_at'])) : '-' ?>
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <button
+                                onclick="openPointsModal(<?= $member['id'] ?>, '<?= htmlspecialchars($member['first_name'] ?? '') ?>', <?= $hasPoints ? ($member['points'] ?? 0) : 0 ?>)"
+                                class="px-3 py-1 bg-purple-100 text-purple-600 rounded-lg text-sm hover:bg-purple-200"
+                                title="จัดการแต้ม">
+                                <i class="fas fa-coins"></i>
+                            </button>
+                            <a href="user-detail.php?id=<?= $member['id'] ?>"
+                                class="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200"
+                                title="ดูรายละเอียด">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
                 <?php endforeach; ?>
                 <?php if (empty($members)): ?>
-                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลสมาชิก</td></tr>
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลสมาชิก</td>
+                    </tr>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
-    
+
     <!-- Pagination -->
     <?php if ($totalPages > 1): ?>
-    <div class="px-4 py-3 border-t flex justify-between items-center">
-        <p class="text-sm text-gray-500">แสดง <?= $offset + 1 ?>-<?= min($offset + $perPage, $total) ?> จาก <?= $total ?> รายการ</p>
-        <div class="flex gap-1">
-            <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-            <a href="?tab=members&page=<?= $i ?>&search=<?= urlencode($search) ?>&tier=<?= $tier ?>" 
-                class="px-3 py-1 rounded <?= $i === $page ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200' ?>">
-                <?= $i ?>
-            </a>
-            <?php endfor; ?>
+        <div class="px-4 py-3 border-t flex justify-between items-center">
+            <p class="text-sm text-gray-500">แสดง <?= $offset + 1 ?>-<?= min($offset + $perPage, $total) ?> จาก
+                <?= $total ?> รายการ</p>
+            <div class="flex gap-1">
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <a href="?tab=members&page=<?= $i ?>&search=<?= urlencode($search) ?>&tier=<?= $tier ?>"
+                        class="px-3 py-1 rounded <?= $i === $page ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200' ?>">
+                        <?= $i ?>
+                    </a>
+                <?php endfor; ?>
+            </div>
         </div>
-    </div>
     <?php endif; ?>
 </div>
 
@@ -268,39 +282,43 @@ try {
         <form method="POST">
             <input type="hidden" name="member_action" value="add_points">
             <input type="hidden" name="user_id" id="modal_user_id">
-            
+
             <p class="mb-2">สมาชิก: <b id="modal_user_name"></b></p>
             <p class="mb-4">แต้มปัจจุบัน: <b id="modal_current_points" class="text-purple-600"></b></p>
-            
+
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">จำนวนแต้ม (ใส่ - เพื่อหัก)</label>
-                <input type="number" name="points" required class="w-full px-4 py-2 border rounded-lg" placeholder="เช่น 100 หรือ -50">
+                <input type="number" name="points" required class="w-full px-4 py-2 border rounded-lg"
+                    placeholder="เช่น 100 หรือ -50">
             </div>
-            
+
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">หมายเหตุ</label>
-                <input type="text" name="description" class="w-full px-4 py-2 border rounded-lg" placeholder="เหตุผลในการเพิ่ม/หักแต้ม">
+                <input type="text" name="description" class="w-full px-4 py-2 border rounded-lg"
+                    placeholder="เหตุผลในการเพิ่ม/หักแต้ม">
             </div>
-            
+
             <div class="flex gap-2">
-                <button type="button" onclick="closePointsModal()" class="flex-1 py-2 border rounded-lg hover:bg-gray-50">ยกเลิก</button>
-                <button type="submit" class="flex-1 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">บันทึก</button>
+                <button type="button" onclick="closePointsModal()"
+                    class="flex-1 py-2 border rounded-lg hover:bg-gray-50">ยกเลิก</button>
+                <button type="submit"
+                    class="flex-1 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">บันทึก</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-function openPointsModal(userId, name, points) {
-    document.getElementById('modal_user_id').value = userId;
-    document.getElementById('modal_user_name').textContent = name;
-    document.getElementById('modal_current_points').textContent = points.toLocaleString();
-    document.getElementById('pointsModal').classList.remove('hidden');
-    document.getElementById('pointsModal').classList.add('flex');
-}
+    function openPointsModal(userId, name, points) {
+        document.getElementById('modal_user_id').value = userId;
+        document.getElementById('modal_user_name').textContent = name;
+        document.getElementById('modal_current_points').textContent = points.toLocaleString();
+        document.getElementById('pointsModal').classList.remove('hidden');
+        document.getElementById('pointsModal').classList.add('flex');
+    }
 
-function closePointsModal() {
-    document.getElementById('pointsModal').classList.add('hidden');
-    document.getElementById('pointsModal').classList.remove('flex');
-}
+    function closePointsModal() {
+        document.getElementById('pointsModal').classList.add('hidden');
+        document.getElementById('pointsModal').classList.remove('flex');
+    }
 </script>

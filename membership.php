@@ -203,6 +203,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reward_action'])) {
     }
 }
 
+// Handle settings AJAX requests BEFORE any HTML output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings_action'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = $_POST['settings_action'];
+    
+    try {
+        switch ($action) {
+            case 'update_rules':
+                $data = [
+                    'points_per_baht' => floatval($_POST['points_per_baht'] ?? 0.001),
+                    'min_order_for_points' => floatval($_POST['min_order_for_points'] ?? 0),
+                    'points_expiry_days' => intval($_POST['points_expiry_days'] ?? 365),
+                    'is_active' => isset($_POST['is_active']) ? 1 : 0
+                ];
+                $loyalty->updateSettings($data);
+                echo json_encode(['success' => true, 'message' => 'บันทึกการตั้งค่าสำเร็จ']);
+                exit;
+                
+            case 'create_campaign':
+                $name = trim($_POST['name'] ?? '');
+                $multiplier = floatval($_POST['multiplier'] ?? 2.0);
+                $startDate = $_POST['start_date'] ?? date('Y-m-d');
+                $endDate = $_POST['end_date'] ?? date('Y-m-d', strtotime('+7 days'));
+                $isActive = isset($_POST['is_active']) ? 1 : 0;
+                if (empty($name)) { echo json_encode(['success' => false, 'message' => 'กรุณาระบุชื่อแคมเปญ']); exit; }
+                $stmt = $db->prepare("INSERT INTO points_campaigns (line_account_id, name, multiplier, start_date, end_date, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$lineAccountId, $name, $multiplier, $startDate, $endDate, $isActive]);
+                echo json_encode(['success' => true, 'message' => 'สร้างแคมเปญสำเร็จ', 'id' => $db->lastInsertId()]);
+                exit;
+                
+            case 'update_campaign':
+                $id = intval($_POST['id'] ?? 0);
+                if (!$id) { echo json_encode(['success' => false, 'message' => 'Invalid campaign ID']); exit; }
+                $stmt = $db->prepare("UPDATE points_campaigns SET name = ?, multiplier = ?, start_date = ?, end_date = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([trim($_POST['name'] ?? ''), floatval($_POST['multiplier'] ?? 2.0), $_POST['start_date'] ?? null, $_POST['end_date'] ?? null, isset($_POST['is_active']) ? 1 : 0, $id]);
+                echo json_encode(['success' => true, 'message' => 'อัปเดตแคมเปญสำเร็จ']);
+                exit;
+                
+            case 'delete_campaign':
+                $id = intval($_POST['id'] ?? 0);
+                $stmt = $db->prepare("DELETE FROM points_campaigns WHERE id = ?");
+                $stmt->execute([$id]);
+                echo json_encode(['success' => true, 'message' => 'ลบแคมเปญสำเร็จ']);
+                exit;
+                
+            case 'toggle_campaign':
+                $id = intval($_POST['id'] ?? 0);
+                $stmt = $db->prepare("UPDATE points_campaigns SET is_active = NOT is_active WHERE id = ?");
+                $stmt->execute([$id]);
+                echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะสำเร็จ']);
+                exit;
+                
+            case 'save_category_bonus':
+                $categoryId = intval($_POST['category_id'] ?? 0);
+                $multiplier = floatval($_POST['multiplier'] ?? 1.0);
+                if (!$categoryId) { echo json_encode(['success' => false, 'message' => 'กรุณาเลือกหมวดหมู่']); exit; }
+                $stmt = $db->prepare("INSERT INTO category_points_bonus (line_account_id, category_id, multiplier) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE multiplier = VALUES(multiplier), updated_at = NOW()");
+                $stmt->execute([$lineAccountId, $categoryId, $multiplier]);
+                echo json_encode(['success' => true, 'message' => 'บันทึกโบนัสหมวดหมู่สำเร็จ']);
+                exit;
+                
+            case 'delete_category_bonus':
+                $id = intval($_POST['id'] ?? 0);
+                $stmt = $db->prepare("DELETE FROM category_points_bonus WHERE id = ?");
+                $stmt->execute([$id]);
+                echo json_encode(['success' => true, 'message' => 'ลบโบนัสหมวดหมู่สำเร็จ']);
+                exit;
+                
+            case 'save_tier_settings':
+                $tierNames = $_POST['tier_name'] ?? [];
+                $tierPoints = $_POST['tier_points'] ?? [];
+                $tierMultipliers = $_POST['tier_multiplier'] ?? [];
+                if (empty($tierNames)) { echo json_encode(['success' => false, 'message' => 'กรุณาระบุข้อมูลระดับสมาชิก']); exit; }
+                $prevPoints = -1;
+                for ($i = 0; $i < count($tierPoints); $i++) {
+                    $minPoints = intval($tierPoints[$i] ?? 0);
+                    if ($minPoints <= $prevPoints && $prevPoints >= 0) { echo json_encode(['success' => false, 'message' => 'คะแนนขั้นต่ำต้องเรียงจากน้อยไปมาก']); exit; }
+                    $prevPoints = $minPoints;
+                }
+                $stmt = $db->prepare("DELETE FROM tier_settings WHERE line_account_id = ?");
+                $stmt->execute([$lineAccountId]);
+                $defaultColors = ['#9CA3AF', '#F59E0B', '#6366F1', '#10B981', '#EF4444', '#8B5CF6'];
+                $stmt = $db->prepare("INSERT INTO tier_settings (line_account_id, name, min_points, multiplier, badge_color) VALUES (?, ?, ?, ?, ?)");
+                for ($i = 0; $i < count($tierNames); $i++) {
+                    if (!empty($tierNames[$i])) {
+                        $badgeColor = $defaultColors[$i % count($defaultColors)];
+                        $stmt->execute([$lineAccountId, trim($tierNames[$i]), intval($tierPoints[$i] ?? 0), floatval($tierMultipliers[$i] ?? 1.0), $badgeColor]);
+                    }
+                }
+                echo json_encode(['success' => true, 'message' => 'บันทึกระดับสมาชิกสำเร็จ']);
+                exit;
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
 // Define tabs
 $tabs = [
     'members' => [
