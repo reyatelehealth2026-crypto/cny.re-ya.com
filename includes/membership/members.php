@@ -111,14 +111,14 @@ $stmt->execute($params);
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get tiers from TierService (unified source)
-$tiers = [];
+$allTiers = [];
 try {
     require_once __DIR__ . '/../../classes/TierService.php';
     $tierService = new TierService($db, $lineAccountId ?? null);
-    $tiers = $tierService->getTiers();
+    $allTiers = $tierService->getTiers();
 } catch (Exception $e) {
     // Use TierService defaults
-    $tiers = TierService::DEFAULT_TIERS;
+    $allTiers = TierService::DEFAULT_TIERS;
 }
 ?>
 
@@ -191,7 +191,8 @@ try {
         <select name="tier" class="px-4 py-2 border rounded-lg">
             <option value="">ทุกระดับ</option>
             <?php foreach ($allTiers as $t): ?>
-            <option value="<?= $t['tier_code'] ?>" <?= $tier === $t['tier_code'] ? 'selected' : '' ?>><?= $t['icon'] ?? '🏅' ?> <?= htmlspecialchars($t['tier_name']) ?></option>
+                <option value="<?= $t['tier_code'] ?>" <?= $tier === $t['tier_code'] ? 'selected' : '' ?>>
+                    <?= $t['icon'] ?? '🏅' ?>     <?= htmlspecialchars($t['tier_name']) ?></option>
             <?php endforeach; ?>
         </select>
         <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
