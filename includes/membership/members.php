@@ -225,7 +225,12 @@ try {
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right font-bold text-purple-600">
-                            <?= number_format($hasPoints ? ($member['points'] ?? 0) : 0) ?>
+                            <?php
+                            // Use available_points if exists, otherwise fallback to total_points or points
+                            // This matches logic in LoyaltyPoints::getUserPoints
+                            $displayPoints = $member['available_points'] ?? $member['total_points'] ?? $member['points'] ?? 0;
+                            echo number_format($displayPoints);
+                            ?>
                         </td>
                         <td class="px-4 py-3 text-sm"><?= $member['phone'] ?: '-' ?></td>
                         <td class="px-4 py-3 text-sm text-gray-500">
