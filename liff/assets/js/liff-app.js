@@ -5435,7 +5435,21 @@ class LiffApp {
 
         // Member data
         const tierName = tier?.name || member.tier || 'Silver';
-        const tierClass = this.getTierClass(tierName);
+
+        // Fix: Use dynamic color with robust fallback
+        let tierColor = tier?.color;
+        if (!tierColor || tierColor === '') {
+            const colors = {
+                'silver': '#C0C0C0',
+                'gold': '#FFD700',
+                'platinum': '#334155',
+                'bronze': '#CD7F32',
+                'vip': '#10B981',
+                'diamond': '#EF4444'
+            };
+            tierColor = colors[String(tierName).toLowerCase()] || '#9CA3AF';
+        }
+        const gradientStyle = `background: linear-gradient(135deg, ${tierColor} 0%, ${tierColor}cc 50%, ${tierColor}99 100%);`;
         const points = member.points || 0;
         const nextTierPoints = tier?.next_tier_points || 2000;
         const currentTierPoints = tier?.current_tier_points || 0;
@@ -5470,7 +5484,7 @@ class LiffApp {
                 <div class="member-card-container" onclick="window.liffApp.toggleMemberCard()">
                     <div id="member-card-flip" class="member-card-flip">
                         <!-- Front Side (Info) -->
-                        <div class="member-card-face member-card-front ${tierClass}">
+                        <div class="member-card-face member-card-front" style="${gradientStyle}">
                             <div class="member-card-decor"></div>
                             <div class="member-card-decor-2"></div>
                             
