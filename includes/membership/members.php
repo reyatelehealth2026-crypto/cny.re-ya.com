@@ -129,42 +129,57 @@ try {
     </div>
 <?php endif; ?>
 
-<!-- Stats -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+<!-- Stats - Dynamic from TierService -->
+<div class="grid grid-cols-2 md:grid-cols-<?= min(6, count($allTiers) + 1) ?> gap-4 mb-6">
     <?php
-    $statsQuery = "SELECT COUNT(*) as total";
-    if ($hasMemberTier) {
-        $statsQuery .= ",
-            SUM(CASE WHEN member_tier = 'bronze' THEN 1 ELSE 0 END) as bronze,
-            SUM(CASE WHEN member_tier = 'silver' THEN 1 ELSE 0 END) as silver,
-            SUM(CASE WHEN member_tier = 'gold' THEN 1 ELSE 0 END) as gold,
-            SUM(CASE WHEN member_tier = 'platinum' THEN 1 ELSE 0 END) as platinum";
-    }
-    $statsQuery .= " FROM users";
+    // Get total members count
+    $totalQuery = "SELECT COUNT(*) as total FROM users";
     if ($hasIsRegistered) {
-        $statsQuery .= " WHERE is_registered = 1";
+        $totalQuery .= " WHERE is_registered = 1";
     }
-    $stats = $db->query($statsQuery)->fetch();
-    if (!$hasMemberTier) {
-        $stats['bronze'] = $stats['silver'] = $stats['gold'] = $stats['platinum'] = 0;
+    $total = $db->query($totalQuery)->fetch()['total'];
+
+    // Count members per tier by calculating from points
+    $tierCounts = [];
+    foreach ($allTiers as $tier) {
+        $tierCounts[$tier['tier_code']] = 0;
+    }
+
+    if ($hasPoints) {
+        // Get all members with points and count per tier
+        $membersQuery = "SELECT points FROM users";
+        if ($hasIsRegistered) {
+            $membersQuery .= " WHERE is_registered = 1";
+        }
+        $allMembers = $db->query($membersQuery)->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($allMembers as $member) {
+            $memberPoints = (int) ($member['points'] ?? 0);
+            $memberTier = $tierService->calculateTier($memberPoints);
+            $tierCode = $memberTier['tier_code'];
+            if (isset($tierCounts[$tierCode])) {
+                $tierCounts[$tierCode]++;
+            }
+        }
     }
     ?>
     <div class="bg-white rounded-xl shadow p-4">
         <p class="text-gray-500 text-sm">สมาชิกทั้งหมด</p>
-        <p class="text-2xl font-bold text-gray-800"><?= number_format($stats['total']) ?></p>
+        <p class="text-2xl font-bold text-gray-800"><?= number_format($total) ?></p>
     </div>
-    <div class="bg-gradient-to-r from-amber-600 to-amber-700 rounded-xl shadow p-4 text-white">
-        <p class="text-white/70 text-sm">🥉 Bronze</p>
-        <p class="text-2xl font-bold"><?= number_format($stats['bronze']) ?></p>
-    </div>
-    <div class="bg-gradient-to-r from-gray-400 to-gray-500 rounded-xl shadow p-4 text-white">
-        <p class="text-white/70 text-sm">🥈 Silver</p>
-        <p class="text-2xl font-bold"><?= number_format($stats['silver']) ?></p>
-    </div>
-    <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl shadow p-4 text-white">
-        <p class="text-white/70 text-sm">🥇 Gold+</p>
-        <p class="text-2xl font-bold"><?= number_format($stats['gold'] + $stats['platinum']) ?></p>
-    </div>
+    <?php foreach ($allTiers as $tier):
+        $tierCode = $tier['tier_code'];
+        $tierName = $tier['tier_name'];
+        $tierColor = $tier['color'] ?? '#6B7280';
+        $tierIcon = $tier['icon'] ?? '🏅';
+        $count = $tierCounts[$tierCode] ?? 0;
+        ?>
+        <div class="rounded-xl shadow p-4 text-white"
+            style="background: linear-gradient(135deg, <?= $tierColor ?>, <?= $tierColor ?>cc);">
+            <p class="text-white/70 text-sm"><?= $tierIcon ?>     <?= htmlspecialchars($tierName) ?></p>
+            <p class="text-2xl font-bold"><?= number_format($count) ?></p>
+        </div>
+    <?php endforeach; ?>
 </div>
 
 <!-- Filters -->
@@ -175,10 +190,9 @@ try {
             placeholder="ค้นหาชื่อ, รหัสสมาชิก, เบอร์โทร..." class="flex-1 min-w-[200px] px-4 py-2 border rounded-lg">
         <select name="tier" class="px-4 py-2 border rounded-lg">
             <option value="">ทุกระดับ</option>
-            <option value="bronze" <?= $tier === 'bronze' ? 'selected' : '' ?>>🥉 Bronze</option>
-            <option value="silver" <?= $tier === 'silver' ? 'selected' : '' ?>>🥈 Silver</option>
-            <option value="gold" <?= $tier === 'gold' ? 'selected' : '' ?>>🥇 Gold</option>
-            <option value="platinum" <?= $tier === 'platinum' ? 'selected' : '' ?>>💎 Platinum</option>
+            <?php foreach ($allTiers as $t): ?>
+            <option value="<?= $t['tier_code'] ?>" <?= $tier === $t['tier_code'] ? 'selected' : '' ?>><?= $t['icon'] ?? '🏅' ?> <?= htmlspecialchars($t['tier_name']) ?></option>
+            <?php endforeach; ?>
         </select>
         <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
             <i class="fas fa-search mr-2"></i>ค้นหา
@@ -210,7 +224,8 @@ try {
                                     class="w-10 h-10 rounded-full object-cover">
                                 <div>
                                     <p class="font-medium text-gray-800">
-                                        <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></p>
+                                        <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?>
+                                    </p>
                                     <p class="text-xs text-gray-500"><?= htmlspecialchars($member['display_name'] ?? '') ?>
                                     </p>
                                 </div>
@@ -221,7 +236,7 @@ try {
                         <td class="px-4 py-3">
                             <?php
                             // Calculate tier from points using TierService (not stored member_tier)
-                            $memberPoints = $hasPoints ? (int)($member['points'] ?? 0) : 0;
+                            $memberPoints = $hasPoints ? (int) ($member['points'] ?? 0) : 0;
                             $calculatedTier = $tierService->calculateTier($memberPoints);
                             $t = strtolower($calculatedTier['tier_code']);
                             $tierIcons = ['bronze' => '🥉', 'silver' => '🥈', 'gold' => '🥇', 'platinum' => '💎', 'vip' => '👑'];
@@ -232,7 +247,8 @@ try {
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right font-bold text-purple-600">
-                            <?= number_format($hasPoints ? ($member['points'] ?? 0) : 0) ?></td>
+                            <?= number_format($hasPoints ? ($member['points'] ?? 0) : 0) ?>
+                        </td>
                         <td class="px-4 py-3 text-sm"><?= $member['phone'] ?: '-' ?></td>
                         <td class="px-4 py-3 text-sm text-gray-500">
                             <?= ($hasRegisteredAt && $member['registered_at']) ? date('d/m/Y', strtotime($member['registered_at'])) : '-' ?>
@@ -265,7 +281,8 @@ try {
     <?php if ($totalPages > 1): ?>
         <div class="px-4 py-3 border-t flex justify-between items-center">
             <p class="text-sm text-gray-500">แสดง <?= $offset + 1 ?>-<?= min($offset + $perPage, $total) ?> จาก
-                <?= $total ?> รายการ</p>
+                <?= $total ?> รายการ
+            </p>
             <div class="flex gap-1">
                 <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                     <a href="?tab=members&page=<?= $i ?>&search=<?= urlencode($search) ?>&tier=<?= $tier ?>"

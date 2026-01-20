@@ -21,7 +21,7 @@ class LiffApp {
      */
     async init() {
         console.log('🚀 LiffApp initializing...');
-        
+
         // Initialize store with config
         if (window.store) {
             window.store.init({
@@ -37,21 +37,21 @@ class LiffApp {
         try {
             // Show app FIRST (so elements are visible for router)
             this.showApp();
-            
+
             // Initialize LIFF SDK
             await this.initLiff();
-            
+
             // Wait for DOM to update after showApp
             await new Promise(resolve => requestAnimationFrame(resolve));
-            
+
             // Initialize router (needs app-content to be visible)
             this.initRouter();
-            
+
             // Setup event listeners
             this.setupEventListeners();
-            
+
             console.log('✅ LiffApp initialized successfully');
-            
+
         } catch (error) {
             console.error('❌ LiffApp initialization failed:', error);
             this.showError(error);
@@ -63,7 +63,7 @@ class LiffApp {
      */
     async initLiff() {
         const liffId = this.config.LIFF_ID;
-        
+
         if (!liffId) {
             console.warn('⚠️ No LIFF ID configured, running in guest mode');
             this.handleGuestMode();
@@ -73,10 +73,10 @@ class LiffApp {
         try {
             console.log('📱 Initializing LIFF with ID:', liffId);
             await liff.init({ liffId });
-            
+
             this.isInitialized = true;
             this.isInClient = liff.isInClient();
-            
+
             console.log('📱 LIFF initialized:', {
                 isLoggedIn: liff.isLoggedIn(),
                 isInClient: this.isInClient,
@@ -111,7 +111,7 @@ class LiffApp {
             // Get user profile
             this.profile = await liff.getProfile();
             this.isLoggedIn = true;
-            
+
             console.log('👤 User profile:', this.profile.displayName);
 
             // Update store
@@ -134,7 +134,7 @@ class LiffApp {
      */
     handleNotLoggedIn() {
         console.log('👤 User not logged in');
-        
+
         // If in LINE app, auto login
         if (this.isInClient) {
             console.log('📱 In LINE app, triggering login...');
@@ -152,7 +152,7 @@ class LiffApp {
     handleGuestMode() {
         console.log('👤 Running in guest mode');
         this.isLoggedIn = false;
-        
+
         if (window.store) {
             window.store.set('isLoggedIn', false);
         }
@@ -166,13 +166,13 @@ class LiffApp {
 
         try {
             const url = `${this.config.BASE_URL}/api/member.php?action=get_card&line_user_id=${this.profile.userId}&line_account_id=${this.config.ACCOUNT_ID}`;
-            
+
             const response = await this.fetchWithRetry(url);
             const data = await response.json();
 
             if (data.success && data.member) {
                 console.log('💳 Member data loaded:', data.member.member_id);
-                
+
                 if (window.store) {
                     window.store.setMemberData(data);
                 }
@@ -197,7 +197,7 @@ class LiffApp {
 
         // Get app-content element - it exists in DOM but may be hidden
         let contentEl = document.getElementById('app-content');
-        
+
         // If not found, check if app element exists and try to find content inside
         if (!contentEl) {
             const app = document.getElementById('app');
@@ -205,7 +205,7 @@ class LiffApp {
                 contentEl = app.querySelector('#app-content') || app.querySelector('.app-content');
             }
         }
-        
+
         // Still not found - create it
         if (!contentEl) {
             console.warn('Content element not found, creating...');
@@ -250,67 +250,67 @@ class LiffApp {
     registerPageHandlers() {
         // Home page
         window.router.register('home', () => this.renderHomePage());
-        
+
         // Shop page
         window.router.register('shop', () => this.renderShopPage());
-        
+
         // Cart page
         window.router.register('cart', () => this.renderCartPage());
-        
+
         // Checkout page
         window.router.register('checkout', () => this.renderCheckoutPage());
-        
+
         // Orders page
         window.router.register('orders', () => this.renderOrdersPage());
-        
+
         // Profile page
         window.router.register('profile', () => this.renderProfilePage());
-        
+
         // Member card page
         window.router.register('member', () => this.renderMemberPage());
-        
+
         // Order detail page - Requirements: 19.1, 19.2, 19.3, 19.4
         window.router.register('order-detail', (params) => this.renderOrderDetailPage(params));
-        
+
         // Video call page - Requirements: 6.2, 6.3
         window.router.register('video-call', (params) => this.renderVideoCallPage(params));
-        
+
         // Wishlist page - Requirements: 16.1, 16.2, 16.3, 16.4, 16.5
         window.router.register('wishlist', () => this.renderWishlistPage());
-        
+
         // Notification settings page - Requirements: 14.1, 14.2, 14.3
         window.router.register('notifications', () => this.renderNotificationSettingsPage());
-        
+
         // Medication reminders page - Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7
         window.router.register('medication-reminders', () => this.renderMedicationRemindersPage());
-        
+
         // AI Assistant page - Requirements: 7.1, 7.2
         window.router.register('ai-assistant', (params) => this.renderAIAssistantPage(params));
-        
+
         // Health Profile page - Requirements: 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.10
         window.router.register('health-profile', () => this.renderHealthProfilePage());
-        
+
         // Product Detail page
         window.router.register('product-detail', (params) => this.renderProductDetailPage(params));
-        
+
         // Appointments page
         window.router.register('appointments', () => this.renderAppointmentsPage());
-        
+
         // Redeem points page
         window.router.register('redeem', () => this.renderRedeemPage());
-        
+
         // Points Dashboard page - Requirements: 21.1-21.8
         window.router.register('points', () => this.renderPointsDashboardPage());
-        
+
         // Other pages - placeholder for now
         const placeholderPages = [
             'coupons', 'symptom'
         ];
-        
+
         placeholderPages.forEach(page => {
             window.router.register(page, (params) => this.renderPlaceholderPage(page, params));
         });
-        
+
         // Register page - full implementation
         window.router.register('register', () => this.renderRegisterPage());
     }
@@ -320,20 +320,20 @@ class LiffApp {
      */
     onRouteChange(route, params) {
         console.log('📍 Route changed:', route.page, params);
-        
+
         // Update cart badge
         this.updateCartBadge();
-        
+
         // Update store
         if (window.store) {
             window.store.setCurrentPage(route.page);
         }
-        
+
         // Remove checkout submit bar when leaving checkout page
         if (route.page !== 'checkout') {
             this.removeCheckoutSubmitBar();
         }
-        
+
         // Show/hide cart summary bar based on page (only show on shop page)
         const cartSummaryBar = document.getElementById('cart-summary-bar');
         if (cartSummaryBar) {
@@ -345,7 +345,7 @@ class LiffApp {
                 cartSummaryBar.classList.remove('visible');
             }
         }
-        
+
         // Hide/show bottom nav based on page
         const bottomNav = document.getElementById('bottom-nav');
         if (bottomNav) {
@@ -362,32 +362,32 @@ class LiffApp {
             // Load pharmacists after a short delay to allow DOM to render
             setTimeout(() => this.loadPharmacists(), 100);
         }
-        
+
         // Initialize video call page
         if (route.page === 'video-call') {
             setTimeout(() => this.initVideoCallPage(), 100);
         }
-        
+
         // Load wishlist data
         if (route.page === 'wishlist') {
             setTimeout(() => this.loadWishlistData(), 100);
         }
-        
+
         // Load notification settings
         if (route.page === 'notifications') {
             setTimeout(() => this.loadNotificationSettings(), 100);
         }
-        
+
         // Load medication reminders
         if (route.page === 'medication-reminders') {
             setTimeout(() => this.loadMedicationRemindersData(), 100);
         }
-        
+
         // Initialize AI assistant page
         if (route.page === 'ai-assistant') {
             setTimeout(() => this.initAIAssistantPage(params), 100);
         }
-        
+
         // Initialize health profile page
         if (route.page === 'health-profile') {
             setTimeout(() => this.initHealthProfilePage(), 100);
@@ -432,11 +432,11 @@ class LiffApp {
     showApp() {
         const loadingOverlay = document.getElementById('loading-overlay');
         const app = document.getElementById('app');
-        
+
         if (loadingOverlay) {
             loadingOverlay.classList.add('hidden');
         }
-        
+
         if (app) {
             app.classList.remove('hidden');
         }
@@ -447,7 +447,7 @@ class LiffApp {
      */
     showError(error) {
         const loadingOverlay = document.getElementById('loading-overlay');
-        
+
         if (loadingOverlay) {
             loadingOverlay.innerHTML = `
                 <div class="error-state">
@@ -472,7 +472,7 @@ class LiffApp {
         if (!badge) return;
 
         const count = window.store?.getCartCount() || 0;
-        
+
         if (count > 0) {
             badge.textContent = count > 99 ? '99+' : count;
             badge.classList.remove('hidden');
@@ -491,7 +491,7 @@ class LiffApp {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.textContent = message;
-        
+
         container.appendChild(toast);
 
         // Auto remove
@@ -514,20 +514,20 @@ class LiffApp {
                         ...options.headers
                     }
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
-                
+
                 return response;
-                
+
             } catch (error) {
                 console.warn(`Fetch attempt ${i + 1} failed:`, error);
-                
+
                 if (i === retries - 1) {
                     throw error;
                 }
-                
+
                 // Wait before retry (exponential backoff)
                 await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
             }
@@ -598,7 +598,7 @@ class LiffApp {
         const shopName = this.config.SHOP_NAME || 'ร้านค้า';
         const companyName = this.config.COMPANY_NAME || shopName;
         const shopLogo = this.config.SHOP_LOGO || '';
-        
+
         return `
             <div class="home-page">
                 <!-- Header with Shop Logo and Notifications (Requirement 13.1) -->
@@ -706,21 +706,26 @@ class LiffApp {
             `;
         }
 
-        // Determine tier styling
+        // Determine tier styling - use color from API if available
         const tierName = tier?.name || member.tier || 'Silver';
         const tierClass = this.getTierClass(tierName);
+        const tierColor = tier?.color || this.getTierDefaultColor(tierName);
         const points = member.points || 0;
         const nextTierPoints = tier?.next_tier_points || 2000;
-        const currentTierPoints = tier?.current_tier_points || 0;
+        const currentTierPoints = tier?.current_tier_points || tier?.min_points || 0;
         const progressPercent = Math.min(100, Math.max(0, ((points - currentTierPoints) / (nextTierPoints - currentTierPoints)) * 100));
         const pointsToNext = Math.max(0, nextTierPoints - points);
         const nextTierName = tier?.next_tier_name || this.getNextTierName(tierName);
         const memberId = member.member_id || member.id || '-';
         const memberName = member.first_name || profile.displayName || 'สมาชิก';
         const expiryDate = member.expiry_date ? this.formatDate(member.expiry_date) : '-';
+        const tierIcon = tier?.icon || this.getTierIconEmoji(tierName);
+
+        // Create gradient style from tier color
+        const gradientStyle = `background: linear-gradient(135deg, ${tierColor} 0%, ${tierColor}cc 50%, ${tierColor}99 100%);`;
 
         return `
-            <div class="member-card ${tierClass}" onclick="window.router.navigate('/member')">
+            <div class="member-card" style="${gradientStyle}" onclick="window.router.navigate('/member')">
                 <div class="member-card-decor"></div>
                 <div class="member-card-decor-2"></div>
                 
@@ -732,7 +737,7 @@ class LiffApp {
                             <h2 class="member-card-tier">${tierName} Tier</h2>
                         </div>
                         <div class="member-card-tier-icon">
-                            ${this.getTierIcon(tierName)}
+                            ${tierIcon}
                         </div>
                     </div>
                     
@@ -803,6 +808,29 @@ class LiffApp {
         if (tierLower.includes('gold')) return 'Platinum';
         if (tierLower.includes('bronze')) return 'Silver';
         return 'Gold';
+    }
+
+    /**
+     * Get default tier color when not provided by API
+     */
+    getTierDefaultColor(tierName) {
+        const tierLower = (tierName || '').toLowerCase();
+        if (tierLower.includes('platinum') || tierLower.includes('vip') || tierLower.includes('diamond')) return '#6366F1';
+        if (tierLower.includes('gold')) return '#D97706';
+        if (tierLower.includes('bronze')) return '#92400E';
+        return '#475569'; // Silver/default
+    }
+
+    /**
+     * Get tier icon emoji for display
+     */
+    getTierIconEmoji(tierName) {
+        const tierLower = (tierName || '').toLowerCase();
+        if (tierLower.includes('platinum') || tierLower.includes('diamond')) return '💎';
+        if (tierLower.includes('vip') || tierLower.includes('royal')) return '👑';
+        if (tierLower.includes('gold')) return '🥇';
+        if (tierLower.includes('bronze')) return '🥉';
+        return '🥈'; // Silver/default
     }
 
     /**
@@ -1147,21 +1175,21 @@ class LiffApp {
         // Search input with debounce (Requirement 2.7)
         const searchInput = document.getElementById('shop-search-input');
         const searchClear = document.getElementById('shop-search-clear');
-        
+
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 const query = e.target.value.trim();
-                
+
                 // Show/hide clear button
                 if (searchClear) {
                     searchClear.classList.toggle('visible', query.length > 0);
                 }
-                
+
                 // Debounce search
                 if (this.shopState.searchDebounceTimer) {
                     clearTimeout(this.shopState.searchDebounceTimer);
                 }
-                
+
                 this.shopState.searchDebounceTimer = setTimeout(() => {
                     this.shopState.searchQuery = query;
                     this.shopState.currentPage = 1;
@@ -1169,7 +1197,7 @@ class LiffApp {
                 }, 300);
             });
         }
-        
+
         if (searchClear) {
             searchClear.addEventListener('click', () => {
                 if (searchInput) {
@@ -1452,7 +1480,7 @@ class LiffApp {
         this.shopState.filterType = type;
         this.renderCategories();
         this.loadProducts(true);
-        
+
         // Scroll to product grid
         const grid = document.getElementById('shop-product-grid');
         if (grid) {
@@ -1465,12 +1493,12 @@ class LiffApp {
      */
     async loadProducts(reset = false) {
         if (this.shopState.isLoading) return;
-        
+
         this.shopState.isLoading = true;
-        
+
         const grid = document.getElementById('shop-product-grid');
         const loadMore = document.getElementById('shop-load-more');
-        
+
         if (reset && grid) {
             grid.innerHTML = window.Skeleton ? window.Skeleton.productCards(6) : this.renderProductSkeleton(6);
         }
@@ -1506,13 +1534,13 @@ class LiffApp {
                 } else {
                     this.shopState.products = [...this.shopState.products, ...data.products];
                 }
-                
+
                 this.shopState.totalPages = data.pagination.total_pages;
                 this.shopState.hasMore = data.pagination.has_more;
-                
+
                 this.renderProducts(reset);
                 this.updateResultCount(data.pagination.total);
-                
+
                 // Show/hide load more indicator
                 if (loadMore) {
                     loadMore.classList.toggle('hidden', !this.shopState.hasMore);
@@ -1534,10 +1562,10 @@ class LiffApp {
      */
     async loadMoreProducts() {
         if (this.shopState.isLoadingMore || !this.shopState.hasMore) return;
-        
+
         this.shopState.isLoadingMore = true;
         this.shopState.currentPage++;
-        
+
         const loadMore = document.getElementById('shop-load-more');
         if (loadMore) {
             loadMore.classList.remove('hidden');
@@ -1566,13 +1594,13 @@ class LiffApp {
             if (data.success && data.products.length > 0) {
                 this.shopState.products = [...this.shopState.products, ...data.products];
                 this.shopState.hasMore = data.pagination.has_more;
-                
+
                 // Append new products to grid
                 this.appendProducts(data.products);
             } else {
                 this.shopState.hasMore = false;
             }
-            
+
             // Hide load more if no more products
             if (loadMore && !this.shopState.hasMore) {
                 loadMore.classList.add('hidden');
@@ -1630,7 +1658,7 @@ class LiffApp {
         const isFlashSale = product.is_flash_sale || false;
         const isChoice = product.is_choice || false;
         const isInWishlist = this.isProductInWishlist(product.id);
-        
+
         // Calculate discount percentage
         let discountPercent = 0;
         if (hasSalePrice) {
@@ -1681,10 +1709,10 @@ class LiffApp {
                             ${isOutOfStock ? 'disabled' : ''}
                             onclick="window.liffApp.addProductToCart(${product.id})"
                             data-product-id="${product.id}">
-                        ${isOutOfStock ? 
-                            '<span>สินค้าหมด</span>' : 
-                            '<i class="fas fa-cart-plus"></i><span>เพิ่มลงตะกร้า</span>'
-                        }
+                        ${isOutOfStock ?
+                '<span>สินค้าหมด</span>' :
+                '<i class="fas fa-cart-plus"></i><span>เพิ่มลงตะกร้า</span>'
+            }
                     </button>
                 </div>
             </div>
@@ -1707,13 +1735,13 @@ class LiffApp {
         try {
             // Find product in state or fetch it
             let product = this.shopState.products.find(p => p.id === productId);
-            
+
             if (!product) {
                 // Fetch product details if not in state
                 const url = `${this.config.BASE_URL}/api/shop-products.php?product_id=${productId}`;
                 const response = await this.fetchWithRetry(url);
                 const data = await response.json();
-                
+
                 if (!data.success || !data.product) {
                     throw new Error('Product not found');
                 }
@@ -1758,7 +1786,7 @@ class LiffApp {
         // Check for drug interactions (Requirement 12.1)
         if (window.DrugInteractionChecker) {
             const cart = window.store?.get('cart') || { items: [] };
-            
+
             // Use the drug interaction checker to handle the add
             await window.DrugInteractionChecker.handleAddToCart(
                 product,
@@ -1812,7 +1840,7 @@ class LiffApp {
         btn.classList.remove('adding');
         btn.classList.add('added');
         btn.innerHTML = '<i class="fas fa-check"></i><span>เพิ่มแล้ว</span>';
-        
+
         // Show toast
         this.showToast('เพิ่มสินค้าลงตะกร้าแล้ว', 'success');
 
@@ -1829,7 +1857,7 @@ class LiffApp {
      */
     async showProductDetailModal(productId) {
         console.log('🛍️ Opening product detail modal for ID:', productId);
-        
+
         // Create modal if not exists
         let modal = document.getElementById('product-detail-modal');
         if (!modal) {
@@ -1867,7 +1895,7 @@ class LiffApp {
             const response = await this.fetchWithRetry(url);
             const text = await response.text();
             console.log('🛍️ Product response text:', text.substring(0, 200));
-            
+
             let data;
             try {
                 data = JSON.parse(text);
@@ -1945,12 +1973,12 @@ class LiffApp {
 
                         <!-- Stock Status -->
                         <div class="product-modal-stock ${isOutOfStock ? 'out' : isLowStock ? 'low' : 'in'}">
-                            ${isOutOfStock ? 
-                                '<i class="fas fa-times-circle"></i> สินค้าหมด' : 
-                                isLowStock ? 
-                                    `<i class="fas fa-exclamation-circle"></i> เหลือ ${product.stock} ${product.unit || 'ชิ้น'}` :
-                                    '<i class="fas fa-check-circle"></i> มีสินค้า'
-                            }
+                            ${isOutOfStock ?
+                '<i class="fas fa-times-circle"></i> สินค้าหมด' :
+                isLowStock ?
+                    `<i class="fas fa-exclamation-circle"></i> เหลือ ${product.stock} ${product.unit || 'ชิ้น'}` :
+                    '<i class="fas fa-check-circle"></i> มีสินค้า'
+            }
                         </div>
 
                         ${product.manufacturer ? `
@@ -2031,10 +2059,10 @@ class LiffApp {
 
         let val = parseInt(input.value) + delta;
         const max = this.currentModalProduct.stock || 999;
-        
+
         if (val < 1) val = 1;
         if (val > max) val = max;
-        
+
         input.value = val;
     }
 
@@ -2046,7 +2074,7 @@ class LiffApp {
         const qtyInput = document.getElementById('modal-qty');
         const qty = qtyInput ? parseInt(qtyInput.value) : 1;
         const btn = document.querySelector('.product-modal-add-btn');
-        
+
         if (!btn || btn.disabled) return;
 
         const originalContent = btn.innerHTML;
@@ -2085,7 +2113,7 @@ class LiffApp {
      */
     async toggleWishlist(productId) {
         const profile = window.store?.get('profile');
-        
+
         // Check if logged in
         if (!profile?.userId) {
             this.showToast('กรุณาเข้าสู่ระบบเพื่อใช้งานรายการโปรด', 'warning');
@@ -2094,7 +2122,7 @@ class LiffApp {
 
         const btn = document.querySelector(`.product-card[data-product-id="${productId}"] .product-wishlist-btn`);
         const isCurrentlyInWishlist = window.store?.isInWishlist(productId);
-        
+
         // Optimistic UI update
         if (btn) {
             const isActive = btn.classList.toggle('active');
@@ -2199,7 +2227,7 @@ class LiffApp {
         const badge = document.getElementById('cart-summary-badge');
         const countEl = document.getElementById('cart-summary-count');
         const totalEl = document.getElementById('cart-summary-total');
-        
+
         if (!bar) return;
 
         const cart = window.store?.get('cart') || { items: [], total: 0 };
@@ -2267,7 +2295,7 @@ class LiffApp {
     selectSort(sortValue) {
         this.shopState.sortBy = sortValue;
         this.shopState.currentPage = 1;
-        
+
         // Update sort label
         const sortLabels = {
             'newest': 'ล่าสุด',
@@ -2276,12 +2304,12 @@ class LiffApp {
             'name': 'ชื่อ: ก → ฮ',
             'popular': 'ยอดนิยม'
         };
-        
+
         const labelEl = document.getElementById('shop-sort-label');
         if (labelEl) {
             labelEl.textContent = sortLabels[sortValue] || 'ล่าสุด';
         }
-        
+
         this.hideModal();
         this.loadProducts(true);
     }
@@ -2361,14 +2389,14 @@ class LiffApp {
     clearSearch() {
         const searchInput = document.getElementById('shop-search-input');
         const searchClear = document.getElementById('shop-search-clear');
-        
+
         if (searchInput) searchInput.value = '';
         if (searchClear) searchClear.classList.remove('visible');
-        
+
         this.shopState.searchQuery = '';
         this.shopState.selectedCategory = null;
         this.shopState.currentPage = 1;
-        
+
         this.renderCategories();
         this.loadProducts(true);
     }
@@ -2377,7 +2405,7 @@ class LiffApp {
      * Render category skeleton
      */
     renderCategorySkeleton() {
-        return Array(5).fill(null).map(() => 
+        return Array(5).fill(null).map(() =>
             '<div class="skeleton skeleton-category-pill" style="width: 80px; height: 36px;"></div>'
         ).join('');
     }
@@ -2408,13 +2436,13 @@ class LiffApp {
      */
     renderCartPage() {
         const cart = window.store?.get('cart') || { items: [], subtotal: 0, discount: 0, shipping: 0, total: 0 };
-        
+
         // Initialize cart page after render
         setTimeout(() => {
             this.setupCartEventListeners();
             this.loadCartFromServer();
         }, 100);
-        
+
         if (cart.items.length === 0) {
             return `
                 <div class="cart-page">
@@ -2532,8 +2560,8 @@ class LiffApp {
                     <h4 class="cart-item-name">${item.name}</h4>
                     <div class="cart-item-price">
                         <span class="cart-item-unit-price">฿${this.formatNumber(item.price)}</span>
-                        ${item.original_price && item.original_price > item.price ? 
-                            `<span class="cart-item-original-price">฿${this.formatNumber(item.original_price)}</span>` : ''}
+                        ${item.original_price && item.original_price > item.price ?
+                `<span class="cart-item-original-price">฿${this.formatNumber(item.original_price)}</span>` : ''}
                     </div>
                     <div class="cart-item-subtotal">
                         รวม: <strong>฿${this.formatNumber(item.price * item.quantity)}</strong>
@@ -2567,7 +2595,7 @@ class LiffApp {
         // Prevent duplicate subscriptions
         if (this._cartListenersSetup) return;
         this._cartListenersSetup = true;
-        
+
         // Subscribe to cart changes
         if (window.store) {
             window.store.subscribe('cart', () => {
@@ -2583,7 +2611,7 @@ class LiffApp {
         // Prevent duplicate/rapid calls
         if (this._loadingCart) return;
         this._loadingCart = true;
-        
+
         const profile = window.store?.get('profile');
         if (!profile?.userId) {
             this._loadingCart = false;
@@ -2613,7 +2641,7 @@ class LiffApp {
                 cart.shipping = parseFloat(data.shipping_fee || 0);
                 cart.total = parseFloat(data.total || 0);
                 cart.hasPrescription = cart.items.some(item => item.is_prescription);
-                
+
                 window.store.set('cart', cart);
             }
             // If server returns empty, keep local cart (don't overwrite)
@@ -2633,22 +2661,22 @@ class LiffApp {
     refreshCartDisplay() {
         // Prevent infinite loop
         if (this._refreshingCart) return;
-        
+
         const cart = window.store?.get('cart') || { items: [], subtotal: 0, discount: 0, shipping: 0, total: 0 };
-        
+
         console.log('🛒 refreshCartDisplay:', { itemCount: cart.items?.length, subtotal: cart.subtotal });
-        
+
         // Check if we're on cart page and have the container
         const itemsContainer = document.getElementById('cart-items-container');
         const cartPage = document.querySelector('.cart-page');
         const currentPage = window.store?.get('currentPage');
-        
-        console.log('🛒 Elements found:', { 
-            hasItemsContainer: !!itemsContainer, 
+
+        console.log('🛒 Elements found:', {
+            hasItemsContainer: !!itemsContainer,
             cartPageExists: !!cartPage,
             currentPage: currentPage
         });
-        
+
         // Only re-render if we're on cart page but missing container
         if (currentPage === 'cart' && cart.items?.length > 0 && !itemsContainer && !cartPage) {
             console.log('🛒 Cart has items but no container, re-rendering page');
@@ -2665,7 +2693,7 @@ class LiffApp {
             }
             return;
         }
-        
+
         // Update items container
         if (itemsContainer) {
             itemsContainer.innerHTML = this.renderCartItems(cart.items);
@@ -2814,9 +2842,9 @@ class LiffApp {
         const cart = window.store?.get('cart') || { items: [], total: 0 };
         const profile = window.store?.get('profile');
         const member = window.store?.get('member');
-        
+
         console.log('🛒 renderCheckoutPage cart:', { itemCount: cart.items?.length, total: cart.total });
-        
+
         // If cart is empty, show message instead of redirect loop
         if (!cart.items || cart.items.length === 0) {
             return `
@@ -3196,41 +3224,41 @@ class LiffApp {
     autoFillFromProfile() {
         const profile = window.store?.get('profile');
         const member = window.store?.get('member');
-        
+
         if (profile?.displayName) {
             const nameInput = document.getElementById('checkout-name');
             if (nameInput && !nameInput.value) {
                 nameInput.value = profile.displayName;
             }
         }
-        
+
         if (member?.phone) {
             const phoneInput = document.getElementById('checkout-phone');
             if (phoneInput && !phoneInput.value) {
                 phoneInput.value = member.phone;
             }
         }
-        
+
         // Load last delivery address from previous orders
         this.loadLastAddress();
     }
-    
+
     /**
      * Load last delivery address from previous orders
      */
     async loadLastAddress() {
         const profile = window.store?.get('profile');
         if (!profile?.userId) return;
-        
+
         try {
             const baseUrl = window.APP_CONFIG?.BASE_URL || '';
             const response = await fetch(`${baseUrl}/api/checkout.php?action=last_address&line_user_id=${profile.userId}`);
             const data = await response.json();
-            
+
             if (data.success && data.address) {
                 const addr = data.address;
                 console.log('📍 Last address loaded:', addr);
-                
+
                 // Fill form fields if empty
                 const fields = {
                     'checkout-name': addr.name,
@@ -3241,14 +3269,14 @@ class LiffApp {
                     'checkout-province': addr.province,
                     'checkout-postcode': addr.postcode
                 };
-                
+
                 for (const [id, value] of Object.entries(fields)) {
                     const input = document.getElementById(id);
                     if (input && !input.value && value) {
                         input.value = value;
                     }
                 }
-                
+
                 // Re-validate form
                 this.validateCheckoutForm();
             }
@@ -3264,9 +3292,9 @@ class LiffApp {
         const checkbox = document.getElementById('use-saved-address');
         const formFields = document.getElementById('address-form-fields');
         const member = window.store?.get('member');
-        
+
         this.checkoutState.useSavedAddress = checkbox?.checked || false;
-        
+
         if (this.checkoutState.useSavedAddress && member?.address) {
             formFields?.classList.add('hidden');
             // Fill form with saved address
@@ -3281,7 +3309,7 @@ class LiffApp {
         } else {
             formFields?.classList.remove('hidden');
         }
-        
+
         this.validateCheckoutForm();
     }
 
@@ -3306,7 +3334,7 @@ class LiffApp {
         // Validate each required field
         for (const [fieldName, input] of Object.entries(fields)) {
             if (!input) continue;
-            
+
             const value = input.value.trim();
             const errorEl = document.getElementById(`error-${fieldName}`);
             let fieldValid = true;
@@ -3322,7 +3350,7 @@ class LiffApp {
                         errorMessage = 'ชื่อต้องมีอย่างน้อย 2 ตัวอักษร';
                     }
                     break;
-                    
+
                 case 'phone':
                     if (!value) {
                         fieldValid = false;
@@ -3332,7 +3360,7 @@ class LiffApp {
                         errorMessage = 'กรุณากรอกเบอร์โทรศัพท์ 10 หลัก';
                     }
                     break;
-                    
+
                 case 'address':
                     if (!value) {
                         fieldValid = false;
@@ -3342,14 +3370,14 @@ class LiffApp {
                         errorMessage = 'กรุณากรอกที่อยู่ให้ครบถ้วน';
                     }
                     break;
-                    
+
                 case 'province':
                     if (!value) {
                         fieldValid = false;
                         errorMessage = 'กรุณากรอกจังหวัด';
                     }
                     break;
-                    
+
                 case 'postcode':
                     if (!value) {
                         fieldValid = false;
@@ -3372,7 +3400,7 @@ class LiffApp {
 
         // Update form valid state
         this.checkoutState.formValid = isValid;
-        
+
         // Enable/disable submit button (Requirement 3.6, 3.7)
         const submitBtn = document.getElementById('place-order-btn');
         if (submitBtn) {
@@ -3388,7 +3416,7 @@ class LiffApp {
      */
     validateField(input) {
         if (!input) return;
-        
+
         const fieldName = input.id.replace('checkout-', '');
         const value = input.value.trim();
         const errorEl = document.getElementById(`error-${fieldName}`);
@@ -3402,7 +3430,7 @@ class LiffApp {
                     errorMessage = 'ชื่อต้องมีอย่างน้อย 2 ตัวอักษร';
                 }
                 break;
-                
+
             case 'phone':
                 if (!value) {
                     errorMessage = 'กรุณากรอกเบอร์โทรศัพท์';
@@ -3410,7 +3438,7 @@ class LiffApp {
                     errorMessage = 'กรุณากรอกเบอร์โทรศัพท์ 10 หลัก';
                 }
                 break;
-                
+
             case 'address':
                 if (!value) {
                     errorMessage = 'กรุณากรอกที่อยู่';
@@ -3418,13 +3446,13 @@ class LiffApp {
                     errorMessage = 'กรุณากรอกที่อยู่ให้ครบถ้วน';
                 }
                 break;
-                
+
             case 'province':
                 if (!value) {
                     errorMessage = 'กรุณากรอกจังหวัด';
                 }
                 break;
-                
+
             case 'postcode':
                 if (!value) {
                     errorMessage = 'กรุณากรอกรหัสไปรษณีย์';
@@ -3487,7 +3515,7 @@ class LiffApp {
         // Get cart and validate
         const cart = window.store?.get('cart');
         console.log('🛒 placeOrder cart:', cart);
-        
+
         if (!cart?.items || cart.items.length === 0) {
             this.showToast('ตะกร้าว่างเปล่า กรุณาเพิ่มสินค้า', 'error');
             return;
@@ -3503,7 +3531,7 @@ class LiffApp {
                         cart,
                         checkResult,
                         (items) => this.requestPrescriptionConsultation(items),
-                        () => {}
+                        () => { }
                     );
                     return;
                 }
@@ -3517,7 +3545,7 @@ class LiffApp {
         const submitBtn = document.getElementById('place-order-btn');
         const submitText = document.getElementById('place-order-text');
         const submitLoading = document.getElementById('place-order-loading');
-        
+
         if (submitBtn) submitBtn.disabled = true;
         if (submitText) submitText.classList.add('hidden');
         if (submitLoading) submitLoading.classList.remove('hidden');
@@ -3564,14 +3592,14 @@ class LiffApp {
 
             if (result.success) {
                 console.log('🛒 Order created successfully:', result.order_number);
-                
+
                 // Clear cart
                 window.store?.clearCart();
 
                 // Send LIFF message via LiffMessageBridge (with API fallback)
                 console.log('🛒 Checking liffMessageBridge:', !!window.liffMessageBridge);
                 console.log('🛒 isInClient:', typeof liff !== 'undefined' && liff.isInClient ? liff.isInClient() : 'N/A');
-                
+
                 if (window.liffMessageBridge) {
                     try {
                         console.log('🛒 Calling sendOrderPlaced with order:', result.order_number);
@@ -3580,7 +3608,7 @@ class LiffApp {
                             items: cart.items.length
                         });
                         console.log('🛒 sendOrderPlaced result:', msgResult);
-                        
+
                         if (msgResult.success) {
                             console.log('🛒 ✅ Order notification sent via:', msgResult.method);
                         } else {
@@ -3602,7 +3630,7 @@ class LiffApp {
         } catch (error) {
             console.error('Order placement error:', error);
             this.showToast(error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
-            
+
             // Reset button state
             if (submitBtn) submitBtn.disabled = false;
             if (submitText) submitText.classList.remove('hidden');
@@ -3618,7 +3646,7 @@ class LiffApp {
      */
     showOrderConfirmation(orderResult) {
         const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'transfer';
-        
+
         // For transfer/promptpay, show payment instructions
         if (paymentMethod === 'transfer' || paymentMethod === 'promptpay') {
             this.showPaymentInstructions(orderResult, paymentMethod);
@@ -3675,7 +3703,7 @@ class LiffApp {
                 </div>
             </div>
         `;
-        
+
         this.showModal(modalHtml);
     }
 
@@ -3707,7 +3735,7 @@ class LiffApp {
                 </div>
             </div>
         `;
-        
+
         this.showModal(modalHtml);
     }
 
@@ -3722,9 +3750,9 @@ class LiffApp {
         const promoInput = document.getElementById('promo-code');
         const promoBtn = document.getElementById('apply-promo-btn');
         const promoResult = document.getElementById('promo-result');
-        
+
         const code = promoInput?.value.trim().toUpperCase();
-        
+
         if (!code) {
             this.showPromoResult('กรุณากรอกโค้ดส่วนลด', 'error');
             return;
@@ -3743,7 +3771,7 @@ class LiffApp {
         try {
             const profile = window.store?.get('profile');
             const cart = window.store?.get('cart');
-            
+
             // Validate promo code via API (Requirement 17.5)
             const response = await this.fetchWithRetry(`${this.config.BASE_URL}/api/checkout.php`, {
                 method: 'POST',
@@ -3763,18 +3791,18 @@ class LiffApp {
                 this.checkoutState.promoCode = code;
                 this.checkoutState.promoDiscount = parseFloat(result.discount) || 0;
                 this.checkoutState.promoError = '';
-                
+
                 // Update cart discount
                 const cartObj = window.store.get('cart');
                 cartObj.discount = this.checkoutState.promoDiscount;
                 cartObj.couponCode = code;
                 window.store.recalculateCart(cartObj);
                 window.store.set('cart', cartObj);
-                
+
                 // Update UI
                 this.updateCheckoutTotals();
                 this.showPromoResult(`ใช้โค้ดสำเร็จ! ลด ฿${this.formatNumber(this.checkoutState.promoDiscount)}`, 'success');
-                
+
                 // Disable input after successful apply
                 if (promoInput) promoInput.disabled = true;
                 if (promoBtn) {
@@ -3805,19 +3833,19 @@ class LiffApp {
     removePromoCode() {
         const promoInput = document.getElementById('promo-code');
         const promoBtn = document.getElementById('apply-promo-btn');
-        
+
         // Clear promo state
         this.checkoutState.promoCode = '';
         this.checkoutState.promoDiscount = 0;
         this.checkoutState.promoError = '';
-        
+
         // Update cart
         const cart = window.store.get('cart');
         cart.discount = 0;
         cart.couponCode = null;
         window.store.recalculateCart(cart);
         window.store.set('cart', cart);
-        
+
         // Reset UI
         if (promoInput) {
             promoInput.value = '';
@@ -3827,7 +3855,7 @@ class LiffApp {
             promoBtn.textContent = 'ใช้โค้ด';
             promoBtn.onclick = () => this.applyPromoCode();
         }
-        
+
         this.updateCheckoutTotals();
         this.showPromoResult('', '');
     }
@@ -3850,15 +3878,15 @@ class LiffApp {
      */
     updateCheckoutTotals() {
         const cart = window.store?.get('cart') || { subtotal: 0, discount: 0, shipping: 0, total: 0 };
-        
+
         const subtotalEl = document.getElementById('checkout-subtotal');
         const promoRow = document.getElementById('checkout-promo-row');
         const promoDiscountEl = document.getElementById('checkout-promo-discount');
         const shippingEl = document.getElementById('checkout-shipping');
         const grandTotalEl = document.getElementById('checkout-grand-total');
-        
+
         if (subtotalEl) subtotalEl.textContent = `฿${this.formatNumber(cart.subtotal)}`;
-        
+
         if (promoRow && promoDiscountEl) {
             if (cart.discount > 0) {
                 promoRow.classList.remove('hidden');
@@ -3867,11 +3895,11 @@ class LiffApp {
                 promoRow.classList.add('hidden');
             }
         }
-        
+
         if (shippingEl) {
             shippingEl.textContent = cart.shipping > 0 ? `฿${this.formatNumber(cart.shipping)}` : 'ฟรี';
         }
-        
+
         if (grandTotalEl) {
             grandTotalEl.textContent = `฿${this.formatNumber(cart.total)}`;
         }
@@ -3889,7 +3917,7 @@ class LiffApp {
     renderOrdersPage() {
         // Show skeleton loading initially
         setTimeout(() => this.loadOrders(), 100);
-        
+
         return `
             <div class="orders-page">
                 <!-- Header -->
@@ -3964,7 +3992,7 @@ class LiffApp {
         if (!container) return;
 
         const profile = window.store?.get('profile');
-        
+
         if (!profile) {
             container.innerHTML = this.renderOrdersLoginRequired();
             return;
@@ -3972,7 +4000,7 @@ class LiffApp {
 
         try {
             const url = `${this.config.BASE_URL}/api/orders.php?action=my_orders&line_user_id=${profile.userId}&line_account_id=${this.config.ACCOUNT_ID}${status !== 'all' ? `&status=${status}` : ''}`;
-            
+
             const response = await this.fetchWithRetry(url);
             const data = await response.json();
 
@@ -3981,10 +4009,10 @@ class LiffApp {
                 const sortedOrders = data.orders.sort((a, b) => {
                     return new Date(b.created_at) - new Date(a.created_at);
                 });
-                
+
                 // Store orders for filtering
                 this.currentOrders = sortedOrders;
-                
+
                 container.innerHTML = this.renderOrdersList(sortedOrders);
             } else {
                 container.innerHTML = this.renderOrdersEmptyState();
@@ -4023,10 +4051,10 @@ class LiffApp {
         const orderId = order.order_number || order.order_id || order.id;
         const status = this.normalizeOrderStatus(order.status);
         const paymentMethod = order.payment_method || 'transfer';
-        
+
         // Debug: log payment method
         console.log(`Order #${orderId}: payment_method=${order.payment_method}, isCOD=${paymentMethod === 'cod'}`);
-        
+
         // สำหรับ COD ที่ status = confirmed แสดงว่ารอจัดส่ง
         let statusBadge;
         if (paymentMethod === 'cod' && status === 'confirmed') {
@@ -4034,12 +4062,12 @@ class LiffApp {
         } else {
             statusBadge = this.getOrderStatusBadge(status);
         }
-        
+
         const date = this.formatOrderDate(order.created_at);
         const items = order.items || [];
         const total = parseFloat(order.grand_total || order.total_amount || 0);
         const itemCount = items.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0);
-        
+
         // Get preview images (max 3)
         const previewImages = items.slice(0, 3).map(item => item.image || item.image_url || '');
         const moreCount = items.length > 3 ? items.length - 3 : 0;
@@ -4128,7 +4156,7 @@ class LiffApp {
     getOrderStatusBadge(status) {
         const statusConfig = this.getStatusConfig();
         const config = statusConfig[status] || statusConfig['pending'];
-        
+
         return `
             <span class="order-status-badge ${config.class}">
                 <i class="fas ${config.icon}"></i>
@@ -4169,26 +4197,26 @@ class LiffApp {
 
         const normalizedStatus = this.normalizeOrderStatus(newStatus);
         const badge = card.querySelector('.order-status-badge');
-        
+
         if (badge) {
             // Remove all status classes
             const statusClasses = ['pending', 'confirmed', 'paid', 'packing', 'processing', 'shipping', 'shipped', 'delivered', 'completed', 'cancelled'];
             statusClasses.forEach(cls => badge.classList.remove(cls));
-            
+
             // Add new status class
             const statusConfig = this.getStatusConfig();
             const config = statusConfig[normalizedStatus] || statusConfig['pending'];
-            
+
             badge.classList.add(config.class);
             badge.innerHTML = `<i class="fas ${config.icon}"></i> ${config.label}`;
-            
+
             // Add animation for visual feedback
             badge.classList.add('status-updated');
             setTimeout(() => badge.classList.remove('status-updated'), 500);
-            
+
             // Update the delivery timeline if expanded
             this.updateOrderTimeline(orderId, normalizedStatus);
-            
+
             return true;
         }
         return false;
@@ -4208,12 +4236,12 @@ class LiffApp {
 
         const statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
         const currentIndex = statusOrder.indexOf(status);
-        
+
         const timelineItems = timeline.querySelectorAll('.timeline-item');
         timelineItems.forEach((item, index) => {
             const isCompleted = currentIndex >= index || (status === 'completed' && index <= 5);
             const isCurrent = currentIndex === index;
-            
+
             item.classList.toggle('completed', isCompleted);
             item.classList.toggle('current', isCurrent);
         });
@@ -4224,7 +4252,7 @@ class LiffApp {
      */
     renderOrderItems(items) {
         if (!items || items.length === 0) return '';
-        
+
         return `
             <div class="order-items-section">
                 <div class="order-items-title">รายการสินค้า</div>
@@ -4255,7 +4283,7 @@ class LiffApp {
         const discount = parseFloat(order.discount || 0);
         const shipping = parseFloat(order.shipping_fee || order.shipping || 0);
         const total = parseFloat(order.grand_total || order.total_amount || 0);
-        
+
         return `
             <div class="order-summary-section">
                 <div class="order-summary-row">
@@ -4288,9 +4316,9 @@ class LiffApp {
         const address = deliveryInfo.address || order.shipping_address || order.address || '';
         const name = deliveryInfo.name || order.customer_name || '';
         const phone = deliveryInfo.phone || order.customer_phone || '';
-        
+
         if (!address && !name) return '';
-        
+
         return `
             <div class="order-address-section">
                 <div class="order-items-title">ที่อยู่จัดส่ง</div>
@@ -4319,14 +4347,14 @@ class LiffApp {
         const trackingNumber = order.tracking_number || order.delivery_info?.tracking_number;
         const carrier = order.carrier || order.delivery_info?.carrier || 'ขนส่ง';
         const isCOD = order.payment_method === 'cod';
-        
+
         // Debug: log for tracking
         console.log(`renderOrderTracking: payment_method=${order.payment_method}, isCOD=${isCOD}`);
-        
+
         // Define timeline stages - แยกตาม payment method
         let stages;
         let statusOrder;
-        
+
         if (isCOD) {
             // COD: ไม่มีขั้นตอนชำระเงินก่อนจัดส่ง (ชำระตอนรับสินค้า)
             stages = [
@@ -4349,9 +4377,9 @@ class LiffApp {
             ];
             statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
         }
-        
+
         const currentIndex = statusOrder.indexOf(status);
-        
+
         return `
             <div class="order-tracking-section">
                 <div class="order-items-title">สถานะการจัดส่ง</div>
@@ -4377,11 +4405,11 @@ class LiffApp {
                     <!-- Delivery Timeline (Requirement 19.2) -->
                     <div class="delivery-timeline">
                         ${stages.map((stage, index) => {
-                            const isCompleted = currentIndex >= index || (status === 'completed' && index <= 4);
-                            const isCurrent = currentIndex === index;
-                            const stageTime = this.getStageTime(order, stage.key);
-                            
-                            return `
+            const isCompleted = currentIndex >= index || (status === 'completed' && index <= 4);
+            const isCurrent = currentIndex === index;
+            const stageTime = this.getStageTime(order, stage.key);
+
+            return `
                                 <div class="timeline-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}">
                                     <div class="timeline-dot"></div>
                                     <div class="timeline-content">
@@ -4390,7 +4418,7 @@ class LiffApp {
                                     </div>
                                 </div>
                             `;
-                        }).join('')}
+        }).join('')}
                     </div>
                 </div>
             </div>
@@ -4408,7 +4436,7 @@ class LiffApp {
             'shipping': order.shipped_at,
             'delivered': order.delivered_at
         };
-        
+
         const time = timeMap[stage];
         return time ? this.formatOrderDateTime(time) : '';
     }
@@ -4428,15 +4456,15 @@ class LiffApp {
             'best express': `https://www.best-inc.co.th/track?bills=${trackingNumber}`,
             'scg express': `https://www.scgexpress.co.th/tracking/detail/${trackingNumber}`
         };
-        
+
         const carrierLower = carrier.toLowerCase();
         let url = carrierUrls[carrierLower];
-        
+
         // Default to Google search if carrier not found
         if (!url) {
             url = `https://www.google.com/search?q=${encodeURIComponent(carrier + ' tracking ' + trackingNumber)}`;
         }
-        
+
         window.open(url, '_blank');
     }
 
@@ -4447,7 +4475,7 @@ class LiffApp {
     renderOrderActions(order, status) {
         const canReorder = ['delivered', 'completed'].includes(status);
         const orderId = order.id || order.order_id;
-        
+
         return `
             <div class="order-actions">
                 ${canReorder ? `
@@ -4475,12 +4503,12 @@ class LiffApp {
      */
     async reorderItems(orderId) {
         // Try to find order in currentOrders (supports both id and order_id)
-        let order = this.currentOrders?.find(o => 
-            o.id === orderId || 
-            o.order_id === orderId || 
+        let order = this.currentOrders?.find(o =>
+            o.id === orderId ||
+            o.order_id === orderId ||
             String(o.id) === String(orderId)
         );
-        
+
         // If not found in currentOrders, try to fetch from API
         if (!order || !order.items || order.items.length === 0) {
             try {
@@ -4497,7 +4525,7 @@ class LiffApp {
                 console.error('Error fetching order for reorder:', error);
             }
         }
-        
+
         // Validate order has items
         if (!order || !order.items || order.items.length === 0) {
             this.showToast('ไม่พบข้อมูลออเดอร์หรือไม่มีสินค้าในออเดอร์', 'error');
@@ -4510,7 +4538,7 @@ class LiffApp {
         try {
             let addedCount = 0;
             let skippedCount = 0;
-            
+
             // Add each item to cart (Requirement 4.4)
             for (const item of order.items) {
                 // Validate item has required data
@@ -4519,7 +4547,7 @@ class LiffApp {
                     skippedCount++;
                     continue;
                 }
-                
+
                 const product = {
                     id: productId,
                     name: item.name || item.product_name || 'สินค้า',
@@ -4527,7 +4555,7 @@ class LiffApp {
                     image_url: item.image || item.image_url || '',
                     is_prescription: Boolean(item.is_prescription)
                 };
-                
+
                 const quantity = parseInt(item.quantity) || 1;
                 window.store?.addToCart(product, quantity);
                 addedCount++;
@@ -4536,7 +4564,7 @@ class LiffApp {
             // Show success message with count
             if (addedCount > 0) {
                 this.showToast(`เพิ่ม ${addedCount} รายการลงตะกร้าแล้ว`, 'success');
-                
+
                 // Navigate to checkout (Requirement 4.5)
                 setTimeout(() => {
                     window.router.navigate('/checkout');
@@ -4619,14 +4647,14 @@ class LiffApp {
      */
     renderOrderDetailPage(params) {
         const orderId = params?.orderId || params?.id;
-        
+
         if (!orderId) {
             return this.renderOrderDetailError('ไม่พบหมายเลขออเดอร์');
         }
-        
+
         // Load order detail after render
         setTimeout(() => this.loadOrderDetail(orderId), 100);
-        
+
         return `
             <div class="order-detail-page">
                 <!-- Header -->
@@ -4652,18 +4680,18 @@ class LiffApp {
     async loadOrderDetail(orderId) {
         const contentEl = document.getElementById('order-detail-content');
         if (!contentEl) return;
-        
+
         try {
             const profile = window.store?.get('profile');
             const lineUserId = profile?.userId || '';
             const lineAccountId = this.config.ACCOUNT_ID || 1;
-            
+
             const response = await fetch(
                 `${this.config.BASE_URL}/api/checkout.php?action=order&order_id=${orderId}&line_user_id=${lineUserId}&line_account_id=${lineAccountId}`
             );
-            
+
             const data = await response.json();
-            
+
             if (data.success && data.order) {
                 contentEl.innerHTML = this.renderOrderDetailContent(data.order);
             } else {
@@ -4683,7 +4711,7 @@ class LiffApp {
         const paymentStatus = order.payment_status || 'pending';
         const allStatusConfig = this.getStatusConfig();
         const paymentMethod = order.payment_method || 'transfer';
-        
+
         // สำหรับ COD ที่ status = confirmed แสดงว่ารอจัดส่ง
         let statusConfig;
         if (paymentMethod === 'cod' && status === 'confirmed') {
@@ -4691,13 +4719,13 @@ class LiffApp {
         } else {
             statusConfig = allStatusConfig[status] || allStatusConfig['pending'];
         }
-        
+
         const orderNumber = order.order_number || order.order_id || order.id;
         const items = order.items || [];
-        
+
         // Check if needs slip upload (transfer/promptpay and not paid)
         const needsSlipUpload = ['transfer', 'promptpay'].includes(paymentMethod) && paymentStatus === 'pending';
-        
+
         return `
             <!-- Order Header Card -->
             <div class="order-detail-card">
@@ -4758,7 +4786,7 @@ class LiffApp {
         const orderId = order.id || order.order_id;
         const total = parseFloat(order.grand_total || order.total_amount || 0);
         const paymentMethod = order.payment_method || 'transfer';
-        
+
         return `
             <div class="order-detail-card slip-upload-card">
                 <div class="order-detail-section-title">
@@ -4837,23 +4865,23 @@ class LiffApp {
     handleSlipFileSelect(event, orderId) {
         const file = event.target.files[0];
         if (!file) return;
-        
+
         // Validate file type
         if (!file.type.startsWith('image/')) {
             this.showToast('กรุณาเลือกไฟล์รูปภาพ', 'error');
             return;
         }
-        
+
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
             this.showToast('ไฟล์ใหญ่เกินไป (สูงสุด 5MB)', 'error');
             return;
         }
-        
+
         // Store file for later upload
         this._slipFile = file;
         this._slipOrderId = orderId;
-        
+
         // Show preview
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -4861,7 +4889,7 @@ class LiffApp {
             const preview = document.getElementById('slip-preview');
             const previewImage = document.getElementById('slip-preview-image');
             const submitBtn = document.getElementById('slip-submit-btn');
-            
+
             if (placeholder) placeholder.style.display = 'none';
             if (preview) preview.style.display = 'block';
             if (previewImage) previewImage.src = e.target.result;
@@ -4875,12 +4903,12 @@ class LiffApp {
      */
     removeSlipPreview() {
         this._slipFile = null;
-        
+
         const placeholder = document.getElementById('slip-upload-placeholder');
         const preview = document.getElementById('slip-preview');
         const fileInput = document.getElementById('slip-file-input');
         const submitBtn = document.getElementById('slip-submit-btn');
-        
+
         if (placeholder) placeholder.style.display = 'flex';
         if (preview) preview.style.display = 'none';
         if (fileInput) fileInput.value = '';
@@ -4895,34 +4923,34 @@ class LiffApp {
             this.showToast('กรุณาเลือกรูปสลิป', 'error');
             return;
         }
-        
+
         const submitBtn = document.getElementById('slip-submit-btn');
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<div class="btn-spinner"></div> กำลังอัพโหลด...';
         }
-        
+
         try {
             const formData = new FormData();
             formData.append('slip', this._slipFile);
             formData.append('order_id', orderId);
             formData.append('action', 'upload_slip');
-            
+
             const profile = window.store?.get('profile');
             if (profile?.userId) {
                 formData.append('line_user_id', profile.userId);
             }
-            
+
             const response = await fetch(`${this.config.BASE_URL}/api/checkout.php`, {
                 method: 'POST',
                 body: formData
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 this.showToast('ส่งหลักฐานการชำระเงินสำเร็จ', 'success');
-                
+
                 // Reload order detail
                 setTimeout(() => this.loadOrderDetail(orderId), 1000);
             } else {
@@ -4931,7 +4959,7 @@ class LiffApp {
         } catch (error) {
             console.error('Slip upload error:', error);
             this.showToast(error.message || 'เกิดข้อผิดพลาด', 'error');
-            
+
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> ส่งหลักฐานการชำระเงิน';
@@ -4960,11 +4988,11 @@ class LiffApp {
         const carrier = order.carrier || order.delivery_info?.carrier || 'ขนส่ง';
         const estimatedDelivery = order.estimated_delivery || order.delivery_info?.estimated_delivery;
         const isCOD = order.payment_method === 'cod';
-        
+
         // Define timeline stages with icons - แยกตาม payment method
         let stages;
         let statusOrder;
-        
+
         if (isCOD) {
             // COD: ไม่มีขั้นตอนชำระเงินก่อนจัดส่ง (ชำระตอนรับสินค้า)
             stages = [
@@ -4987,9 +5015,9 @@ class LiffApp {
             ];
             statusOrder = ['pending', 'confirmed', 'paid', 'packing', 'shipping', 'delivered', 'completed'];
         }
-        
+
         const currentIndex = statusOrder.indexOf(status);
-        
+
         return `
             <div class="order-detail-card delivery-tracking-card">
                 <div class="order-detail-section-title">
@@ -5033,11 +5061,11 @@ class LiffApp {
                 <!-- Delivery Timeline - Requirement 19.2 -->
                 <div class="delivery-timeline-detailed">
                     ${stages.map((stage, index) => {
-                        const isCompleted = currentIndex >= index || (status === 'completed' && index <= 4);
-                        const isCurrent = currentIndex === index;
-                        const stageTime = this.getStageTime(order, stage.key);
-                        
-                        return `
+            const isCompleted = currentIndex >= index || (status === 'completed' && index <= 4);
+            const isCurrent = currentIndex === index;
+            const stageTime = this.getStageTime(order, stage.key);
+
+            return `
                             <div class="timeline-stage ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}">
                                 <div class="timeline-stage-indicator">
                                     <div class="timeline-stage-dot">
@@ -5052,7 +5080,7 @@ class LiffApp {
                                 </div>
                             </div>
                         `;
-                    }).join('')}
+        }).join('')}
                 </div>
             </div>
         `;
@@ -5065,7 +5093,7 @@ class LiffApp {
         if (!items || items.length === 0) {
             return '<div class="no-items">ไม่มีรายการสินค้า</div>';
         }
-        
+
         return `
             <div class="order-detail-items">
                 ${items.map(item => `
@@ -5093,7 +5121,7 @@ class LiffApp {
         const discount = parseFloat(order.discount || 0);
         const shipping = parseFloat(order.shipping_fee || order.shipping || 0);
         const total = parseFloat(order.grand_total || order.total_amount || 0);
-        
+
         return `
             <div class="order-detail-summary">
                 <div class="summary-row">
@@ -5126,9 +5154,9 @@ class LiffApp {
         const name = deliveryInfo.name || order.customer_name || '';
         const phone = deliveryInfo.phone || order.customer_phone || '';
         const address = deliveryInfo.address || order.shipping_address || '';
-        
+
         if (!name && !address) return '';
-        
+
         return `
             <div class="order-detail-card">
                 <div class="order-detail-section-title">
@@ -5159,7 +5187,7 @@ class LiffApp {
             <div class="order-detail-card">
                 <div class="skeleton skeleton-text" style="width: 100px; height: 16px; margin-bottom: 16px;"></div>
                 <div class="skeleton-timeline">
-                    ${[1,2,3,4,5].map(() => `
+                    ${[1, 2, 3, 4, 5].map(() => `
                         <div class="skeleton-timeline-item">
                             <div class="skeleton skeleton-circle" style="width: 24px; height: 24px;"></div>
                             <div class="skeleton skeleton-text" style="width: 80px; height: 14px;"></div>
@@ -5170,7 +5198,7 @@ class LiffApp {
             
             <div class="order-detail-card">
                 <div class="skeleton skeleton-text" style="width: 100px; height: 16px; margin-bottom: 16px;"></div>
-                ${[1,2].map(() => `
+                ${[1, 2].map(() => `
                     <div class="skeleton-item-row">
                         <div class="skeleton skeleton-image" style="width: 60px; height: 60px;"></div>
                         <div style="flex: 1;">
@@ -5253,9 +5281,9 @@ class LiffApp {
         if (!dateStr) return '-';
         try {
             const date = new Date(dateStr);
-            return date.toLocaleDateString('th-TH', { 
-                day: 'numeric', 
-                month: 'short', 
+            return date.toLocaleDateString('th-TH', {
+                day: 'numeric',
+                month: 'short',
                 year: 'numeric'
             });
         } catch (e) {
@@ -5270,8 +5298,8 @@ class LiffApp {
         if (!dateStr) return '';
         try {
             const date = new Date(dateStr);
-            return date.toLocaleDateString('th-TH', { 
-                day: 'numeric', 
+            return date.toLocaleDateString('th-TH', {
+                day: 'numeric',
                 month: 'short',
                 hour: '2-digit',
                 minute: '2-digit'
@@ -5286,7 +5314,7 @@ class LiffApp {
      */
     renderProfilePage() {
         const profile = window.store?.get('profile');
-        
+
         if (!profile) {
             return `
                 <div class="profile-page p-4">
@@ -5405,7 +5433,7 @@ class LiffApp {
         const memberId = member.member_id || member.id || '-';
         const memberName = member.first_name || profile.displayName || 'สมาชิก';
         const expiryDate = member.expiry_date ? this.formatDate(member.expiry_date) : '-';
-        
+
         // QR Code data (Requirement 5.3)
         const qrData = `MEMBER-${memberId}`;
         const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`;
@@ -5599,7 +5627,7 @@ class LiffApp {
     renderWishlistPage() {
         // Load wishlist data after render
         setTimeout(() => this.loadWishlistData(), 100);
-        
+
         return `
             <div class="wishlist-page">
                 <!-- Header -->
@@ -5655,7 +5683,7 @@ class LiffApp {
         if (!container) return;
 
         const profile = window.store?.get('profile');
-        
+
         if (!profile?.userId) {
             container.innerHTML = this.renderWishlistLoginRequired();
             return;
@@ -5671,7 +5699,7 @@ class LiffApp {
                 // Update store with wishlist items
                 const productIds = data.items.map(item => item.product_id);
                 window.store?.setWishlistItems(productIds);
-                
+
                 // Render items
                 container.innerHTML = this.renderWishlistItems(data.items);
                 if (countEl) countEl.textContent = `${data.count || data.items.length} รายการ`;
@@ -5710,11 +5738,11 @@ class LiffApp {
         return `
             <div class="wishlist-item" data-product-id="${item.product_id}">
                 <div class="wishlist-item-image" onclick="window.liffApp.viewProduct(${item.product_id})">
-                    ${item.image_url 
-                        ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy" 
+                    ${item.image_url
+                ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy" 
                                onerror="this.src='assets/images/image-placeholder.svg'">`
-                        : `<div class="wishlist-item-placeholder"><i class="fas fa-image"></i></div>`
-                    }
+                : `<div class="wishlist-item-placeholder"><i class="fas fa-image"></i></div>`
+            }
                 </div>
                 <div class="wishlist-item-info">
                     <div class="wishlist-item-header">
@@ -5763,7 +5791,7 @@ class LiffApp {
         if (!profile?.userId) return;
 
         const itemEl = document.querySelector(`.wishlist-item[data-product-id="${productId}"]`);
-        
+
         // Optimistic UI - hide item
         if (itemEl) {
             itemEl.style.opacity = '0.5';
@@ -5786,31 +5814,31 @@ class LiffApp {
             if (data.success) {
                 // Remove from store
                 window.store?.removeFromWishlist(productId);
-                
+
                 // Remove from DOM with animation
                 if (itemEl) {
                     itemEl.style.transition = 'all 0.3s ease';
                     itemEl.style.transform = 'translateX(100%)';
                     itemEl.style.opacity = '0';
-                    
+
                     setTimeout(() => {
                         itemEl.remove();
-                        
+
                         // Check if empty
                         const remaining = document.querySelectorAll('.wishlist-item').length;
                         const countEl = document.getElementById('wishlist-count');
-                        
+
                         if (remaining === 0) {
                             const container = document.getElementById('wishlist-container');
                             if (container) {
                                 container.innerHTML = this.renderWishlistEmptyState();
                             }
                         }
-                        
+
                         if (countEl) countEl.textContent = `${remaining} รายการ`;
                     }, 300);
                 }
-                
+
                 this.showToast('ลบออกจากรายการโปรดแล้ว', 'success');
             } else {
                 // Revert UI
@@ -5842,7 +5870,7 @@ class LiffApp {
             image_url: imageUrl,
             is_prescription: false
         };
-        
+
         window.store?.addToCart(product, 1);
         this.showToast('เพิ่มลงตะกร้าแล้ว', 'success');
         this.updateCartBadge();
@@ -5919,7 +5947,7 @@ class LiffApp {
     renderNotificationSettingsPage() {
         // Load settings after render
         setTimeout(() => this.loadNotificationSettings(), 100);
-        
+
         return `
             <div class="notification-settings-page">
                 <!-- Header -->
@@ -5974,7 +6002,7 @@ class LiffApp {
         if (!container) return;
 
         const profile = window.store?.get('profile');
-        
+
         if (!profile?.userId) {
             container.innerHTML = this.renderNotificationSettingsLoginRequired();
             return;
@@ -5989,7 +6017,7 @@ class LiffApp {
             if (data.success) {
                 // Update store
                 window.store?.setNotificationSettings(data.preferences);
-                
+
                 // Render settings
                 container.innerHTML = this.renderNotificationSettingsContent(data.preferences);
             } else {
@@ -6183,7 +6211,7 @@ class LiffApp {
     renderMedicationRemindersPage() {
         // Load reminders after render
         setTimeout(() => this.loadMedicationRemindersData(), 100);
-        
+
         return `
             <div class="medication-reminders-page">
                 <!-- Header -->
@@ -6240,7 +6268,7 @@ class LiffApp {
         if (!container) return;
 
         const profile = window.store?.get('profile');
-        
+
         if (!profile?.userId) {
             container.innerHTML = this.renderMedicationRemindersLoginRequired();
             return;
@@ -6297,7 +6325,7 @@ class LiffApp {
         const times = reminder.reminder_times || [];
         const adherence = reminder.adherence_percent || 100;
         const adherenceColor = adherence >= 80 ? 'success' : adherence >= 50 ? 'warning' : 'danger';
-        
+
         return `
             <div class="medication-reminder-card" data-reminder-id="${reminder.id}">
                 <div class="medication-reminder-main">
@@ -6356,7 +6384,7 @@ class LiffApp {
         const totalMissed = reminders.reduce((sum, r) => sum + (r.missed_count_7d || 0), 0);
         const total = totalTaken + totalMissed;
         const overallAdherence = total > 0 ? Math.round((totalTaken / total) * 100) : 100;
-        
+
         return `
             <div class="adherence-stat">
                 <div class="adherence-stat-value success">${totalTaken}</div>
@@ -6438,7 +6466,7 @@ class LiffApp {
                 </div>
             </div>
         `;
-        
+
         this.showModal(modalHtml);
     }
 
@@ -6448,16 +6476,16 @@ class LiffApp {
     updateReminderTimes(frequency) {
         const container = document.getElementById('reminder-times-container');
         if (!container) return;
-        
+
         const timesByFrequency = {
             'daily': ['08:00'],
             'twice_daily': ['08:00', '20:00'],
             'three_times': ['08:00', '12:00', '20:00'],
             'custom': ['08:00']
         };
-        
+
         const times = timesByFrequency[frequency] || ['08:00'];
-        
+
         container.innerHTML = times.map(time => `
             <input type="time" name="reminder_times[]" class="form-input time-input" value="${time}">
         `).join('');
@@ -6469,7 +6497,7 @@ class LiffApp {
     addReminderTimeInput() {
         const container = document.getElementById('reminder-times-container');
         if (!container) return;
-        
+
         const input = document.createElement('input');
         input.type = 'time';
         input.name = 'reminder_times[]';
@@ -6483,22 +6511,22 @@ class LiffApp {
      */
     async submitAddReminder(event) {
         event.preventDefault();
-        
+
         const profile = window.store?.get('profile');
         if (!profile?.userId) {
             this.showToast('กรุณาเข้าสู่ระบบ', 'error');
             return;
         }
-        
+
         const form = event.target;
         const formData = new FormData(form);
-        
+
         // Get reminder times
         const reminderTimes = [];
         form.querySelectorAll('input[name="reminder_times[]"]').forEach(input => {
             if (input.value) reminderTimes.push(input.value);
         });
-        
+
         const data = {
             action: 'add',
             line_user_id: profile.userId,
@@ -6509,16 +6537,16 @@ class LiffApp {
             reminder_times: reminderTimes,
             notes: formData.get('notes')
         };
-        
+
         try {
             const response = await fetch(`${this.config.BASE_URL}/api/medication-reminders.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 this.hideModal();
                 this.showToast(result.message, 'success');
@@ -6539,7 +6567,7 @@ class LiffApp {
     async markMedicationTaken(reminderId) {
         const profile = window.store?.get('profile');
         if (!profile?.userId) return;
-        
+
         try {
             const response = await fetch(`${this.config.BASE_URL}/api/medication-reminders.php`, {
                 method: 'POST',
@@ -6551,9 +6579,9 @@ class LiffApp {
                     status: 'taken'
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showToast('บันทึกการทานยาแล้ว ✓', 'success');
                 this.loadMedicationRemindersData();
@@ -6572,7 +6600,7 @@ class LiffApp {
     async skipMedication(reminderId) {
         const profile = window.store?.get('profile');
         if (!profile?.userId) return;
-        
+
         try {
             const response = await fetch(`${this.config.BASE_URL}/api/medication-reminders.php`, {
                 method: 'POST',
@@ -6584,9 +6612,9 @@ class LiffApp {
                     status: 'skipped'
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showToast('ข้ามการทานยาครั้งนี้', 'info');
                 this.loadMedicationRemindersData();
@@ -6601,10 +6629,10 @@ class LiffApp {
      */
     async deleteReminder(reminderId) {
         if (!confirm('ต้องการลบการเตือนนี้?')) return;
-        
+
         const profile = window.store?.get('profile');
         if (!profile?.userId) return;
-        
+
         try {
             const response = await fetch(`${this.config.BASE_URL}/api/medication-reminders.php`, {
                 method: 'POST',
@@ -6615,9 +6643,9 @@ class LiffApp {
                     reminder_id: reminderId
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showToast('ลบการเตือนแล้ว', 'success');
                 this.loadMedicationRemindersData();
@@ -6714,10 +6742,10 @@ class LiffApp {
     initAIAssistantPage(params, retryCount = 0) {
         const maxRetries = 10;
         const retryDelay = 100;
-        
+
         if (window.debugLog) window.debugLog('initAIAssistantPage called (attempt ' + (retryCount + 1) + ')', 'info');
         console.log('🤖 Initializing AI Assistant page... (attempt ' + (retryCount + 1) + ')');
-        
+
         const container = document.getElementById('ai-assistant-container');
         if (!container) {
             if (retryCount < maxRetries) {
@@ -6825,7 +6853,7 @@ class LiffApp {
      */
     renderProductDetailPage(params) {
         const productId = params?.id;
-        
+
         if (productId) {
             // Show modal instead of page, then go back
             setTimeout(() => {
@@ -6858,14 +6886,14 @@ class LiffApp {
         try {
             const response = await fetch(`${this.config.BASE_URL}/api/shop-products.php?product_id=${productId}`);
             const data = await response.json();
-            
+
             const container = document.getElementById('product-detail-content');
             if (!container) return;
 
             if (data.success && data.product) {
                 const product = data.product;
-                const priceHtml = product.sale_price && product.sale_price < product.price 
-                    ? '<span style="text-decoration: line-through; color: var(--text-muted); font-size: 1rem; margin-left: 8px;">฿' + this.formatNumber(product.price) + '</span>' 
+                const priceHtml = product.sale_price && product.sale_price < product.price
+                    ? '<span style="text-decoration: line-through; color: var(--text-muted); font-size: 1rem; margin-left: 8px;">฿' + this.formatNumber(product.price) + '</span>'
                     : '';
                 container.innerHTML = `
                     <img src="${product.image_url || 'assets/images/placeholder.png'}" 
@@ -6903,7 +6931,7 @@ class LiffApp {
     renderAppointmentsPage() {
         // Initialize appointment state first
         this.initAppointmentState();
-        
+
         // Load pharmacists and appointments
         setTimeout(() => {
             this.loadPharmacistsForAppointment();
@@ -7026,12 +7054,12 @@ class LiffApp {
     switchAppointmentTab(tab) {
         if (!this.appointmentState) this.initAppointmentState();
         this.appointmentState.currentTab = tab;
-        
+
         // Update tab UI
         document.querySelectorAll('.appointment-tab').forEach(t => {
             t.classList.toggle('active', t.dataset.tab === tab);
         });
-        
+
         // Show/hide step indicator
         const steps = document.getElementById('appointment-steps');
         if (steps) {
@@ -7044,7 +7072,7 @@ class LiffApp {
      */
     async loadPharmacistsForAppointment() {
         if (!this.appointmentState) this.initAppointmentState();
-        
+
         const container = document.getElementById('pharmacist-list');
         if (!container) return;
 
@@ -7095,7 +7123,7 @@ class LiffApp {
         container.innerHTML = pharmacists.map(p => {
             const fee = p.consultation_fee > 0 ? `฿${this.formatNumber(p.consultation_fee)}` : 'ฟรี';
             const duration = p.consultation_duration || 15;
-            
+
             return `
                 <div class="pharmacist-card" onclick="window.liffApp.selectPharmacistForAppointment(${p.id})">
                     <div class="pharmacist-avatar">
@@ -7128,12 +7156,12 @@ class LiffApp {
      */
     selectPharmacistForAppointment(pharmacistId) {
         if (!this.appointmentState) this.initAppointmentState();
-        
+
         const pharmacist = this.appointmentState.pharmacists.find(p => p.id === pharmacistId);
         if (!pharmacist) return;
 
         this.appointmentState.selectedPharmacist = pharmacist;
-        
+
         // Go to step 2 - select date/time
         this.goToAppointmentStep(2);
         this.renderSelectedPharmacistInfo();
@@ -7149,7 +7177,7 @@ class LiffApp {
 
         // Hide all steps
         document.querySelectorAll('.appointment-step-content').forEach(el => el.classList.add('hidden'));
-        
+
         // Show current step
         const stepEl = document.getElementById(`appointment-step-${step}`);
         if (stepEl) stepEl.classList.remove('hidden');
@@ -7266,12 +7294,12 @@ class LiffApp {
         try {
             const pharmacistId = this.appointmentState?.selectedPharmacist?.id;
             const date = this.appointmentState?.selectedDate;
-            
+
             console.log('📅 Loading time slots for:', { pharmacistId, date });
-            
+
             const response = await fetch(`${this.config.BASE_URL}/api/appointments.php?action=available_slots&pharmacist_id=${pharmacistId}&date=${date}`);
             const data = await response.json();
-            
+
             console.log('📅 Time slots response:', data);
 
             if (data.success && data.slots?.length > 0) {
@@ -7327,11 +7355,11 @@ class LiffApp {
 
         const p = this.appointmentState.selectedPharmacist;
         const date = new Date(this.appointmentState.selectedDate);
-        const dateFormatted = date.toLocaleDateString('th-TH', { 
-            weekday: 'long', 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+        const dateFormatted = date.toLocaleDateString('th-TH', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
         });
 
         container.innerHTML = `
@@ -7391,7 +7419,7 @@ class LiffApp {
 
         try {
             const symptoms = document.getElementById('appointment-symptoms')?.value || '';
-            
+
             const response = await fetch(`${this.config.BASE_URL}/api/appointments.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -7410,7 +7438,7 @@ class LiffApp {
 
             if (data.success) {
                 this.showToast('จองนัดหมายสำเร็จ!', 'success');
-                
+
                 // Send LIFF message via LiffMessageBridge
                 if (window.liffMessageBridge) {
                     try {
@@ -7426,7 +7454,7 @@ class LiffApp {
                         console.warn('Failed to send appointment message:', e);
                     }
                 }
-                
+
                 // Reset state and go back to step 1
                 this.initAppointmentState();
                 this.goToAppointmentStep(1);
@@ -7490,19 +7518,19 @@ class LiffApp {
 
             if (data.success && (data.upcoming?.length > 0 || data.past?.length > 0)) {
                 let html = '';
-                
+
                 // Upcoming appointments
                 if (data.upcoming?.length > 0) {
                     html += '<h3 class="appointments-section-title">นัดหมายที่กำลังจะมาถึง</h3>';
                     html += data.upcoming.map(apt => this.renderMyAppointmentCard(apt, true)).join('');
                 }
-                
+
                 // Past appointments
                 if (data.past?.length > 0) {
                     html += '<h3 class="appointments-section-title">นัดหมายที่ผ่านมา</h3>';
                     html += data.past.map(apt => this.renderMyAppointmentCard(apt, false)).join('');
                 }
-                
+
                 container.innerHTML = html;
             } else {
                 container.innerHTML = `
@@ -7528,12 +7556,12 @@ class LiffApp {
      */
     renderMyAppointmentCard(apt, isUpcoming) {
         const canJoin = isUpcoming && apt.status === 'confirmed' && this.isAppointmentTimeNow(apt.appointment_date, apt.appointment_time);
-        const dateFormatted = new Date(apt.appointment_date).toLocaleDateString('th-TH', { 
-            day: 'numeric', 
-            month: 'short', 
-            year: '2-digit' 
+        const dateFormatted = new Date(apt.appointment_date).toLocaleDateString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            year: '2-digit'
         });
-        
+
         return `
             <div class="my-appointment-card ${apt.status}">
                 <div class="appointment-datetime">
@@ -7622,7 +7650,7 @@ class LiffApp {
             if (data.success && data.rewards?.length > 0) {
                 const member = window.store?.get('member');
                 const userPoints = member?.points || 0;
-                
+
                 let html = '';
                 data.rewards.forEach(reward => {
                     const canRedeem = userPoints >= reward.points_required && (reward.stock === null || reward.stock === -1 || reward.stock > 0);
@@ -7790,10 +7818,10 @@ class LiffApp {
     async confirmRedeem(rewardId) {
         console.log('=== REDEEM REWARD START ===');
         console.log('confirmRedeem called with rewardId:', rewardId);
-        
+
         const profile = window.store?.get('profile');
         console.log('Profile:', profile);
-        
+
         if (!profile?.userId) {
             console.error('❌ ERROR: No userId in profile');
             console.error('Profile object:', profile);
@@ -7821,14 +7849,14 @@ class LiffApp {
             formData.append('line_user_id', profile.userId);
             formData.append('line_account_id', this.config.ACCOUNT_ID);
             formData.append('reward_id', rewardId);
-            
+
             const requestData = {
                 action: 'redeem',
                 line_user_id: profile.userId,
                 line_account_id: this.config.ACCOUNT_ID,
                 reward_id: rewardId
             };
-            
+
             console.log('📤 Sending request to:', `${this.config.BASE_URL}/api/rewards.php`);
             console.log('📤 Request data:', requestData);
 
@@ -7840,11 +7868,11 @@ class LiffApp {
             console.log('📥 Response status:', response.status);
             console.log('📥 Response status text:', response.statusText);
             console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-            
+
             // Check if response is JSON
             const contentType = response.headers.get('content-type');
             console.log('📥 Content-Type:', contentType);
-            
+
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 console.error('❌ ERROR: Non-JSON response received');
@@ -7852,7 +7880,7 @@ class LiffApp {
                 console.error('Response text (full):', text);
                 throw new Error('API ส่งข้อมูลผิดพลาด (ไม่ใช่ JSON) กรุณาลองใหม่อีกครั้ง');
             }
-            
+
             const data = await response.json();
             console.log('📥 Response data:', data);
             console.log('📥 Response success:', data.success);
@@ -7862,7 +7890,7 @@ class LiffApp {
             if (data.success) {
                 console.log('✅ SUCCESS: Redemption successful');
                 console.log('Redemption code:', data.redemption_code);
-                
+
                 // Update member points
                 const member = window.store?.get('member');
                 if (member) {
@@ -7900,11 +7928,11 @@ class LiffApp {
                         </div>
                     </div>
                 `;
-                
+
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = successHtml;
                 document.body.appendChild(tempDiv.firstElementChild);
-                
+
                 setTimeout(() => {
                     const modal = document.getElementById('successModal');
                     if (modal) modal.classList.add('show');
@@ -7912,16 +7940,16 @@ class LiffApp {
 
                 // Reload rewards list after closing success modal
                 setTimeout(() => this.loadRewards(), 1000);
-                
+
                 console.log('=== REDEEM REWARD SUCCESS ===');
 
             } else {
                 console.error('❌ ERROR: Redemption failed');
                 console.error('Error message:', data.error || data.message);
-                
+
                 // Show error alert
                 alert('❌ แลกรางวัลไม่สำเร็จ\n\n' + (data.error || data.message || 'ไม่สามารถแลกรางวัลได้'));
-                
+
                 throw new Error(data.error || data.message || 'ไม่สามารถแลกรางวัลได้');
             }
 
@@ -7930,10 +7958,10 @@ class LiffApp {
             console.error('Error type:', error.constructor.name);
             console.error('Error message:', error.message);
             console.error('Error stack:', error.stack);
-            
+
             // Show error alert
             alert('❌ เกิดข้อผิดพลาด\n\n' + (error.message || 'ไม่สามารถแลกรางวัลได้'));
-            
+
             this.showToast(error.message || 'เกิดข้อผิดพลาด', 'error');
 
             // Restore button
@@ -7941,7 +7969,7 @@ class LiffApp {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-gift"></i> แลกรางวัลนี้';
             }
-            
+
             console.log('=== REDEEM REWARD FAILED ===');
         }
     }
@@ -8002,7 +8030,7 @@ class LiffApp {
      */
     async loadPointsDashboardData() {
         const profile = window.store?.get('profile');
-        
+
         if (!profile?.userId) {
             // Show login prompt
             const container = document.querySelector('.points-dashboard');
@@ -8034,12 +8062,12 @@ class LiffApp {
 
         try {
             const data = await this.pointsDashboard.loadPointsData(profile.userId);
-            
+
             if (data) {
                 const container = document.querySelector('.app-content');
                 if (container) {
                     container.innerHTML = this.pointsDashboard.render(data);
-                    
+
                     // Animate counter after render
                     setTimeout(() => this.pointsDashboard.animateCounter(), 100);
                 }
@@ -8077,7 +8105,7 @@ class LiffApp {
      */
     renderRegisterPage() {
         const profile = window.store?.get('profile');
-        
+
         // Check if already registered
         const member = window.store?.get('member');
         if (member?.is_registered) {
@@ -8221,7 +8249,7 @@ class LiffApp {
      */
     async submitRegistration(event) {
         event.preventDefault();
-        
+
         const profile = window.store?.get('profile');
         if (!profile?.userId) {
             this.showToast('กรุณาเข้าสู่ระบบผ่าน LINE ก่อน', 'warning');
@@ -8230,7 +8258,7 @@ class LiffApp {
 
         const form = document.getElementById('register-form');
         const btn = document.getElementById('register-submit-btn');
-        
+
         if (!form.checkValidity()) {
             form.reportValidity();
             return;
@@ -8271,10 +8299,10 @@ class LiffApp {
 
             if (result.success) {
                 this.showToast('สมัครสมาชิกสำเร็จ!', 'success');
-                
+
                 // Reload member data
                 await this.loadMemberData();
-                
+
                 // Navigate to member card
                 setTimeout(() => {
                     window.router.navigate('/member');
@@ -8309,8 +8337,8 @@ class LiffApp {
      * Render placeholder page
      */
     renderPlaceholderPage(page, params) {
-        const paramsStr = params && Object.keys(params).length > 0 
-            ? '<p class="text-xs text-muted mt-2">Params: ' + JSON.stringify(params) + '</p>' 
+        const paramsStr = params && Object.keys(params).length > 0
+            ? '<p class="text-xs text-muted mt-2">Params: ' + JSON.stringify(params) + '</p>'
             : '';
         return `
             <div class="placeholder-page p-4">
@@ -8330,13 +8358,13 @@ class LiffApp {
      */
     async checkPrescriptionApprovalForCheckout() {
         const cart = window.store?.get('cart');
-        
+
         if (!cart || !cart.hasPrescription) return;
-        
+
         // Use PrescriptionHandler if available
         if (window.PrescriptionHandler) {
             const checkResult = await window.PrescriptionHandler.canProceedToCheckout(cart);
-            
+
             if (!checkResult.canCheckout) {
                 // Show blocked modal
                 window.PrescriptionHandler.showCheckoutBlockedModal(
@@ -8364,17 +8392,17 @@ class LiffApp {
      */
     async verifyPrescriptionApproval() {
         const cart = window.store?.get('cart');
-        
+
         if (!cart || !cart.prescriptionApprovalId) return;
-        
+
         if (window.PrescriptionHandler) {
             const status = await window.PrescriptionHandler.checkApprovalStatus(cart.prescriptionApprovalId);
-            
+
             if (!status.valid) {
                 // Approval expired or invalid
                 cart.prescriptionApprovalId = null;
                 window.store?.set('cart', cart);
-                
+
                 // Show expired modal
                 window.PrescriptionHandler.showCheckoutBlockedModal(
                     cart,
@@ -8401,13 +8429,13 @@ class LiffApp {
         if (this.checkoutState) {
             this.checkoutState.prescriptionApproved = approved;
         }
-        
+
         // Update submit button state
         const submitBtn = document.getElementById('place-order-btn');
         if (submitBtn && !approved) {
             submitBtn.disabled = true;
         }
-        
+
         // Show/hide prescription warning
         this.updateCheckoutPrescriptionUI(approved);
     }
@@ -8418,10 +8446,10 @@ class LiffApp {
     updateCheckoutPrescriptionUI(approved) {
         const cart = window.store?.get('cart');
         if (!cart?.hasPrescription) return;
-        
+
         // Find or create prescription notice container
         let noticeContainer = document.getElementById('checkout-rx-status');
-        
+
         if (!noticeContainer) {
             const checkoutForm = document.getElementById('checkout-form');
             if (checkoutForm) {
@@ -8430,7 +8458,7 @@ class LiffApp {
                 checkoutForm.insertBefore(noticeContainer, checkoutForm.firstChild);
             }
         }
-        
+
         if (noticeContainer) {
             if (approved) {
                 noticeContainer.innerHTML = `
@@ -8473,12 +8501,12 @@ class LiffApp {
      */
     showApprovalTimer(approvalStatus) {
         if (!approvalStatus.expiresAt) return;
-        
+
         const timeRemaining = window.PrescriptionHandler?.getTimeUntilExpiry(approvalStatus.expiresAt);
         if (!timeRemaining || timeRemaining.expired) return;
-        
+
         const isExpiringSoon = timeRemaining.hours < 2;
-        
+
         let timerContainer = document.getElementById('approval-timer-container');
         if (!timerContainer) {
             const checkoutForm = document.getElementById('checkout-form');
@@ -8488,7 +8516,7 @@ class LiffApp {
                 checkoutForm.insertBefore(timerContainer, checkoutForm.firstChild);
             }
         }
-        
+
         if (timerContainer) {
             timerContainer.innerHTML = `
                 <div class="approval-timer ${isExpiringSoon ? 'expiring-soon' : ''}" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: ${isExpiringSoon ? '#FEF3C7' : '#D1FAE5'}; border-radius: 12px; margin-bottom: 16px;">
@@ -8509,7 +8537,7 @@ class LiffApp {
     requestPrescriptionConsultation(prescriptionItems) {
         const cart = window.store?.get('cart');
         const items = prescriptionItems || window.PrescriptionHandler?.getPrescriptionItems(cart) || [];
-        
+
         // Navigate to video call with prescription context
         window.router?.navigate('/video-call', {
             reason: 'prescription_approval',
@@ -8531,7 +8559,7 @@ class LiffApp {
             if (onSuccess) onSuccess(product);
             return;
         }
-        
+
         // Show prescription info modal
         window.PrescriptionHandler.showPrescriptionInfoModal(
             product,
@@ -8558,7 +8586,7 @@ class LiffApp {
     renderVideoCallPage(params = {}) {
         // Get appointment_id from params
         const appointmentId = params.appointment_id || params.appointmentId || null;
-        
+
         // Initialize video call manager if not already done
         if (window.videoCallManager) {
             window.videoCallManager.init({
@@ -8575,10 +8603,10 @@ class LiffApp {
 
         const reason = params.reason || '';
         const pharmacistId = params.pharmacist_id || '';
-        
+
         // Check for iOS limitations
         const iosLimitations = window.videoCallManager?.checkIOSLimitations() || { hasLimitations: false };
-        
+
         return `
             <div class="video-call-page" id="video-call-page">
                 <!-- iOS Limitation Warning (Requirement 6.8) -->
@@ -8769,21 +8797,21 @@ class LiffApp {
 
         try {
             this.updateVideoCallLoadingStatus('ตรวจสอบสิทธิ์การเข้าถึง...');
-            
+
             // Check current permission status
             let permissionStatus = { camera: 'prompt', microphone: 'prompt' };
             if (window.permissionChecker) {
                 permissionStatus = await window.permissionChecker.checkPermissionStatus();
             }
-            
+
             // If permissions already denied, show permission check UI
             if (permissionStatus.camera === 'denied' || permissionStatus.microphone === 'denied') {
                 this.showPermissionCheckUI(permissionStatus);
                 return;
             }
-            
+
             this.updateVideoCallLoadingStatus('เข้าถึงกล้อง...');
-            
+
             // Request permissions and get local stream
             if (window.permissionChecker) {
                 const result = await window.permissionChecker.requestPermissions();
@@ -8808,7 +8836,7 @@ class LiffApp {
                     this.handlePermissionsGranted(null);
                 }
             }
-            
+
         } catch (error) {
             console.error('Video call init error:', error);
             // Allow to proceed even with errors for testing
@@ -8826,13 +8854,13 @@ class LiffApp {
         if (window.videoCallManager && !window.videoCallManager.localStream) {
             window.videoCallManager.localStream = stream;
         }
-        
+
         // Show preview
         const previewVideo = document.getElementById('vc-preview-video');
         if (previewVideo && stream) {
             previewVideo.srcObject = stream;
         }
-        
+
         // Hide loading/permission UI, show pre-call
         document.getElementById('vc-loading')?.classList.add('hidden');
         document.getElementById('vc-permission-check')?.classList.add('hidden');
@@ -8895,16 +8923,16 @@ class LiffApp {
             // Hide pre-call, show in-call
             document.getElementById('vc-pre-call')?.classList.add('hidden');
             document.getElementById('vc-in-call')?.classList.remove('hidden');
-            
+
             // Set local video
             const localVideo = document.getElementById('vc-local-video');
             if (localVideo && window.videoCallManager.localStream) {
                 localVideo.srcObject = window.videoCallManager.localStream;
             }
-            
+
             // Start the call
             await window.videoCallManager.startCall(audioOnly);
-            
+
         } catch (error) {
             console.error('Start call error:', error);
             this.showVideoCallError(error.message || 'ไม่สามารถเริ่มการโทรได้');
@@ -8916,11 +8944,11 @@ class LiffApp {
      */
     handleVideoCallStateChange(state, oldState, data) {
         console.log('Video call state:', state, data);
-        
+
         const statusText = document.getElementById('vc-status-text');
         const timer = document.getElementById('vc-timer');
         const statusDot = document.querySelector('.video-call-status-dot');
-        
+
         switch (state) {
             case 'connecting':
                 if (statusText) statusText.textContent = 'กำลังเชื่อมต่อ...';
@@ -8979,12 +9007,12 @@ class LiffApp {
         document.getElementById('vc-loading')?.classList.add('hidden');
         document.getElementById('vc-pre-call')?.classList.add('hidden');
         document.getElementById('vc-in-call')?.classList.add('hidden');
-        
+
         // Show end screen with error
         const endScreen = document.getElementById('vc-end-screen');
         const endTitle = document.getElementById('vc-end-title');
         const endIcon = document.querySelector('.video-call-end-icon i');
-        
+
         if (endScreen) endScreen.classList.remove('hidden');
         if (endTitle) endTitle.textContent = message;
         if (endIcon) {
@@ -9000,28 +9028,28 @@ class LiffApp {
     showVideoCallEndScreen(data = {}) {
         // Stop timer
         this.stopVideoCallTimer();
-        
+
         // Hide in-call, show end screen
         document.getElementById('vc-in-call')?.classList.add('hidden');
         const endScreen = document.getElementById('vc-end-screen');
         if (endScreen) endScreen.classList.remove('hidden');
-        
+
         // Update duration
         const duration = data.duration || window.videoCallManager?.callDuration || 0;
         const durationEl = document.getElementById('vc-end-duration');
         if (durationEl) {
             durationEl.textContent = window.videoCallManager?.formatDuration(duration) || '00:00';
         }
-        
+
         // Update title
         const titleEl = document.getElementById('vc-end-title');
         if (titleEl) {
             titleEl.textContent = data.reason || 'สิ้นสุดการโทร';
         }
-        
+
         // Store call ID for summary retrieval
         this.lastCallId = data.callId;
-        
+
         // Show summary section if call was completed
         if (duration > 0) {
             this.showCallSummary(data.callId, duration);
@@ -9035,14 +9063,14 @@ class LiffApp {
     async showCallSummary(callId, duration) {
         const endContent = document.querySelector('.video-call-end-content');
         if (!endContent) return;
-        
+
         // Add summary section if not exists
         let summarySection = document.getElementById('vc-summary-section');
         if (!summarySection) {
             summarySection = document.createElement('div');
             summarySection.id = 'vc-summary-section';
             summarySection.className = 'video-call-summary-section';
-            
+
             // Insert before buttons
             const restartBtn = endContent.querySelector('.video-call-restart-btn');
             if (restartBtn) {
@@ -9051,12 +9079,12 @@ class LiffApp {
                 endContent.appendChild(summarySection);
             }
         }
-        
+
         // Format duration for display
         const mins = Math.floor(duration / 60);
         const secs = duration % 60;
         const durationText = mins > 0 ? `${mins} นาที ${secs} วินาที` : `${secs} วินาที`;
-        
+
         summarySection.innerHTML = `
             <div class="video-call-summary">
                 <div class="video-call-summary-item">
@@ -9065,13 +9093,13 @@ class LiffApp {
                 </div>
                 <div class="video-call-summary-item">
                     <i class="fas fa-calendar"></i>
-                    <span>วันที่: ${new Date().toLocaleDateString('th-TH', { 
-                        day: 'numeric', 
-                        month: 'short', 
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    })}</span>
+                    <span>วันที่: ${new Date().toLocaleDateString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })}</span>
                 </div>
             </div>
         `;
@@ -9082,10 +9110,10 @@ class LiffApp {
      */
     toggleVideoMute() {
         if (!window.videoCallManager) return;
-        
+
         const isMuted = window.videoCallManager.toggleMute();
         const btn = document.getElementById('vc-btn-mute');
-        
+
         if (btn) {
             btn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i><span class="video-call-ctrl-label">ไมค์</span>' : '<i class="fas fa-microphone"></i><span class="video-call-ctrl-label">ไมค์</span>';
             btn.classList.toggle('active', isMuted);
@@ -9097,10 +9125,10 @@ class LiffApp {
      */
     toggleVideoCamera() {
         if (!window.videoCallManager) return;
-        
+
         const isOff = window.videoCallManager.toggleVideo();
         const btn = document.getElementById('vc-btn-video');
-        
+
         if (btn) {
             btn.innerHTML = isOff ? '<i class="fas fa-video-slash"></i><span class="video-call-ctrl-label">กล้อง</span>' : '<i class="fas fa-video"></i><span class="video-call-ctrl-label">กล้อง</span>';
             btn.classList.toggle('active', isOff);
@@ -9112,18 +9140,18 @@ class LiffApp {
      */
     async switchVideoCamera() {
         if (!window.videoCallManager) return;
-        
+
         try {
             const stream = await window.videoCallManager.switchCamera();
-            
+
             // Update preview video
             const previewVideo = document.getElementById('vc-preview-video');
             if (previewVideo) previewVideo.srcObject = stream;
-            
+
             // Update local video
             const localVideo = document.getElementById('vc-local-video');
             if (localVideo) localVideo.srcObject = stream;
-            
+
         } catch (error) {
             console.error('Switch camera error:', error);
             this.showToast('ไม่สามารถสลับกล้องได้', 'error');
@@ -9175,14 +9203,14 @@ class LiffApp {
     dismissIOSWarning() {
         const warningEl = document.getElementById('vc-ios-warning');
         const loadingEl = document.getElementById('vc-loading');
-        
+
         if (warningEl) {
             warningEl.classList.add('hidden');
         }
         if (loadingEl) {
             loadingEl.classList.remove('hidden');
         }
-        
+
         // Continue with initialization
         this.initVideoCallPage();
     }
@@ -9194,17 +9222,17 @@ class LiffApp {
         // Update mute button
         const muteBtn = document.getElementById('vc-btn-mute');
         if (muteBtn) {
-            muteBtn.innerHTML = state.isMuted 
-                ? '<i class="fas fa-microphone-slash"></i><span class="video-call-ctrl-label">ไมค์</span>' 
+            muteBtn.innerHTML = state.isMuted
+                ? '<i class="fas fa-microphone-slash"></i><span class="video-call-ctrl-label">ไมค์</span>'
                 : '<i class="fas fa-microphone"></i><span class="video-call-ctrl-label">ไมค์</span>';
             muteBtn.classList.toggle('active', state.isMuted);
         }
-        
+
         // Update video button
         const videoBtn = document.getElementById('vc-btn-video');
         if (videoBtn) {
-            videoBtn.innerHTML = state.isVideoOff 
-                ? '<i class="fas fa-video-slash"></i><span class="video-call-ctrl-label">กล้อง</span>' 
+            videoBtn.innerHTML = state.isVideoOff
+                ? '<i class="fas fa-video-slash"></i><span class="video-call-ctrl-label">กล้อง</span>'
                 : '<i class="fas fa-video"></i><span class="video-call-ctrl-label">กล้อง</span>';
             videoBtn.classList.toggle('active', state.isVideoOff);
         }
@@ -9218,18 +9246,18 @@ class LiffApp {
         if (window.videoCallManager) {
             window.videoCallManager.cleanup();
         }
-        
+
         // Reset UI
         document.getElementById('vc-end-screen')?.classList.add('hidden');
         document.getElementById('vc-loading')?.classList.remove('hidden');
-        
+
         // Reset icon
         const endIcon = document.querySelector('.video-call-end-icon i');
         if (endIcon) {
             endIcon.className = 'fas fa-check-circle';
             endIcon.parentElement.style.color = '';
         }
-        
+
         // Re-initialize
         await this.initVideoCallPage();
     }
@@ -9239,7 +9267,7 @@ class LiffApp {
      */
     startVideoCallTimer() {
         if (this.videoCallTimerInterval) return;
-        
+
         this.videoCallTimerInterval = setInterval(() => {
             const duration = window.videoCallManager?.callDuration || 0;
             const timerText = document.getElementById('vc-timer-text');
