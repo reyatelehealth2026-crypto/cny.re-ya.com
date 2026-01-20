@@ -8804,6 +8804,9 @@ class ConversationLoader {
                         // Update sentinel
                         this.updateSentinel();
 
+                        // Re-apply current filters to newly loaded items
+                        this.applyCurrentFilters();
+
                         console.log(`[Progressive Load] Batch ${batchCount}: loaded ${conversations.length} (total: ${this.loadedCount}, hasMore: ${this.hasMore})`);
                     } else {
                         console.log('[Progressive Load] No more conversations returned');
@@ -9037,6 +9040,25 @@ class ConversationLoader {
         const div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
+    }
+
+    /**
+     * Re-apply current filters after loading new conversations
+     */
+    applyCurrentFilters() {
+        // Check if any filter is active
+        const status = document.getElementById('filterStatus')?.value || '';
+        const tag = document.getElementById('filterTag')?.value || '';
+        const chatStatus = document.getElementById('filterChatStatus')?.value || '';
+        const assignee = document.getElementById('filterAssignee')?.value || '';
+        const searchQuery = document.getElementById('userSearch')?.value?.trim() || '';
+
+        // If any filter or search is active, re-apply filters
+        if (status || tag || chatStatus || assignee || searchQuery) {
+            if (typeof applyFilters === 'function') {
+                applyFilters();
+            }
+        }
     }
 
     updateSentinel() {
