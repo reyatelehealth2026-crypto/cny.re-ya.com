@@ -286,7 +286,8 @@ const HUDMode = {
         }
 
         try {
-            const url = `api/inbox-v2.php?action=customer_crm&user_id=${userId}&line_account_id=${window.currentBotId || 1}`;
+            // Add timestamp to prevent caching
+            const url = `api/inbox-v2.php?action=customer_crm&user_id=${userId}&line_account_id=${window.currentBotId || 1}&_t=${new Date().getTime()}`;
             const response = await fetch(url);
             const result = await response.json();
 
@@ -624,7 +625,7 @@ const HUDMode = {
 
             if (result.success) {
                 textarea.value = '';
-                this.loadCRMData();
+                this.loadCRMData(true); // Force reload
                 showNotification && showNotification('✓ เพิ่มโน้ตสำเร็จ', 'success');
             }
         } catch (error) {
