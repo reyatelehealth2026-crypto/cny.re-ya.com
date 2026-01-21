@@ -227,10 +227,10 @@ const HUDMode = {
                             <p class="text-xs text-gray-500 line-clamp-2">${escapeHtml(t.content.substring(0, 100))}${t.content.length > 100 ? '...' : ''}</p>
                         </div>
                         <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1 bg-white/80 rounded">
-                            <button onclick="event.stopPropagation(); HUDMode.showTemplateModal(${t.id})" class="p-1 text-gray-400 hover:text-blue-600" title="แก้ไข">
+                            <button onclick="event.stopPropagation(); HUDMode.showTemplateModal('${t.id}')" class="p-1 text-gray-400 hover:text-blue-600" title="แก้ไข">
                                 <i class="fas fa-pen"></i>
                             </button>
-                            <button onclick="event.stopPropagation(); HUDMode.deleteTemplate(${t.id})" class="p-1 text-gray-400 hover:text-red-600" title="ลบ">
+                            <button onclick="event.stopPropagation(); HUDMode.deleteTemplate('${t.id}')" class="p-1 text-gray-400 hover:text-red-600" title="ลบ">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -241,7 +241,7 @@ const HUDMode = {
 
         listContainer.innerHTML = html;
 
-        listContainer.innerHTML = html;
+
     },
 
     useTemplate(id) {
@@ -276,7 +276,7 @@ const HUDMode = {
         const quickReplyInput = document.getElementById('templateQuickReply');
 
         if (id) {
-            const t = this.templates.find(x => x.id === id);
+            const t = this.templates.find(x => String(x.id) === String(id));
             if (!t) return;
             title.textContent = 'แก้ไขเทมเพลต';
             idInput.value = t.id;
