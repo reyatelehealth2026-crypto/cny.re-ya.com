@@ -71,19 +71,20 @@ $adminId = $_SESSION['admin_id'] ?? $_GET['admin_id'] ?? $_POST['admin_id'] ?? n
  * @param string $className Service class name
  * @return object|null Service instance or null if not available
  */
-function loadService(string $className, $db, $lineAccountId) {
+function loadService(string $className, $db, $lineAccountId)
+{
     $classFile = __DIR__ . '/../classes/' . $className . '.php';
-    
+
     if (!file_exists($classFile)) {
         return null;
     }
-    
+
     require_once $classFile;
-    
+
     if (!class_exists($className)) {
         return null;
     }
-    
+
     return new $className($db, $lineAccountId);
 }
 
@@ -92,7 +93,8 @@ function loadService(string $className, $db, $lineAccountId) {
  * @param array $data Response data
  * @param int $statusCode HTTP status code
  */
-function sendResponse(array $data, int $statusCode = 200): void {
+function sendResponse(array $data, int $statusCode = 200): void
+{
     http_response_code($statusCode);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
@@ -103,7 +105,8 @@ function sendResponse(array $data, int $statusCode = 200): void {
  * @param string $message Error message
  * @param int $statusCode HTTP status code
  */
-function sendError(string $message, int $statusCode = 400): void {
+function sendError(string $message, int $statusCode = 400): void
+{
     sendResponse(['success' => false, 'error' => $message], $statusCode);
 }
 
@@ -111,7 +114,8 @@ function sendError(string $message, int $statusCode = 400): void {
  * Get request body as JSON
  * @return array Parsed JSON body
  */
-function getJsonBody(): array {
+function getJsonBody(): array
+{
     $input = file_get_contents('php://input');
     if (empty($input)) {
         return [];
@@ -133,29 +137,29 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $imageUrl = $_POST['image_url'] ?? getJsonBody()['image_url'] ?? '';
-            
+
             if (empty($imageUrl)) {
                 sendError('Image URL is required');
             }
-            
+
             $imageAnalyzer = loadService('PharmacyImageAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$imageAnalyzer) {
                 sendError('Image analyzer service not available', 503);
             }
-            
+
             if (!$imageAnalyzer->isConfigured()) {
                 sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
-            
+
             $result = $imageAnalyzer->analyzeSymptom($imageUrl);
-            
+
             if (!($result['success'] ?? false)) {
                 sendError($result['error'] ?? 'การวิเคราะห์อาการล้มเหลว');
             }
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -171,29 +175,29 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $imageUrl = $_POST['image_url'] ?? getJsonBody()['image_url'] ?? '';
-            
+
             if (empty($imageUrl)) {
                 sendError('Image URL is required');
             }
-            
+
             $imageAnalyzer = loadService('PharmacyImageAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$imageAnalyzer) {
                 sendError('Image analyzer service not available', 503);
             }
-            
+
             if (!$imageAnalyzer->isConfigured()) {
                 sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
-            
+
             $result = $imageAnalyzer->identifyDrug($imageUrl);
-            
+
             if (!($result['success'] ?? false)) {
                 sendError($result['error'] ?? 'การวิเคราะห์รูปภาพล้มเหลว');
             }
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -209,31 +213,31 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
             $imageUrl = $_POST['image_url'] ?? $body['image_url'] ?? '';
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
-            
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
+
             if (empty($imageUrl)) {
                 sendError('Image URL is required');
             }
-            
+
             $imageAnalyzer = loadService('PharmacyImageAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$imageAnalyzer) {
                 sendError('Image analyzer service not available', 503);
             }
-            
+
             if (!$imageAnalyzer->isConfigured()) {
                 sendError('AI API key not configured - กรุณาตั้งค่า Gemini API Key ในหน้า AI Settings', 503);
             }
-            
+
             $result = $imageAnalyzer->ocrPrescription($imageUrl, $userId ?: null);
-            
+
             if (!($result['success'] ?? false)) {
                 sendError($result['error'] ?? 'การอ่านใบสั่งยาล้มเหลว');
             }
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -250,21 +254,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
-            
+
             if (!$healthEngine) {
                 sendError('Health engine service not available', 503);
             }
-            
+
             $profile = $healthEngine->getHealthProfile($userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $profile
@@ -280,22 +284,22 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            $minMessages = (int)($_GET['min_messages'] ?? 5);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+            $minMessages = (int) ($_GET['min_messages'] ?? 5);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
-            
+
             if (!$healthEngine) {
                 sendError('Health engine service not available', 503);
             }
-            
+
             $classification = $healthEngine->classifyCustomer($userId, $minMessages);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $classification
@@ -311,21 +315,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $type = $_GET['type'] ?? 'A';
-            
+
             if (!in_array($type, ['A', 'B', 'C'])) {
                 sendError('Invalid communication type. Must be A, B, or C');
             }
-            
+
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
-            
+
             if (!$healthEngine) {
                 sendError('Health engine service not available', 503);
             }
-            
+
             $style = $healthEngine->getDraftStyle($type);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $style
@@ -343,37 +347,37 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
             $lastMessage = $_POST['message'] ?? $body['message'] ?? '';
             $context = $_POST['context'] ?? $body['context'] ?? [];
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (empty($lastMessage)) {
                 sendError('Message is required');
             }
-            
+
             $ghostDraft = loadService('PharmacyGhostDraftService', $db, $lineAccountId);
-            
+
             if (!$ghostDraft) {
                 sendError('Ghost draft service not available', 503);
             }
-            
+
             if (!$ghostDraft->isConfigured()) {
                 sendError('AI API key not configured', 503);
             }
-            
+
             // Parse context if it's a string
             if (is_string($context)) {
                 $context = json_decode($context, true) ?? [];
             }
-            
+
             $result = $ghostDraft->generateDraft($userId, $lastMessage, $context);
-            
+
             sendResponse([
                 'success' => $result['success'] ?? false,
                 'data' => $result
@@ -389,34 +393,34 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
             $originalDraft = $_POST['original_draft'] ?? $body['original_draft'] ?? '';
             $finalMessage = $_POST['final_message'] ?? $body['final_message'] ?? '';
             $context = $_POST['context'] ?? $body['context'] ?? [];
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (empty($originalDraft) || empty($finalMessage)) {
                 sendError('Original draft and final message are required');
             }
-            
+
             $ghostDraft = loadService('PharmacyGhostDraftService', $db, $lineAccountId);
-            
+
             if (!$ghostDraft) {
                 sendError('Ghost draft service not available', 503);
             }
-            
+
             // Parse context if it's a string
             if (is_string($context)) {
                 $context = json_decode($context, true) ?? [];
             }
-            
+
             $success = $ghostDraft->learnFromEdit($userId, $originalDraft, $finalMessage, $context);
-            
+
             sendResponse([
                 'success' => $success,
                 'message' => $success ? 'Learning data saved successfully' : 'Failed to save learning data'
@@ -433,14 +437,14 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $drugId = (int)($_GET['drug_id'] ?? $_GET['id'] ?? 0);
+
+            $drugId = (int) ($_GET['drug_id'] ?? $_GET['id'] ?? 0);
             $drugName = $_GET['name'] ?? '';
-            
+
             if (!$drugId && empty($drugName)) {
                 sendError('Drug ID or name is required');
             }
-            
+
             try {
                 // Get drug from business_items
                 if ($drugId) {
@@ -463,35 +467,35 @@ try {
                     $searchTerm = '%' . $drugName . '%';
                     $stmt->execute([$searchTerm, $searchTerm, $lineAccountId]);
                 }
-                
+
                 $drug = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$drug) {
                     sendError('Drug not found', 404);
                 }
-                
+
                 // Get pricing info
                 $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
                 $pricing = null;
-                
+
                 if ($pricingEngine) {
                     try {
-                        $pricing = $pricingEngine->calculateMargin((int)$drug['id']);
+                        $pricing = $pricingEngine->calculateMargin((int) $drug['id']);
                     } catch (Exception $e) {
                         // Pricing calculation failed, continue without it
                         $pricing = null;
                     }
                 }
-                
+
                 // Get effective price (sale_price if available, otherwise price)
-                $effectivePrice = (float)($drug['sale_price'] ?? 0) > 0 
-                    ? (float)$drug['sale_price'] 
-                    : (float)($drug['price'] ?? 0);
-                
+                $effectivePrice = (float) ($drug['sale_price'] ?? 0) > 0
+                    ? (float) $drug['sale_price']
+                    : (float) ($drug['price'] ?? 0);
+
                 sendResponse([
                     'success' => true,
                     'data' => [
-                        'id' => (int)$drug['id'],
+                        'id' => (int) $drug['id'],
                         'name' => $drug['name'],
                         'nameEn' => $drug['name_en'] ?? null,
                         'genericName' => $drug['generic_name'] ?? null,
@@ -499,14 +503,14 @@ try {
                         'unit' => $drug['unit'] ?? $drug['base_unit'] ?? null,
                         'sku' => $drug['sku'] ?? null,
                         'description' => $drug['description'] ?? null,
-                        'price' => (float)($drug['price'] ?? 0),
-                        'salePrice' => (float)($drug['sale_price'] ?? 0),
+                        'price' => (float) ($drug['price'] ?? 0),
+                        'salePrice' => (float) ($drug['sale_price'] ?? 0),
                         'effectivePrice' => $effectivePrice,
                         'category' => $drug['category_name'] ?? null,
                         'imageUrl' => $drug['image_url'] ?? null,
-                        'stock' => (int)($drug['stock'] ?? 0),
-                        'isActive' => (bool)($drug['is_active'] ?? true),
-                        'isPrescription' => (bool)($drug['is_prescription'] ?? false),
+                        'stock' => (int) ($drug['stock'] ?? 0),
+                        'isActive' => (bool) ($drug['is_active'] ?? true),
+                        'isPrescription' => (bool) ($drug['is_prescription'] ?? false),
                         'contraindications' => $drug['contraindications'] ?? null,
                         'dosage' => $drug['dosage'] ?? null,
                         'usageInstructions' => $drug['usage_instructions'] ?? null,
@@ -529,27 +533,29 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $query = trim($_GET['query'] ?? '');
             if (mb_strlen($query) < 2) {
                 sendError('Query must be at least 2 characters');
             }
-            
+
             try {
                 // Check available columns
                 $columnsStmt = $db->query("SHOW COLUMNS FROM business_items");
                 $columns = $columnsStmt->fetchAll(PDO::FETCH_COLUMN);
                 $hasGenericName = in_array('generic_name', $columns);
                 $hasNameEn = in_array('name_en', $columns);
-                
+
                 $selectCols = "id, name, sku, price, sale_price, stock, description";
-                if ($hasGenericName) $selectCols .= ", generic_name";
-                if ($hasNameEn) $selectCols .= ", name_en";
-                
+                if ($hasGenericName)
+                    $selectCols .= ", generic_name";
+                if ($hasNameEn)
+                    $selectCols .= ", name_en";
+
                 // Build search query
                 $searchConditions = ["name LIKE ?", "sku LIKE ?"];
                 $params = ["%{$query}%", "%{$query}%"];
-                
+
                 if ($hasGenericName) {
                     $searchConditions[] = "generic_name LIKE ?";
                     $params[] = "%{$query}%";
@@ -558,42 +564,42 @@ try {
                     $searchConditions[] = "name_en LIKE ?";
                     $params[] = "%{$query}%";
                 }
-                
+
                 $sql = "SELECT {$selectCols} FROM business_items 
                         WHERE is_active = 1 
                         AND (" . implode(' OR ', $searchConditions) . ")";
-                
+
                 if ($lineAccountId) {
                     $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
                     $params[] = $lineAccountId;
                 }
-                
+
                 $sql .= " ORDER BY stock DESC, name ASC LIMIT 10";
-                
+
                 $stmt = $db->prepare($sql);
                 $stmt->execute($params);
                 $drugs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 $results = [];
                 foreach ($drugs as $drug) {
                     $results[] = [
-                        'id' => (int)$drug['id'],
+                        'id' => (int) $drug['id'],
                         'name' => $drug['name'],
                         'name_en' => $drug['name_en'] ?? '',
                         'generic_name' => $drug['generic_name'] ?? '',
                         'sku' => $drug['sku'],
-                        'price' => (float)($drug['sale_price'] ?? $drug['price'] ?? 0),
-                        'stock' => (int)($drug['stock'] ?? 0)
+                        'price' => (float) ($drug['sale_price'] ?? $drug['price'] ?? 0),
+                        'stock' => (int) ($drug['stock'] ?? 0)
                     ];
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $results,
                     'count' => count($results),
                     'query' => $query
                 ]);
-                
+
             } catch (PDOException $e) {
                 sendError('Database error: ' . $e->getMessage(), 500);
             }
@@ -609,52 +615,52 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $drugId = (int)($_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            
+
+            $drugId = (int) ($_GET['drug_id'] ?? $_GET['id'] ?? 0);
+
             if (!$drugId) {
                 sendError('Drug ID is required');
             }
-            
+
             // Direct database query - simple and reliable
             try {
                 // First check what columns exist
                 $columnsStmt = $db->query("SHOW COLUMNS FROM business_items");
                 $columns = $columnsStmt->fetchAll(PDO::FETCH_COLUMN);
                 $hasCostPrice = in_array('cost_price', $columns);
-                
+
                 // Build query based on available columns
                 if ($hasCostPrice) {
                     $stmt = $db->prepare("SELECT id, name, price, sale_price, cost_price FROM business_items WHERE id = ?");
                 } else {
                     $stmt = $db->prepare("SELECT id, name, price, sale_price FROM business_items WHERE id = ?");
                 }
-                
+
                 $stmt->execute([$drugId]);
                 $drug = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$drug) {
                     sendError('Drug not found', 404);
                 }
-                
+
                 // Calculate pricing
-                $price = (float)($drug['sale_price'] ?? $drug['price'] ?? 0);
-                $cost = $hasCostPrice ? (float)($drug['cost_price'] ?? 0) : 0;
-                
+                $price = (float) ($drug['sale_price'] ?? $drug['price'] ?? 0);
+                $cost = $hasCostPrice ? (float) ($drug['cost_price'] ?? 0) : 0;
+
                 // Estimate cost if not available (assume 30% margin)
                 $estimated = false;
                 if ($cost <= 0 && $price > 0) {
                     $cost = $price * 0.7;
                     $estimated = true;
                 }
-                
+
                 $margin = $price - $cost;
                 $marginPercent = $price > 0 ? (($price - $cost) / $price) * 100 : 0;
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => [
-                        'drugId' => (int)$drug['id'],
+                        'drugId' => (int) $drug['id'],
                         'drugName' => $drug['name'],
                         'cost' => round($cost, 2),
                         'price' => round($price, 2),
@@ -663,7 +669,7 @@ try {
                         'estimated' => $estimated
                     ]
                 ]);
-                
+
             } catch (PDOException $e) {
                 sendError('Database error: ' . $e->getMessage(), 500);
             }
@@ -678,22 +684,22 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $drugId = (int)($_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            $minMargin = isset($_GET['min_margin']) ? (float)$_GET['min_margin'] : 10.0;
-            
+
+            $drugId = (int) ($_GET['drug_id'] ?? $_GET['id'] ?? 0);
+            $minMargin = isset($_GET['min_margin']) ? (float) $_GET['min_margin'] : 10.0;
+
             if (!$drugId) {
                 sendError('Drug ID is required');
             }
-            
+
             $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
-            
+
             if (!$pricingEngine) {
                 sendError('Pricing engine service not available', 503);
             }
-            
+
             $result = $pricingEngine->getMaxDiscount($drugId, $minMargin);
-            
+
             sendResponse([
                 'success' => !isset($result['error']),
                 'data' => $result
@@ -709,27 +715,27 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $drugId = (int)($_POST['drug_id'] ?? $body['drug_id'] ?? 0);
-            $requestedDiscount = (float)($_POST['discount'] ?? $body['discount'] ?? 0);
-            
+            $drugId = (int) ($_POST['drug_id'] ?? $body['drug_id'] ?? 0);
+            $requestedDiscount = (float) ($_POST['discount'] ?? $body['discount'] ?? 0);
+
             if (!$drugId) {
                 sendError('Drug ID is required');
             }
-            
+
             if ($requestedDiscount <= 0) {
                 sendError('Discount amount must be greater than 0');
             }
-            
+
             $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
-            
+
             if (!$pricingEngine) {
                 sendError('Pricing engine service not available', 503);
             }
-            
+
             $result = $pricingEngine->suggestAlternatives($drugId, $requestedDiscount);
-            
+
             sendResponse([
                 'success' => !isset($result['error']),
                 'data' => $result
@@ -745,21 +751,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $pricingEngine = loadService('DrugPricingEngineService', $db, $lineAccountId);
-            
+
             if (!$pricingEngine) {
                 sendError('Pricing engine service not available', 503);
             }
-            
+
             $result = $pricingEngine->getCustomerLoyalty($userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -780,28 +786,28 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
             $drugNames = $_POST['drugs'] ?? $body['drugs'] ?? [];
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
-            
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
+
             if (empty($drugNames)) {
                 sendError('Drug names array is required');
             }
-            
+
             // Parse drugs if string
             if (is_string($drugNames)) {
                 $drugNames = json_decode($drugNames, true) ?? explode(',', $drugNames);
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->checkDrugInteractions($drugNames, $userId ?: null);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -818,21 +824,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getUserMedicalHistory($userId);
-            
+
             sendResponse([
                 'success' => $result['found'] ?? false,
                 'data' => $result
@@ -849,21 +855,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getComprehensivePatientProfile($userId);
-            
+
             sendResponse([
                 'success' => $result['found'] ?? false,
                 'data' => $result
@@ -880,21 +886,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $productId = (int)($_GET['product_id'] ?? $_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            
+
+            $productId = (int) ($_GET['product_id'] ?? $_GET['drug_id'] ?? $_GET['id'] ?? 0);
+
             if (!$productId) {
                 sendError('Product ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getDrugInventory($productId);
-            
+
             sendResponse([
                 'success' => $result['found'] ?? false,
                 'data' => $result
@@ -910,23 +916,23 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $query = $_GET['q'] ?? $_GET['query'] ?? '';
             $inStockOnly = filter_var($_GET['in_stock'] ?? 'false', FILTER_VALIDATE_BOOLEAN);
-            $limit = (int)($_GET['limit'] ?? 20);
-            
+            $limit = (int) ($_GET['limit'] ?? 20);
+
             if (empty($query)) {
                 sendError('Search query is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->searchDrugInventory($query, $inStockOnly, $limit);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result,
@@ -943,21 +949,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $productId = (int)($_GET['product_id'] ?? $_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            
+
+            $productId = (int) ($_GET['product_id'] ?? $_GET['drug_id'] ?? $_GET['id'] ?? 0);
+
             if (!$productId) {
                 sendError('Product ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getDrugPricing($productId);
-            
+
             sendResponse([
                 'success' => $result['found'] ?? false,
                 'data' => $result
@@ -973,27 +979,27 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
-            $productId = (int)($_POST['product_id'] ?? $body['product_id'] ?? $body['drug_id'] ?? 0);
-            
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
+            $productId = (int) ($_POST['product_id'] ?? $body['product_id'] ?? $body['drug_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (!$productId) {
                 sendError('Product ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->validateDrugRecommendation($userId, $productId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1009,26 +1015,26 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
             $drugName = $_GET['drug_name'] ?? $_GET['drug'] ?? '';
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (empty($drugName)) {
                 sendError('Drug name is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->checkUserAllergy($userId, $drugName);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1044,22 +1050,22 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            $limit = (int)($_GET['limit'] ?? 20);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+            $limit = (int) ($_GET['limit'] ?? 20);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getUserPrescriptionHistory($userId, $limit);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result,
@@ -1076,17 +1082,17 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $limit = (int)($_GET['limit'] ?? 50);
-            
+
+            $limit = (int) ($_GET['limit'] ?? 50);
+
             $integration = loadService('PharmacyIntegrationService', $db, $lineAccountId);
-            
+
             if (!$integration) {
                 sendError('Integration service not available', 503);
             }
-            
+
             $result = $integration->getLowStockDrugs($limit);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result,
@@ -1104,24 +1110,24 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
             $symptoms = $_GET['symptoms'] ?? '';
             $type = $_GET['type'] ?? '';
             $message = $_GET['message'] ?? '';
-            $limit = (int)($_GET['limit'] ?? 10); // Increased default limit
-            
+            $limit = (int) ($_GET['limit'] ?? 10); // Increased default limit
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             // Priority 1: Search from chat history (most accurate)
             if ($consultationAnalyzer && $type === 'context') {
                 try {
                     $matchedDrugs = $consultationAnalyzer->searchDrugsFromChatHistory($userId, $limit);
-                    
+
                     if (!empty($matchedDrugs)) {
                         sendResponse([
                             'success' => true,
@@ -1138,15 +1144,15 @@ try {
                     error_log("Chat history search error: " . $e->getMessage());
                 }
             }
-            
+
             // Priority 2: Search from current message
             if (!empty($message) && $consultationAnalyzer) {
                 try {
                     $matchedDrugs = $consultationAnalyzer->searchDrugsFromMessage($message);
-                    
+
                     // Extract search terms from message for customer request summary
                     $searchTerms = $consultationAnalyzer->extractSearchTerms($message);
-                    
+
                     if (!empty($matchedDrugs)) {
                         sendResponse([
                             'success' => true,
@@ -1165,7 +1171,7 @@ try {
                     error_log("Message search error: " . $e->getMessage());
                 }
             }
-            
+
             // Priority 3: Get popular drugs as fallback
             if ($type === 'context' || empty($symptoms)) {
                 // Return popular drugs from business_items table
@@ -1179,38 +1185,38 @@ try {
                         WHERE bi.is_active = 1 
                         AND bi.stock > 0
                     ";
-                    
+
                     if ($lineAccountId) {
                         $sql .= " AND (bi.line_account_id = ? OR bi.line_account_id IS NULL)";
                     }
-                    
+
                     $sql .= " ORDER BY bi.stock DESC, bi.name ASC LIMIT ?";
-                    
+
                     $stmt = $db->prepare($sql);
                     if ($lineAccountId) {
                         $stmt->execute([$lineAccountId, $limit]);
                     } else {
                         $stmt->execute([$limit]);
                     }
-                    
+
                     $drugs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
+
                     $recommendations = [];
                     foreach ($drugs as $drug) {
                         $recommendations[] = [
-                            'id' => (int)$drug['id'],
-                            'drugId' => (int)$drug['id'],
+                            'id' => (int) $drug['id'],
+                            'drugId' => (int) $drug['id'],
                             'name' => $drug['name'],
                             'sku' => $drug['sku'],
-                            'price' => (float)($drug['sale_price'] ?? $drug['price'] ?? 0),
-                            'originalPrice' => (float)($drug['price'] ?? 0),
-                            'stock' => (int)($drug['stock'] ?? 0),
+                            'price' => (float) ($drug['sale_price'] ?? $drug['price'] ?? 0),
+                            'originalPrice' => (float) ($drug['price'] ?? 0),
+                            'stock' => (int) ($drug['stock'] ?? 0),
                             'category' => $drug['category'] ?? 'ยาทั่วไป',
                             'description' => $drug['description'],
                             'imageUrl' => $drug['image_url']
                         ];
                     }
-                    
+
                     sendResponse([
                         'success' => true,
                         'data' => [
@@ -1232,7 +1238,7 @@ try {
                 }
                 break;
             }
-            
+
             // Parse symptoms (comma-separated or JSON array)
             if (is_string($symptoms)) {
                 $symptomsArray = json_decode($symptoms, true);
@@ -1242,21 +1248,21 @@ try {
             } else {
                 $symptomsArray = $symptoms;
             }
-            
+
             $recommendEngine = loadService('DrugRecommendEngineService', $db, $lineAccountId);
-            
+
             if (!$recommendEngine) {
                 sendError('Recommendation engine service not available', 503);
             }
-            
+
             // Optionally set health engine for better allergy checking
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
             if ($healthEngine) {
                 $recommendEngine->setHealthEngine($healthEngine);
             }
-            
+
             $result = $recommendEngine->getForSymptoms($symptomsArray, $userId, $limit);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1272,38 +1278,38 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
             $drugIds = $_POST['drug_ids'] ?? $body['drug_ids'] ?? [];
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (empty($drugIds)) {
                 sendError('Drug IDs array is required');
             }
-            
+
             // Parse drug IDs if string
             if (is_string($drugIds)) {
                 $drugIds = json_decode($drugIds, true) ?? array_map('intval', explode(',', $drugIds));
             }
-            
+
             $recommendEngine = loadService('DrugRecommendEngineService', $db, $lineAccountId);
-            
+
             if (!$recommendEngine) {
                 sendError('Recommendation engine service not available', 503);
             }
-            
+
             // Optionally set health engine
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
             if ($healthEngine) {
                 $recommendEngine->setHealthEngine($healthEngine);
             }
-            
+
             $result = $recommendEngine->checkInteractions($drugIds, $userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1320,21 +1326,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $recommendEngine = loadService('DrugRecommendEngineService', $db, $lineAccountId);
-            
+
             if (!$recommendEngine) {
                 sendError('Recommendation engine service not available', 503);
             }
-            
+
             $result = $recommendEngine->getRefillReminders($userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1351,21 +1357,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $drugId = (int)($_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            
+
+            $drugId = (int) ($_GET['drug_id'] ?? $_GET['id'] ?? 0);
+
             if (!$drugId) {
                 sendError('Drug ID is required');
             }
-            
+
             $recommendEngine = loadService('DrugRecommendEngineService', $db, $lineAccountId);
-            
+
             if (!$recommendEngine) {
                 sendError('Recommendation engine service not available', 503);
             }
-            
+
             $result = $recommendEngine->generateDrugCard($drugId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1382,32 +1388,32 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $drugId = (int)($_GET['drug_id'] ?? $_GET['id'] ?? 0);
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $drugId = (int) ($_GET['drug_id'] ?? $_GET['id'] ?? 0);
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$drugId) {
                 sendError('Drug ID is required');
             }
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $recommendEngine = loadService('DrugRecommendEngineService', $db, $lineAccountId);
-            
+
             if (!$recommendEngine) {
                 sendError('Recommendation engine service not available', 503);
             }
-            
+
             // Optionally set health engine
             $healthEngine = loadService('CustomerHealthEngineService', $db, $lineAccountId);
             if ($healthEngine) {
                 $recommendEngine->setHealthEngine($healthEngine);
             }
-            
+
             $result = $recommendEngine->getSafeAlternatives($drugId, $userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $result
@@ -1424,14 +1430,14 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
             $message = $_GET['message'] ?? '';
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             // Message is optional - return empty widgets if no message
             if (empty($message)) {
                 sendResponse([
@@ -1442,15 +1448,15 @@ try {
                     ]
                 ]);
             }
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$consultationAnalyzer) {
                 sendError('Consultation analyzer service not available', 503);
             }
-            
+
             $widgets = $consultationAnalyzer->getContextWidgets($message, $userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => [
@@ -1470,21 +1476,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$consultationAnalyzer) {
                 sendError('Consultation analyzer service not available', 503);
             }
-            
+
             $stage = $consultationAnalyzer->detectStage($userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $stage
@@ -1501,31 +1507,31 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
             $stage = $_GET['stage'] ?? '';
             $hasUrgent = filter_var($_GET['has_urgent'] ?? 'false', FILTER_VALIDATE_BOOLEAN);
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$consultationAnalyzer) {
                 sendError('Consultation analyzer service not available', 503);
             }
-            
+
             // If no stage provided, detect it from user messages
             if (empty($stage) && $userId) {
                 $stageResult = $consultationAnalyzer->detectStage($userId);
                 $stage = $stageResult['stage'];
                 $hasUrgent = $stageResult['hasUrgentSymptoms'] ?? $hasUrgent;
             }
-            
+
             // Default to symptom assessment if still no stage
             if (empty($stage)) {
                 $stage = 'symptom_assessment';
             }
-            
+
             $actions = $consultationAnalyzer->getQuickActions($stage, $hasUrgent);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $actions
@@ -1541,21 +1547,21 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
-            
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$consultationAnalyzer) {
                 sendError('Consultation analyzer service not available', 503);
             }
-            
+
             $urgency = $consultationAnalyzer->detectUrgency($userId);
-            
+
             sendResponse([
                 'success' => true,
                 'data' => $urgency
@@ -1572,11 +1578,11 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $pharmacistId = (int)($_GET['pharmacist_id'] ?? $adminId ?? 0);
+
+            $pharmacistId = (int) ($_GET['pharmacist_id'] ?? $adminId ?? 0);
             $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
             $endDate = $_GET['end_date'] ?? date('Y-m-d');
-            
+
             // Get analytics from consultation_analytics table
             try {
                 $sql = "
@@ -1592,16 +1598,16 @@ try {
                     WHERE created_at BETWEEN ? AND ?
                 ";
                 $params = [$startDate . ' 00:00:00', $endDate . ' 23:59:59'];
-                
+
                 if ($pharmacistId) {
                     $sql .= " AND pharmacist_id = ?";
                     $params[] = $pharmacistId;
                 }
-                
+
                 $stmt = $db->prepare($sql);
                 $stmt->execute($params);
                 $summary = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 // Get breakdown by communication type
                 $sql2 = "
                     SELECT 
@@ -1613,32 +1619,32 @@ try {
                     WHERE created_at BETWEEN ? AND ?
                 ";
                 $params2 = [$startDate . ' 00:00:00', $endDate . ' 23:59:59'];
-                
+
                 if ($pharmacistId) {
                     $sql2 .= " AND pharmacist_id = ?";
                     $params2[] = $pharmacistId;
                 }
-                
+
                 $sql2 .= " GROUP BY communication_type";
-                
+
                 $stmt2 = $db->prepare($sql2);
                 $stmt2->execute($params2);
                 $byType = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 // Calculate success rate
-                $totalConsultations = (int)($summary['total_consultations'] ?? 0);
-                $successfulConsultations = (int)($summary['successful_consultations'] ?? 0);
-                $successRate = $totalConsultations > 0 
-                    ? round(($successfulConsultations / $totalConsultations) * 100, 2) 
+                $totalConsultations = (int) ($summary['total_consultations'] ?? 0);
+                $successfulConsultations = (int) ($summary['successful_consultations'] ?? 0);
+                $successRate = $totalConsultations > 0
+                    ? round(($successfulConsultations / $totalConsultations) * 100, 2)
                     : 0;
-                
+
                 // Calculate AI acceptance rate
-                $totalAiSuggestions = (int)($summary['total_ai_suggestions'] ?? 0);
-                $acceptedAiSuggestions = (int)($summary['accepted_ai_suggestions'] ?? 0);
-                $aiAcceptanceRate = $totalAiSuggestions > 0 
-                    ? round(($acceptedAiSuggestions / $totalAiSuggestions) * 100, 2) 
+                $totalAiSuggestions = (int) ($summary['total_ai_suggestions'] ?? 0);
+                $acceptedAiSuggestions = (int) ($summary['accepted_ai_suggestions'] ?? 0);
+                $aiAcceptanceRate = $totalAiSuggestions > 0
+                    ? round(($acceptedAiSuggestions / $totalAiSuggestions) * 100, 2)
                     : 0;
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => [
@@ -1650,9 +1656,9 @@ try {
                             'totalConsultations' => $totalConsultations,
                             'successfulConsultations' => $successfulConsultations,
                             'successRate' => $successRate,
-                            'avgResponseTime' => round((float)($summary['avg_response_time'] ?? 0), 2),
-                            'avgMessagesPerConsultation' => round((float)($summary['avg_messages_per_consultation'] ?? 0), 1),
-                            'totalRevenue' => (float)($summary['total_revenue'] ?? 0),
+                            'avgResponseTime' => round((float) ($summary['avg_response_time'] ?? 0), 2),
+                            'avgMessagesPerConsultation' => round((float) ($summary['avg_messages_per_consultation'] ?? 0), 1),
+                            'totalRevenue' => (float) ($summary['total_revenue'] ?? 0),
                             'aiAcceptanceRate' => $aiAcceptanceRate
                         ],
                         'byType' => $byType
@@ -1681,37 +1687,37 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($_POST['user_id'] ?? $body['user_id'] ?? 0);
-            
+            $userId = (int) ($_POST['user_id'] ?? $body['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             $consultationAnalyzer = loadService('ConsultationAnalyzerService', $db, $lineAccountId);
-            
+
             if (!$consultationAnalyzer) {
                 sendError('Consultation analyzer service not available', 503);
             }
-            
+
             $analyticsData = [
-                'pharmacistId' => (int)($_POST['pharmacist_id'] ?? $body['pharmacist_id'] ?? $adminId ?? null),
+                'pharmacistId' => (int) ($_POST['pharmacist_id'] ?? $body['pharmacist_id'] ?? $adminId ?? null),
                 'communicationType' => $_POST['communication_type'] ?? $body['communication_type'] ?? null,
                 'stageAtClose' => $_POST['stage_at_close'] ?? $body['stage_at_close'] ?? null,
-                'responseTimeAvg' => isset($_POST['response_time_avg']) ? (int)$_POST['response_time_avg'] : (isset($body['response_time_avg']) ? (int)$body['response_time_avg'] : null),
-                'messageCount' => isset($_POST['message_count']) ? (int)$_POST['message_count'] : (isset($body['message_count']) ? (int)$body['message_count'] : null),
-                'aiSuggestionsShown' => (int)($_POST['ai_suggestions_shown'] ?? $body['ai_suggestions_shown'] ?? 0),
-                'aiSuggestionsAccepted' => (int)($_POST['ai_suggestions_accepted'] ?? $body['ai_suggestions_accepted'] ?? 0),
+                'responseTimeAvg' => isset($_POST['response_time_avg']) ? (int) $_POST['response_time_avg'] : (isset($body['response_time_avg']) ? (int) $body['response_time_avg'] : null),
+                'messageCount' => isset($_POST['message_count']) ? (int) $_POST['message_count'] : (isset($body['message_count']) ? (int) $body['message_count'] : null),
+                'aiSuggestionsShown' => (int) ($_POST['ai_suggestions_shown'] ?? $body['ai_suggestions_shown'] ?? 0),
+                'aiSuggestionsAccepted' => (int) ($_POST['ai_suggestions_accepted'] ?? $body['ai_suggestions_accepted'] ?? 0),
                 'resultedInPurchase' => filter_var($_POST['resulted_in_purchase'] ?? $body['resulted_in_purchase'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                'purchaseAmount' => isset($_POST['purchase_amount']) ? (float)$_POST['purchase_amount'] : (isset($body['purchase_amount']) ? (float)$body['purchase_amount'] : null),
+                'purchaseAmount' => isset($_POST['purchase_amount']) ? (float) $_POST['purchase_amount'] : (isset($body['purchase_amount']) ? (float) $body['purchase_amount'] : null),
                 'symptomCategories' => $_POST['symptom_categories'] ?? $body['symptom_categories'] ?? [],
                 'drugsRecommended' => $_POST['drugs_recommended'] ?? $body['drugs_recommended'] ?? [],
                 'successfulPatterns' => $_POST['successful_patterns'] ?? $body['successful_patterns'] ?? []
             ];
-            
+
             $success = $consultationAnalyzer->recordAnalytics($userId, $analyticsData);
-            
+
             sendResponse([
                 'success' => $success,
                 'message' => $success ? 'Analytics recorded successfully' : 'Failed to record analytics'
@@ -1725,22 +1731,22 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
-            $userId = (int)($body['user_id'] ?? 0);
+            $userId = (int) ($body['user_id'] ?? 0);
             $items = $body['items'] ?? [];
-            $subtotal = (float)($body['subtotal'] ?? 0);
-            $discount = (float)($body['discount'] ?? 0);
-            $total = (float)($body['total'] ?? 0);
-            
+            $subtotal = (float) ($body['subtotal'] ?? 0);
+            $discount = (float) ($body['discount'] ?? 0);
+            $total = (float) ($body['total'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (empty($items)) {
                 sendError('Items are required');
             }
-            
+
             // Save pending order to user_states table
             $pendingOrderData = [
                 'items' => $items,
@@ -1750,21 +1756,21 @@ try {
                 'created_at' => date('Y-m-d H:i:s'),
                 'line_account_id' => $lineAccountId
             ];
-            
+
             $expiresAt = date('Y-m-d H:i:s', strtotime('+30 minutes'));
-            
+
             try {
                 // Check if user_states has user_id as PRIMARY KEY
                 $stmt = $db->query("SHOW KEYS FROM user_states WHERE Key_name = 'PRIMARY'");
                 $primaryKey = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($primaryKey && $primaryKey['Column_name'] === 'user_id') {
                     $stmt = $db->prepare("INSERT INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?) 
                                         ON DUPLICATE KEY UPDATE state = ?, state_data = ?, expires_at = ?");
                     $stmt->execute([
-                        $userId, 
-                        'pending_order', 
-                        json_encode($pendingOrderData), 
+                        $userId,
+                        'pending_order',
+                        json_encode($pendingOrderData),
                         $expiresAt,
                         'pending_order',
                         json_encode($pendingOrderData),
@@ -1773,11 +1779,11 @@ try {
                 } else {
                     $stmt = $db->prepare("DELETE FROM user_states WHERE user_id = ?");
                     $stmt->execute([$userId]);
-                    
+
                     $stmt = $db->prepare("INSERT INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?)");
                     $stmt->execute([$userId, 'pending_order', json_encode($pendingOrderData), $expiresAt]);
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Pending order saved',
@@ -1792,31 +1798,31 @@ try {
         // GET /customer_crm - Get CRM data for HUD panel
         // ============================================
         case 'customer_crm':
-            $userId = (int)($_GET['user_id'] ?? $_POST['user_id'] ?? 0);
-            
+            $userId = (int) ($_GET['user_id'] ?? $_POST['user_id'] ?? 0);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             try {
                 // Get user info
                 $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
                 $stmt->execute([$userId]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$user) {
                     sendError('User not found', 404);
                 }
-                
+
                 // Get loyalty points
                 $points = ['available_points' => 0, 'total_points' => 0, 'used_points' => 0];
                 $tier = ['name' => 'Member', 'icon' => '🥉', 'color' => '#9CA3AF'];
-                
+
                 try {
                     require_once __DIR__ . '/../classes/LoyaltyPoints.php';
                     $loyalty = new LoyaltyPoints($db, $lineAccountId);
                     $points = $loyalty->getUserPoints($userId);
-                    
+
                     $totalPts = $points['total_points'] ?? 0;
                     if ($totalPts >= 10000) {
                         $tier = ['name' => 'Platinum', 'icon' => '💎', 'color' => '#6366F1'];
@@ -1825,8 +1831,9 @@ try {
                     } elseif ($totalPts >= 1000) {
                         $tier = ['name' => 'Silver', 'icon' => '🥈', 'color' => '#6B7280'];
                     }
-                } catch (Exception $e) {}
-                
+                } catch (Exception $e) {
+                }
+
                 // Get stats
                 $stats = ['order_count' => 0, 'total_spent' => 0, 'message_count' => 0];
                 try {
@@ -1835,12 +1842,13 @@ try {
                     $txStats = $stmt->fetch(PDO::FETCH_ASSOC);
                     $stats['order_count'] = $txStats['cnt'] ?? 0;
                     $stats['total_spent'] = $txStats['total'] ?? 0;
-                    
+
                     $stmt = $db->prepare("SELECT COUNT(*) FROM messages WHERE user_id = ?");
                     $stmt->execute([$userId]);
                     $stats['message_count'] = $stmt->fetchColumn();
-                } catch (Exception $e) {}
-                
+                } catch (Exception $e) {
+                }
+
                 // Get tags
                 $tags = [];
                 try {
@@ -1849,16 +1857,18 @@ try {
                                           WHERE uta.user_id = ?");
                     $stmt->execute([$userId]);
                     $tags = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                } catch (Exception $e) {}
-                
+                } catch (Exception $e) {
+                }
+
                 // Get all available tags for selector
                 $allTags = [];
                 try {
                     $stmt = $db->prepare("SELECT id, name, color FROM user_tags WHERE line_account_id = ? OR line_account_id IS NULL ORDER BY name");
                     $stmt->execute([$lineAccountId]);
                     $allTags = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                } catch (Exception $e) {}
-                
+                } catch (Exception $e) {
+                }
+
                 // Get notes - try customer_notes first, fallback to user_notes
                 $notes = [];
                 try {
@@ -1872,17 +1882,19 @@ try {
                         $stmt = $db->prepare("SELECT id, user_id, note as content, created_by, created_at FROM user_notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
                         $stmt->execute([$userId]);
                         $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    } catch (Exception $e2) {}
+                    } catch (Exception $e2) {
+                    }
                 }
-                
+
                 // Get recent transactions
                 $transactions = [];
                 try {
                     $stmt = $db->prepare("SELECT id, grand_total, status, created_at FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
                     $stmt->execute([$userId]);
                     $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                } catch (Exception $e) {}
-                
+                } catch (Exception $e) {
+                }
+
                 sendResponse([
                     'success' => true,
                     'data' => [
@@ -1908,14 +1920,14 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
             $content = trim($_POST['content'] ?? '');
-            
+
             if (!$userId || empty($content)) {
                 sendError('User ID and content are required');
             }
-            
+
             try {
                 // Try customer_notes first, fallback to user_notes
                 try {
@@ -1926,7 +1938,7 @@ try {
                     $stmt = $db->prepare("INSERT INTO user_notes (user_id, note, created_at) VALUES (?, ?, NOW())");
                     $stmt->execute([$userId, $content]);
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Note added successfully',
@@ -1944,36 +1956,36 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
             $tagName = trim($_POST['tag_name'] ?? '');
-            
+
             if (!$userId || empty($tagName)) {
                 sendError('User ID and tag name are required');
             }
-            
+
             try {
                 // Find or create tag
                 $stmt = $db->prepare("SELECT id FROM user_tags WHERE name = ? AND (line_account_id = ? OR line_account_id IS NULL)");
                 $stmt->execute([$tagName, $lineAccountId]);
                 $tag = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$tag) {
                     // Create new tag with random color
                     $colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1'];
                     $color = $colors[array_rand($colors)];
-                    
+
                     $stmt = $db->prepare("INSERT INTO user_tags (name, color, line_account_id, created_at) VALUES (?, ?, ?, NOW())");
                     $stmt->execute([$tagName, $color, $lineAccountId]);
                     $tagId = $db->lastInsertId();
                 } else {
                     $tagId = $tag['id'];
                 }
-                
+
                 // Assign tag to user
                 $stmt = $db->prepare("INSERT IGNORE INTO user_tag_assignments (user_id, tag_id, assigned_by, created_at) VALUES (?, ?, ?, NOW())");
                 $stmt->execute([$userId, $tagId, $adminId ?? 'Admin']);
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Tag added successfully',
@@ -1991,18 +2003,18 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
-            $tagId = (int)($_POST['tag_id'] ?? 0);
-            
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
+            $tagId = (int) ($_POST['tag_id'] ?? 0);
+
             if (!$userId || !$tagId) {
                 sendError('User ID and tag ID are required');
             }
-            
+
             try {
                 $stmt = $db->prepare("DELETE FROM user_tag_assignments WHERE user_id = ? AND tag_id = ?");
                 $stmt->execute([$userId, $tagId]);
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Tag removed successfully'
@@ -2019,18 +2031,18 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
-            $tagId = (int)($_POST['tag_id'] ?? 0);
-            
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
+            $tagId = (int) ($_POST['tag_id'] ?? 0);
+
             if (!$userId || !$tagId) {
                 sendError('User ID and tag ID are required');
             }
-            
+
             try {
                 $stmt = $db->prepare("INSERT IGNORE INTO user_tag_assignments (user_id, tag_id, assigned_by, created_at) VALUES (?, ?, ?, NOW())");
                 $stmt->execute([$userId, $tagId, $adminId ?? 'Admin']);
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Tag assigned successfully'
@@ -2047,22 +2059,22 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
             $field = $_POST['field'] ?? '';
             $value = trim($_POST['value'] ?? '');
-            
+
             // Whitelist allowed fields
             $allowedFields = ['display_name', 'phone', 'address', 'email', 'real_name', 'birthday', 'province', 'postal_code'];
-            
+
             if (!$userId || !in_array($field, $allowedFields)) {
                 sendError('Invalid user ID or field');
             }
-            
+
             try {
                 $stmt = $db->prepare("UPDATE users SET {$field} = ? WHERE id = ?");
                 $stmt->execute([$value ?: null, $userId]);
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Customer info updated successfully'
@@ -2073,39 +2085,157 @@ try {
             break;
 
         // ============================================
-        // POST /delete_customer_note - Delete a note
+        // TEMPLATE MANAGEMENT ENDPOINTS
         // ============================================
-        case 'delete_customer_note':
+
+        // ============================================
+        // GET /get_templates - Get all templates
+        // ============================================
+        case 'get_templates':
+            if ($method !== 'GET') {
+                sendError('Method not allowed', 405);
+            }
+
+            $search = $_GET['search'] ?? '';
+
+            $templateService = loadService('TemplateService', $db, $lineAccountId);
+            if (!$templateService) {
+                sendError('Template service not available', 503);
+            }
+
+            try {
+                $templates = $templateService->getTemplates($search);
+                sendResponse([
+                    'success' => true,
+                    'data' => $templates
+                ]);
+            } catch (Exception $e) {
+                sendError('Failed to get templates: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // POST /create_template - Create a new template
+        // ============================================
+        case 'create_template':
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $noteId = (int)($_POST['note_id'] ?? 0);
-            
-            if (!$noteId) {
-                sendError('Note ID is required');
+
+            $body = getJsonBody();
+            $name = $_POST['name'] ?? $body['name'] ?? '';
+            $content = $_POST['content'] ?? $body['content'] ?? '';
+            $category = $_POST['category'] ?? $body['category'] ?? '';
+            $quickReply = $_POST['quick_reply'] ?? $body['quick_reply'] ?? null;
+
+            if (empty($name) || empty($content)) {
+                sendError('Name and content are required');
             }
-            
+
+            $templateService = loadService('TemplateService', $db, $lineAccountId);
+            if (!$templateService) {
+                sendError('Template service not available', 503);
+            }
+
             try {
-                // Try customer_notes first, fallback to user_notes
-                try {
-                    $stmt = $db->prepare("DELETE FROM customer_notes WHERE id = ?");
-                    $stmt->execute([$noteId]);
-                    if ($stmt->rowCount() === 0) {
-                        throw new Exception('Not found in customer_notes');
-                    }
-                } catch (Exception $e) {
-                    // Fallback to user_notes table
-                    $stmt = $db->prepare("DELETE FROM user_notes WHERE id = ?");
-                    $stmt->execute([$noteId]);
-                }
-                
+                // If quickReply is empty string, set to null
+                if ($quickReply === '')
+                    $quickReply = null;
+
+                $templateId = $templateService->createTemplate($name, $content, $category, $adminId, $quickReply);
                 sendResponse([
                     'success' => true,
-                    'message' => 'Note deleted successfully'
+                    'message' => 'Template created successfully',
+                    'id' => $templateId
                 ]);
             } catch (Exception $e) {
-                sendError('Failed to delete note: ' . $e->getMessage());
+                sendError('Failed to create template: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // POST /update_template - Update an existing template
+        // ============================================
+        case 'update_template':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+
+            $body = getJsonBody();
+            $id = (int) ($_POST['id'] ?? $body['id'] ?? 0);
+
+            if (!$id) {
+                sendError('Template ID is required');
+            }
+
+            $data = [];
+            if (isset($_POST['name']) || isset($body['name']))
+                $data['name'] = $_POST['name'] ?? $body['name'];
+            if (isset($_POST['content']) || isset($body['content']))
+                $data['content'] = $_POST['content'] ?? $body['content'];
+            if (isset($_POST['category']) || isset($body['category']))
+                $data['category'] = $_POST['category'] ?? $body['category'];
+            if (isset($_POST['quick_reply']) || isset($body['quick_reply'])) {
+                $val = $_POST['quick_reply'] ?? $body['quick_reply'];
+                $data['quick_reply'] = ($val === '') ? null : $val;
+            }
+
+            if (empty($data)) {
+                sendError('No data to update');
+            }
+
+            $templateService = loadService('TemplateService', $db, $lineAccountId);
+            if (!$templateService) {
+                sendError('Template service not available', 503);
+            }
+
+            try {
+                $success = $templateService->updateTemplate($id, $data);
+                if ($success) {
+                    sendResponse([
+                        'success' => true,
+                        'message' => 'Template updated successfully'
+                    ]);
+                } else {
+                    sendError('Failed to update template');
+                }
+            } catch (Exception $e) {
+                sendError('Failed to update template: ' . $e->getMessage());
+            }
+            break;
+
+        // ============================================
+        // POST /delete_template - Delete a template
+        // ============================================
+        case 'delete_template':
+            if ($method !== 'POST') {
+                sendError('Method not allowed', 405);
+            }
+
+            $body = getJsonBody();
+            $id = (int) ($_POST['id'] ?? $body['id'] ?? 0);
+
+            if (!$id) {
+                sendError('Template ID is required');
+            }
+
+            $templateService = loadService('TemplateService', $db, $lineAccountId);
+            if (!$templateService) {
+                sendError('Template service not available', 503);
+            }
+
+            try {
+                $success = $templateService->deleteTemplate($id);
+                if ($success) {
+                    sendResponse([
+                        'success' => true,
+                        'message' => 'Template deleted successfully'
+                    ]);
+                } else {
+                    sendError('Failed to delete template');
+                }
+            } catch (Exception $e) {
+                sendError('Failed to delete template: ' . $e->getMessage());
             }
             break;
 
@@ -2116,31 +2246,31 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_POST['user_id'] ?? 0);
+
+            $userId = (int) ($_POST['user_id'] ?? 0);
             $status = trim($_POST['status'] ?? '');
-            
+
             // Whitelist allowed statuses
             $allowedStatuses = ['', 'pending', 'completed', 'shipping', 'tracking', 'billing'];
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             if (!in_array($status, $allowedStatuses)) {
                 sendError('Invalid status');
             }
-            
+
             try {
                 // Get old status for history
                 $stmt = $db->prepare("SELECT chat_status FROM users WHERE id = ?");
                 $stmt->execute([$userId]);
                 $oldStatus = $stmt->fetchColumn();
-                
+
                 // Update status
                 $stmt = $db->prepare("UPDATE users SET chat_status = ? WHERE id = ?");
                 $stmt->execute([$status ?: null, $userId]);
-                
+
                 // Log to history
                 try {
                     $adminId = $_SESSION['admin_user']['id'] ?? null;
@@ -2149,7 +2279,7 @@ try {
                 } catch (Exception $e) {
                     // History table might not exist yet, ignore
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Chat status updated successfully'
@@ -2166,12 +2296,12 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             try {
                 $stmt = $db->prepare("UPDATE messages SET is_read = 1 WHERE line_account_id = ? AND direction = 'incoming' AND is_read = 0");
                 $stmt->execute([$lineAccountId]);
                 $affected = $stmt->rowCount();
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => "Marked {$affected} messages as read"
@@ -2188,7 +2318,7 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             try {
                 $stmt = $db->prepare("
                     SELECT id, username, display_name, role 
@@ -2199,7 +2329,7 @@ try {
                 ");
                 $stmt->execute([$lineAccountId]);
                 $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $admins
@@ -2217,18 +2347,18 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
             $userId = intval($_POST['user_id'] ?? $body['user_id'] ?? 0);
             $assignTo = $_POST['assign_to'] ?? $body['assign_to'] ?? null;
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
             if (empty($assignTo)) {
                 sendError('Admin ID(s) to assign is required');
             }
-            
+
             // Parse JSON string if needed
             if (is_string($assignTo)) {
                 $decoded = json_decode($assignTo, true);
@@ -2236,27 +2366,27 @@ try {
                     $assignTo = $decoded;
                 }
             }
-            
+
             // Support both single ID and array of IDs
             $adminIds = is_array($assignTo) ? $assignTo : [$assignTo];
             $adminIds = array_map('intval', $adminIds);
             $adminIds = array_filter($adminIds); // Remove zeros
-            
+
             if (empty($adminIds)) {
                 sendError('Valid admin ID(s) required');
             }
-            
+
             try {
                 require_once __DIR__ . '/../classes/InboxService.php';
                 $inboxService = new InboxService($db, $lineAccountId);
-                
+
                 $assignedBy = $_SESSION['admin_id'] ?? null;
                 $success = $inboxService->assignConversation($userId, $adminIds, $assignedBy);
-                
+
                 if ($success) {
                     sendResponse([
                         'success' => true,
-                        'message' => count($adminIds) > 1 
+                        'message' => count($adminIds) > 1
                             ? 'มอบหมายงานให้ ' . count($adminIds) . ' คนสำเร็จ'
                             : 'มอบหมายงานสำเร็จ',
                         'assigned_count' => count($adminIds)
@@ -2276,19 +2406,19 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $body = getJsonBody();
             $userId = intval($_POST['user_id'] ?? $body['user_id'] ?? 0);
             $adminId = intval($_POST['admin_id'] ?? $body['admin_id'] ?? 0);
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             try {
                 require_once __DIR__ . '/../classes/InboxService.php';
                 $inboxService = new InboxService($db, $lineAccountId);
-                
+
                 if ($adminId > 0) {
                     // Remove specific admin
                     $success = $inboxService->removeAssignee($userId, $adminId);
@@ -2298,7 +2428,7 @@ try {
                     $success = $inboxService->unassignConversation($userId);
                     $message = 'ยกเลิกการมอบหมายทั้งหมดสำเร็จ';
                 }
-                
+
                 sendResponse([
                     'success' => $success,
                     'message' => $message
@@ -2315,19 +2445,19 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $userId = intval($_GET['user_id'] ?? 0);
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             try {
                 require_once __DIR__ . '/../classes/InboxService.php';
                 $inboxService = new InboxService($db, $lineAccountId);
-                
+
                 $assignment = $inboxService->getAssignment($userId);
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $assignment
@@ -2345,23 +2475,23 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $userId = intval($_POST['user_id'] ?? 0);
-            
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             try {
                 // Get LINE account credentials
                 $stmt = $db->prepare("SELECT channel_access_token FROM line_accounts WHERE id = ?");
                 $stmt->execute([$lineAccountId]);
                 $account = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$account || empty($account['channel_access_token'])) {
                     sendError('LINE account not configured');
                 }
-                
+
                 // Get unread messages with mark_as_read_token
                 $stmt = $db->prepare("
                     SELECT id, mark_as_read_token 
@@ -2377,31 +2507,31 @@ try {
                 ");
                 $stmt->execute([$userId, $lineAccountId]);
                 $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 if (empty($messages)) {
                     // No messages to mark, just update is_read
                     $stmt = $db->prepare("UPDATE messages SET is_read = 1 WHERE user_id = ? AND line_account_id = ? AND direction = 'incoming' AND is_read = 0");
                     $stmt->execute([$userId, $lineAccountId]);
-                    
+
                     sendResponse([
                         'success' => true,
                         'message' => 'No messages with markAsReadToken to process',
                         'marked_count' => 0
                     ]);
                 }
-                
+
                 // Load LineAPI
                 require_once __DIR__ . '/../classes/LineAPI.php';
                 $lineApi = new LineAPI($account['channel_access_token']);
-                
+
                 $markedCount = 0;
                 $errors = [];
-                
+
                 // Mark each message as read on LINE (only need to mark the latest one)
                 // According to LINE API, marking one message marks all previous messages as read
                 $latestMessage = $messages[0];
                 $result = $lineApi->markAsRead($latestMessage['mark_as_read_token']);
-                
+
                 if ($result['success']) {
                     // Update all messages as read on LINE
                     $messageIds = array_column($messages, 'id');
@@ -2415,7 +2545,7 @@ try {
                     $stmt = $db->prepare("UPDATE messages SET is_read = 1 WHERE user_id = ? AND line_account_id = ? AND direction = 'incoming' AND is_read = 0");
                     $stmt->execute([$userId, $lineAccountId]);
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => 'Messages marked as read',
@@ -2423,7 +2553,7 @@ try {
                     'line_api_success' => empty($errors),
                     'errors' => $errors
                 ]);
-                
+
             } catch (Exception $e) {
                 sendError('Failed to mark as read: ' . $e->getMessage());
             }
@@ -2445,9 +2575,9 @@ try {
                 sendError('Method not allowed', 405);
             }
 
-            $since = (int)($_GET['since'] ?? 0);
+            $since = (int) ($_GET['since'] ?? 0);
             $cursor = $_GET['cursor'] ?? null;
-            $limit = (int)($_GET['limit'] ?? 50);
+            $limit = (int) ($_GET['limit'] ?? 50);
 
             // Search and filter parameters
             $search = isset($_GET['search']) ? trim($_GET['search']) : null;
@@ -2461,7 +2591,7 @@ try {
                 $filters['unreadOnly'] = true;
             }
             if (!empty($_GET['tagId'])) {
-                $filters['tagId'] = (int)$_GET['tagId'];
+                $filters['tagId'] = (int) $_GET['tagId'];
             }
             if (!empty($_GET['assigneeId'])) {
                 $filters['assigneeId'] = $_GET['assigneeId']; // Can be 'unassigned' or admin ID
@@ -2515,38 +2645,38 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $userId = (int)($_GET['user_id'] ?? 0);
+
+            $userId = (int) ($_GET['user_id'] ?? 0);
             $cursor = $_GET['cursor'] ?? null;
-            $limit = (int)($_GET['limit'] ?? 50);
-            
+            $limit = (int) ($_GET['limit'] ?? 50);
+
             if (!$userId) {
                 sendError('User ID is required');
             }
-            
+
             // Validate limit
             if ($limit < 1 || $limit > 100) {
                 $limit = 50;
             }
-            
+
             try {
                 require_once __DIR__ . '/../classes/InboxService.php';
                 $inboxService = new InboxService($db, $lineAccountId);
-                
+
                 $result = $inboxService->getMessagesCursor($userId, $cursor, $limit);
-                
+
                 // Add ETag for HTTP caching
                 $etag = md5(json_encode($result));
                 header("ETag: \"{$etag}\"");
                 header("Cache-Control: private, max-age=30");
-                
+
                 // Check If-None-Match header
                 $ifNoneMatch = $_SERVER['HTTP_IF_NONE_MATCH'] ?? '';
                 if ($ifNoneMatch === "\"{$etag}\"") {
                     http_response_code(304);
                     exit;
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $result
@@ -2566,31 +2696,31 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
-            $since = (int)($_GET['since'] ?? 0);
-            
+
+            $since = (int) ($_GET['since'] ?? 0);
+
             if (!$since) {
                 sendError('Since timestamp is required');
             }
-            
+
             try {
                 require_once __DIR__ . '/../classes/InboxService.php';
                 $inboxService = new InboxService($db, $lineAccountId);
-                
+
                 $result = $inboxService->pollUpdates($lineAccountId, $since);
-                
+
                 // Add Last-Modified header for HTTP caching
                 $lastModified = gmdate('D, d M Y H:i:s', time()) . ' GMT';
                 header("Last-Modified: {$lastModified}");
                 header("Cache-Control: no-cache, must-revalidate");
-                
+
                 // Check If-Modified-Since header
                 $ifModifiedSince = $_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? '';
                 if (!empty($result['new_messages']) && $ifModifiedSince === $lastModified) {
                     http_response_code(304);
                     exit;
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $result,
@@ -2610,56 +2740,56 @@ try {
             if ($method !== 'POST') {
                 sendError('Method not allowed', 405);
             }
-            
+
             try {
                 // Get JSON input
                 $input = json_decode(file_get_contents('php://input'), true);
-                
+
                 if (!$input) {
                     sendError('Invalid JSON input');
                 }
-                
+
                 // Support both single metric and batch of metrics
                 $metrics = isset($input['metrics']) ? $input['metrics'] : [$input];
-                
+
                 require_once __DIR__ . '/../classes/PerformanceMetricsService.php';
                 $perfService = new PerformanceMetricsService($db, $lineAccountId);
-                
+
                 $successCount = 0;
                 $failCount = 0;
-                
+
                 foreach ($metrics as $metric) {
                     $metricType = $metric['metric_type'] ?? null;
                     $durationMs = $metric['duration_ms'] ?? null;
                     $userAgent = $metric['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? null;
                     $operationDetails = $metric['operation_details'] ?? null;
-                    
+
                     if (!$metricType || $durationMs === null) {
                         $failCount++;
                         continue;
                     }
-                    
+
                     $result = $perfService->logMetric(
                         $metricType,
                         $durationMs,
                         $userAgent,
                         $operationDetails
                     );
-                    
+
                     if ($result) {
                         $successCount++;
                     } else {
                         $failCount++;
                     }
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'message' => "Logged {$successCount} metrics" . ($failCount > 0 ? ", {$failCount} failed" : ''),
                     'logged' => $successCount,
                     'failed' => $failCount
                 ]);
-                
+
             } catch (Exception $e) {
                 sendError('Failed to log performance metrics: ' . $e->getMessage());
             }
@@ -2674,17 +2804,17 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             try {
                 $startDate = $_GET['start_date'] ?? null;
                 $endDate = $_GET['end_date'] ?? null;
-                
+
                 require_once __DIR__ . '/../classes/PerformanceMetricsService.php';
                 $perfService = new PerformanceMetricsService($db, $lineAccountId);
-                
+
                 // Get statistics for all metric types
                 $stats = $perfService->getAllMetricStats($startDate, $endDate);
-                
+
                 // Calculate error rates for each type
                 $thresholds = [
                     'page_load' => 2000,
@@ -2692,7 +2822,7 @@ try {
                     'message_render' => 200,
                     'api_call' => 500
                 ];
-                
+
                 foreach ($stats as $type => $data) {
                     if (isset($thresholds[$type])) {
                         $stats[$type]['error_rate'] = $perfService->getErrorRate(
@@ -2703,12 +2833,12 @@ try {
                         );
                     }
                 }
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => $stats
                 ]);
-                
+
             } catch (Exception $e) {
                 sendError('Failed to get performance metrics: ' . $e->getMessage());
             }
@@ -2722,17 +2852,17 @@ try {
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
-            
+
             $query = trim($_GET['query'] ?? '');
-            $limit = max(1, min(50, (int)($_GET['limit'] ?? 10)));
-            
+            $limit = max(1, min(50, (int) ($_GET['limit'] ?? 10)));
+
             if (empty($query)) {
                 sendError('Search query is required');
             }
-            
+
             try {
                 $searchTerm = '%' . $query . '%';
-                
+
                 // Search in users table (name, phone) and messages table (content)
                 // Also include tag matches
                 $sql = "
@@ -2777,7 +2907,7 @@ try {
                     ORDER BY last_message_time DESC
                     LIMIT ?
                 ";
-                
+
                 $stmt = $db->prepare($sql);
                 $stmt->execute([
                     $lineAccountId, // last_message_preview
@@ -2792,9 +2922,9 @@ try {
                     $searchTerm,    // tag_name
                     $limit
                 ]);
-                
+
                 $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 sendResponse([
                     'success' => true,
                     'data' => [
@@ -2803,7 +2933,7 @@ try {
                         'query' => $query
                     ]
                 ]);
-                
+
             } catch (Exception $e) {
                 sendError('Failed to search conversations: ' . $e->getMessage());
             }

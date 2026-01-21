@@ -164,7 +164,7 @@ const HUDMode = {
         listContainer.innerHTML = '<div class="text-center text-gray-400 text-sm py-4"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</div>';
 
         try {
-            const response = await fetch('api/inbox.php?action=get_templates');
+            const response = await fetch('api/inbox-v2.php?action=get_templates');
             const data = await response.json();
 
             if (data.success && data.data) {
@@ -319,7 +319,7 @@ const HUDMode = {
         formData.append('line_account_id', window.currentBotId || 1);
 
         try {
-            const response = await fetch('api/inbox.php', { method: 'POST', body: formData });
+            const response = await fetch('api/inbox-v2.php', { method: 'POST', body: formData });
             const result = await response.json();
 
             if (result.success) {
@@ -343,7 +343,7 @@ const HUDMode = {
         formData.append('id', id);
 
         try {
-            const response = await fetch('api/inbox.php', { method: 'POST', body: formData });
+            const response = await fetch('api/inbox-v2.php', { method: 'POST', body: formData });
             const result = await response.json();
 
             if (result.success) {
