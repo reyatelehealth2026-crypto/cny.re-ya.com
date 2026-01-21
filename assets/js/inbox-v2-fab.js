@@ -950,8 +950,8 @@ const HUDMode = {
                 const count = result.assigned_count || this.selectedAdminIds.length;
                 showNotification && showNotification(`✓ มอบหมายงานให้ ${count} คนสำเร็จ`, 'success');
                 this.hideAssignModal();
-                this.loadCRMData(); // Refresh CRM data
-                this.updateAssignedDisplay();
+                this.loadCRMData(true); // Force Refresh
+                // this.updateAssignedDisplay(); // Removed as loadCRMData(true) handles it
             } else {
                 showNotification && showNotification('❌ ' + (result.error || 'เกิดข้อผิดพลาด'), 'error');
             }
@@ -985,8 +985,8 @@ const HUDMode = {
 
             if (result.success) {
                 showNotification && showNotification('✓ ยกเลิกการมอบหมายแล้ว', 'success');
-                this.loadCRMData();
-                this.updateAssignedDisplay();
+                this.loadCRMData(true); // Force Refresh
+                // this.updateAssignedDisplay(); // Removed as loadCRMData(true) handles it
             }
         } catch (error) {
             console.error('Unassign error:', error);
