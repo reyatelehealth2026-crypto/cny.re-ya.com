@@ -457,7 +457,7 @@ const HUDMode = {
         if (!container) return;
 
         let html = this.userTags.map(tag => `
-            <span class="tag-badge" style="background-color: ${tag.color || '#6B7280'}">
+            <span class="tag-badge" style="background-color: ${tag.color || '#6B7280'} !important">
                 ${escapeHtml(tag.name)}
                 <span class="remove-tag" onclick="HUDMode.removeTag(${tag.id})">&times;</span>
             </span>
@@ -625,7 +625,7 @@ const HUDMode = {
 
             if (result.success) {
                 textarea.value = '';
-                this.loadCRMData(true); // Force reload
+                setTimeout(() => this.loadCRMData(true), 100); // Delay to ensure DB commit
                 showNotification && showNotification('✓ เพิ่มโน้ตสำเร็จ', 'success');
             }
         } catch (error) {
