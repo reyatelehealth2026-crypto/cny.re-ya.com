@@ -22,32 +22,51 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 // Database Credentials
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
-if (!defined('DB_NAME')) define('DB_NAME', 'zrismpsz_cny');  // แก้ให้ตรงกับชื่อ database บน hosting ใหม่
-if (!defined('DB_USER')) define('DB_USER', 'zrismpsz_cny');  // แก้ให้ตรงกับ username ที่สร้าง
-if (!defined('DB_PASS')) define('DB_PASS', 'zrismpsz_cny'); // แก้เป็นรหัสผ่านที่ตั้งไว้
-if (!defined('LIFF_SHARE_ID')) define('LIFF_SHARE_ID', '');
-if (!defined('LIFF_ID')) define('LIFF_ID', ''); // LIFF ID หลัก
+if (!defined('DB_HOST'))
+    define('DB_HOST', 'localhost');
+if (!defined('DB_NAME'))
+    define('DB_NAME', 'zrismpsz_cny');  // แก้ให้ตรงกับชื่อ database บน hosting ใหม่
+if (!defined('DB_USER'))
+    define('DB_USER', 'zrismpsz_cny');  // แก้ให้ตรงกับ username ที่สร้าง
+if (!defined('DB_PASS'))
+    define('DB_PASS', 'zrismpsz_cny'); // แก้เป็นรหัสผ่านที่ตั้งไว้
+if (!defined('LIFF_SHARE_ID'))
+    define('LIFF_SHARE_ID', '');
+if (!defined('LIFF_ID'))
+    define('LIFF_ID', ''); // LIFF ID หลัก
 
 // App Configuration
-if (!defined('APP_NAME')) define('APP_NAME', 'LINECRM');
-if (!defined('APP_URL')) define('APP_URL', 'https://cny.re-ya.com/');  // แก้เป็น URL ใหม่
-if (!defined('BASE_URL')) define('BASE_URL', 'https://cny.re-ya.com/'); // แก้เป็น URL ใหม่
-if (!defined('TIMEZONE')) define('TIMEZONE', 'Asia/Bangkok');
+if (!defined('APP_NAME'))
+    define('APP_NAME', 'LINECRM');
+if (!defined('APP_URL'))
+    define('APP_URL', 'https://cny.re-ya.com/');  // แก้เป็น URL ใหม่
+if (!defined('BASE_URL'))
+    define('BASE_URL', 'https://cny.re-ya.com/'); // แก้เป็น URL ใหม่
+if (!defined('APP_VERSION'))
+    define('APP_VERSION', '2026.01.23.01'); // Version with modal fix
+if (!defined('TIMEZONE'))
+    define('TIMEZONE', 'Asia/Bangkok');
 // LINE API (ตั้งค่าผ่านหน้า Admin)
-if (!defined('LINE_CHANNEL_ACCESS_TOKEN')) define('LINE_CHANNEL_ACCESS_TOKEN', '');
-if (!defined('LINE_CHANNEL_SECRET')) define('LINE_CHANNEL_SECRET', '');
+if (!defined('LINE_CHANNEL_ACCESS_TOKEN'))
+    define('LINE_CHANNEL_ACCESS_TOKEN', '');
+if (!defined('LINE_CHANNEL_SECRET'))
+    define('LINE_CHANNEL_SECRET', '');
 
 // OpenAI (Optional)
-if (!defined('OPENAI_API_KEY')) define('OPENAI_API_KEY', '');
+if (!defined('OPENAI_API_KEY'))
+    define('OPENAI_API_KEY', '');
 
 // Telegram Notifications (Optional)
-if (!defined('TELEGRAM_BOT_TOKEN')) define('TELEGRAM_BOT_TOKEN', '');
-if (!defined('TELEGRAM_CHAT_ID')) define('TELEGRAM_CHAT_ID', '');
+if (!defined('TELEGRAM_BOT_TOKEN'))
+    define('TELEGRAM_BOT_TOKEN', '');
+if (!defined('TELEGRAM_CHAT_ID'))
+    define('TELEGRAM_CHAT_ID', '');
 
 // Table Names
-if (!defined('TABLE_USERS')) define('TABLE_USERS', 'users');
-if (!defined('TABLE_GROUPS')) define('TABLE_GROUPS', 'groups');
+if (!defined('TABLE_USERS'))
+    define('TABLE_USERS', 'users');
+if (!defined('TABLE_GROUPS'))
+    define('TABLE_GROUPS', 'groups');
 
 // Initialize
 date_default_timezone_set(TIMEZONE);

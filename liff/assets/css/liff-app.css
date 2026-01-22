@@ -702,12 +702,10 @@ h6 {
     position: fixed;
     inset: 0;
     z-index: var(--z-modal-backdrop);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
-    padding: var(--space-4);
-    padding-bottom: var(--safe-area-bottom);
+    /* Changed from flex to block - the inner .modal-overlay handles positioning */
+    display: block;
+    background: transparent;
+    /* Remove padding since modal-overlay handles this */
 }
 
 .modal-container.hidden {
