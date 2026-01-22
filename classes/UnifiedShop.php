@@ -16,14 +16,14 @@ class UnifiedShop
     private $lineAccountId;
     private $settings;
     private $tableCache = [];
-    
+
     // Item Types
     const TYPE_PHYSICAL = 'physical';
     const TYPE_DIGITAL = 'digital';
     const TYPE_SERVICE = 'service';
     const TYPE_BOOKING = 'booking';
     const TYPE_CONTENT = 'content';
-    
+
     // Delivery Methods
     const DELIVER_SHIPPING = 'shipping';
     const DELIVER_EMAIL = 'email';
@@ -38,16 +38,17 @@ class UnifiedShop
         $this->lineAccountId = $lineAccountId;
         $this->loadSettings();
     }
-    
+
     // ==================== TABLE DETECTION ====================
-    
+
     /**
      * ตรวจสอบว่าตารางมีอยู่หรือไม่
      */
     private function tableExists($table)
     {
         $key = "exists_{$table}";
-        if (isset($this->tableCache[$key])) return $this->tableCache[$key];
+        if (isset($this->tableCache[$key]))
+            return $this->tableCache[$key];
 
         try {
             $this->db->query("SELECT 1 FROM {$table} LIMIT 1");
@@ -57,15 +58,16 @@ class UnifiedShop
         }
         return $this->tableCache[$key];
     }
-    
+
     /**
      * ตรวจสอบว่าตารางมี column หรือไม่
      */
     public function hasColumn($table, $column)
     {
         $key = "col_{$table}_{$column}";
-        if (isset($this->tableCache[$key])) return $this->tableCache[$key];
-        
+        if (isset($this->tableCache[$key]))
+            return $this->tableCache[$key];
+
         try {
             $stmt = $this->db->query("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
             $this->tableCache[$key] = $stmt->rowCount() > 0;
@@ -74,48 +76,55 @@ class UnifiedShop
         }
         return $this->tableCache[$key];
     }
-    
+
     /**
      * Get items table (auto-detect)
      * Priority: business_items only
      */
     public function getItemsTable()
     {
-        if ($this->tableExists('business_items')) return 'business_items';
+        if ($this->tableExists('business_items'))
+            return 'business_items';
         return null;
     }
-    
+
     /**
      * Get categories table (auto-detect)
      * Priority: product_categories > item_categories
      */
     public function getCategoriesTable()
     {
-        if ($this->tableExists('product_categories')) return 'product_categories';
-        if ($this->tableExists('item_categories')) return 'item_categories';
+        if ($this->tableExists('product_categories'))
+            return 'product_categories';
+        if ($this->tableExists('item_categories'))
+            return 'item_categories';
         return null;
     }
-    
+
     /**
      * Get orders table (auto-detect)
      */
     public function getOrdersTable()
     {
-        if ($this->tableExists('transactions')) return 'transactions';
-        if ($this->tableExists('orders')) return 'orders';
+        if ($this->tableExists('transactions'))
+            return 'transactions';
+        if ($this->tableExists('orders'))
+            return 'orders';
         return null;
     }
-    
+
     /**
      * Get order items table (auto-detect)
      */
     public function getOrderItemsTable()
     {
-        if ($this->tableExists('transaction_items')) return 'transaction_items';
-        if ($this->tableExists('order_items')) return 'order_items';
+        if ($this->tableExists('transaction_items'))
+            return 'transaction_items';
+        if ($this->tableExists('order_items'))
+            return 'order_items';
         return null;
     }
-    
+
     /**
      * Check if shop is ready
      */
@@ -123,7 +132,7 @@ class UnifiedShop
     {
         return $this->getItemsTable() !== null;
     }
-    
+
     /**
      * Check if using V2.5 (deprecated - always false now)
      */
@@ -133,7 +142,7 @@ class UnifiedShop
     }
 
     // ==================== SETTINGS ====================
-    
+
     private function loadSettings()
     {
         try {
@@ -143,7 +152,7 @@ class UnifiedShop
                 $this->settings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
                 return;
             }
-            
+
             // Fallback to shop_settings
             if ($this->tableExists('shop_settings')) {
                 if ($this->lineAccountId && $this->hasColumn('shop_settings', 'line_account_id')) {
@@ -151,7 +160,7 @@ class UnifiedShop
                     $stmt->execute([$this->lineAccountId]);
                     $this->settings = $stmt->fetch(PDO::FETCH_ASSOC);
                 }
-                
+
                 if (!$this->settings) {
                     $stmt = $this->db->query("SELECT * FROM shop_settings WHERE id = 1 OR line_account_id IS NULL LIMIT 1");
                     $this->settings = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -160,7 +169,7 @@ class UnifiedShop
         } catch (Exception $e) {
             $this->settings = [];
         }
-        
+
         // Defaults
         if (empty($this->settings)) {
             $this->settings = [
@@ -172,91 +181,98 @@ class UnifiedShop
             ];
         }
     }
-    
+
+    /**
+     * Get all shop settings
+     * @return array
+     */
     public function getSettings()
     {
         return $this->settings;
     }
-    
+
     public function getSetting($key, $default = null)
     {
         return $this->settings[$key] ?? $default;
     }
-    
+
     // ==================== CATEGORIES ====================
-    
+
     /**
      * Get all categories
      */
     public function getCategories($limit = 20)
     {
         $table = $this->getCategoriesTable();
-        if (!$table) return [];
-        
+        if (!$table)
+            return [];
+
         $sql = "SELECT * FROM {$table} WHERE is_active = 1";
         $params = [];
-        
+
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
-        $sql .= " ORDER BY sort_order ASC LIMIT " . (int)$limit;
-        
+
+        $sql .= " ORDER BY sort_order ASC LIMIT " . (int) $limit;
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get category by ID
      */
     public function getCategory($id)
     {
         $table = $this->getCategoriesTable();
-        if (!$table) return null;
-        
+        if (!$table)
+            return null;
+
         $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     // ==================== ITEMS/PRODUCTS ====================
-    
+
     /**
      * Get all items
      */
     public function getItems($filters = [], $limit = 20)
     {
         $table = $this->getItemsTable();
-        if (!$table) return [];
-        
+        if (!$table)
+            return [];
+
         $sql = "SELECT * FROM {$table} WHERE is_active = 1";
         $params = [];
-        
+
         // Filter by line_account_id
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
+
         // Filter by category
         if (!empty($filters['category_id'])) {
             $sql .= " AND category_id = ?";
             $params[] = $filters['category_id'];
         }
-        
+
         // Filter by item_type (V2.5)
         if (!empty($filters['item_type']) && $this->hasColumn($table, 'item_type')) {
             $sql .= " AND item_type = ?";
             $params[] = $filters['item_type'];
         }
-        
+
         // Filter by stock
         if (isset($filters['in_stock']) && $filters['in_stock']) {
             $sql .= " AND stock > 0";
         }
-        
+
         // Search
         if (!empty($filters['search'])) {
             $sql .= " AND (name LIKE ? OR description LIKE ?)";
@@ -264,43 +280,44 @@ class UnifiedShop
             $params[] = $search;
             $params[] = $search;
         }
-        
+
         $sql .= " ORDER BY " . ($filters['order'] ?? 'id DESC');
-        $sql .= " LIMIT " . (int)$limit;
-        
+        $sql .= " LIMIT " . (int) $limit;
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get item by ID
      */
     public function getItem($id)
     {
         $table = $this->getItemsTable();
-        if (!$table) return null;
-        
+        if (!$table)
+            return null;
+
         $sql = "SELECT * FROM {$table} WHERE id = ? AND is_active = 1";
         $params = [$id];
-        
+
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $item = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         // Parse action_data if exists
         if ($item && isset($item['action_data']) && is_string($item['action_data'])) {
             $item['action_data'] = json_decode($item['action_data'], true);
         }
-        
+
         return $item;
     }
-    
+
     /**
      * Get items by category
      */
@@ -308,7 +325,7 @@ class UnifiedShop
     {
         return $this->getItems(['category_id' => $categoryId, 'in_stock' => true], $limit);
     }
-    
+
     /**
      * Search items
      */
@@ -316,46 +333,49 @@ class UnifiedShop
     {
         return $this->getItems(['search' => $keyword], $limit);
     }
-    
+
     /**
      * Get featured items
      */
     public function getFeaturedItems($limit = 10)
     {
         $table = $this->getItemsTable();
-        if (!$table) return [];
-        
+        if (!$table)
+            return [];
+
         if ($this->hasColumn($table, 'is_featured')) {
             $sql = "SELECT * FROM {$table} WHERE is_active = 1 AND is_featured = 1";
         } else {
             $sql = "SELECT * FROM {$table} WHERE is_active = 1";
         }
-        
+
         $params = [];
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
-        $sql .= " ORDER BY id DESC LIMIT " . (int)$limit;
-        
+
+        $sql .= " ORDER BY id DESC LIMIT " . (int) $limit;
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // ==================== CART ====================
-    
+
     /**
      * Get cart items
      */
     public function getCart($userId)
     {
-        if (!$this->tableExists('cart_items')) return [];
-        
+        if (!$this->tableExists('cart_items'))
+            return [];
+
         $itemsTable = $this->getItemsTable();
-        if (!$itemsTable) return [];
-        
+        if (!$itemsTable)
+            return [];
+
         $stmt = $this->db->prepare("
             SELECT c.*, p.name, p.price, p.sale_price, p.image_url, p.stock,
                    " . ($this->hasColumn($itemsTable, 'item_type') ? "p.item_type, p.delivery_method" : "'physical' as item_type, 'shipping' as delivery_method") . "
@@ -366,7 +386,7 @@ class UnifiedShop
         $stmt->execute([$userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get cart total
      */
@@ -380,7 +400,7 @@ class UnifiedShop
         }
         return $total;
     }
-    
+
     /**
      * Add to cart
      */
@@ -388,31 +408,31 @@ class UnifiedShop
     {
         // Ensure cart_items table exists
         $this->ensureCartTable();
-        
+
         $item = $this->getItem($productId);
         if (!$item) {
             return ['success' => false, 'error' => 'ไม่พบสินค้านี้'];
         }
-        
+
         if ($item['stock'] < $quantity) {
             return ['success' => false, 'error' => "สินค้าเหลือไม่พอ (เหลือ {$item['stock']} ชิ้น)"];
         }
-        
+
         // Check max quantity
         if (!empty($item['max_quantity']) && $quantity > $item['max_quantity']) {
             return ['success' => false, 'error' => "สั่งได้สูงสุด {$item['max_quantity']} ชิ้นต่อครั้ง"];
         }
-        
+
         // Upsert
         $stmt = $this->db->prepare("
             INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, ?) 
             ON DUPLICATE KEY UPDATE quantity = quantity + ?
         ");
         $stmt->execute([$userId, $productId, $quantity, $quantity]);
-        
+
         return ['success' => true, 'item' => $item];
     }
-    
+
     /**
      * Update cart quantity
      */
@@ -421,22 +441,22 @@ class UnifiedShop
         if ($quantity <= 0) {
             return $this->removeFromCart($userId, $productId);
         }
-        
+
         $item = $this->getItem($productId);
         if (!$item) {
             return ['success' => false, 'error' => 'ไม่พบสินค้านี้'];
         }
-        
+
         if ($item['stock'] < $quantity) {
             return ['success' => false, 'error' => "สินค้าเหลือไม่พอ (เหลือ {$item['stock']} ชิ้น)"];
         }
-        
+
         $stmt = $this->db->prepare("UPDATE cart_items SET quantity = ? WHERE user_id = ? AND product_id = ?");
         $stmt->execute([$quantity, $userId, $productId]);
-        
+
         return ['success' => true];
     }
-    
+
     /**
      * Remove from cart
      */
@@ -446,7 +466,7 @@ class UnifiedShop
         $stmt->execute([$userId, $productId]);
         return ['success' => $stmt->rowCount() > 0];
     }
-    
+
     /**
      * Clear cart
      */
@@ -456,14 +476,15 @@ class UnifiedShop
         $stmt->execute([$userId]);
         return ['success' => true];
     }
-    
+
     /**
      * Ensure cart_items table exists
      */
     private function ensureCartTable()
     {
-        if ($this->tableExists('cart_items')) return;
-        
+        if ($this->tableExists('cart_items'))
+            return;
+
         $this->db->exec("CREATE TABLE IF NOT EXISTS cart_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
@@ -474,12 +495,12 @@ class UnifiedShop
             UNIQUE KEY unique_cart_item (user_id, product_id),
             INDEX idx_user (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        
+
         $this->tableCache['exists_cart_items'] = true;
     }
 
     // ==================== ORDERS ====================
-    
+
     /**
      * Create order from cart
      */
@@ -489,21 +510,21 @@ class UnifiedShop
         if (empty($cartItems)) {
             return ['success' => false, 'error' => 'ตะกร้าว่างเปล่า'];
         }
-        
+
         // Calculate totals
         $subtotal = 0;
         foreach ($cartItems as $item) {
             $price = $item['sale_price'] ?: $item['price'];
             $subtotal += $price * $item['quantity'];
         }
-        
+
         // Shipping fee
         $shippingFee = $this->getSetting('shipping_fee', 50);
         $freeShippingMin = $this->getSetting('free_shipping_min', 500);
         if ($freeShippingMin > 0 && $subtotal >= $freeShippingMin) {
             $shippingFee = 0;
         }
-        
+
         // Check if all items are digital (no shipping)
         $allDigital = true;
         foreach ($cartItems as $item) {
@@ -513,27 +534,28 @@ class UnifiedShop
                 break;
             }
         }
-        if ($allDigital) $shippingFee = 0;
-        
+        if ($allDigital)
+            $shippingFee = 0;
+
         $grandTotal = $subtotal + $shippingFee;
-        
+
         // Generate order number
         $orderNumber = 'ORD' . date('ymdHis') . str_pad(mt_rand(1, 999), 3, '0', STR_PAD_LEFT);
-        
+
         // Determine which table to use
         $ordersTable = $this->getOrdersTable();
         $orderItemsTable = $this->getOrderItemsTable();
-        
+
         // Create tables if not exist
         if (!$ordersTable) {
             $this->ensureOrderTables();
             $ordersTable = 'orders';
             $orderItemsTable = 'order_items';
         }
-        
+
         try {
             $this->db->beginTransaction();
-            
+
             // Insert order
             if ($ordersTable === 'transactions') {
                 $stmt = $this->db->prepare("
@@ -557,30 +579,34 @@ class UnifiedShop
                 $cols = "order_number, user_id, subtotal, shipping_fee, grand_total, customer_name, customer_phone, shipping_address, status, payment_status";
                 $vals = "?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending'";
                 $params = [
-                    $orderNumber, $userId, $subtotal, $shippingFee, $grandTotal,
+                    $orderNumber,
+                    $userId,
+                    $subtotal,
+                    $shippingFee,
+                    $grandTotal,
                     $shippingInfo['name'] ?? null,
                     $shippingInfo['phone'] ?? null,
                     $shippingInfo['address'] ?? null
                 ];
-                
+
                 if ($this->hasColumn('orders', 'line_account_id')) {
                     $cols = "line_account_id, " . $cols;
                     $vals = "?, " . $vals;
                     array_unshift($params, $this->lineAccountId);
                 }
-                
+
                 $stmt = $this->db->prepare("INSERT INTO orders ({$cols}) VALUES ({$vals})");
                 $stmt->execute($params);
             }
-            
+
             $orderId = $this->db->lastInsertId();
-            
+
             // Insert order items
             $itemsTable = $this->getItemsTable();
             foreach ($cartItems as $item) {
                 $price = $item['sale_price'] ?: $item['price'];
                 $itemSubtotal = $price * $item['quantity'];
-                
+
                 if ($orderItemsTable === 'transaction_items') {
                     $stmt = $this->db->prepare("
                         INSERT INTO transaction_items 
@@ -588,8 +614,13 @@ class UnifiedShop
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
-                        $orderId, $item['product_id'], $item['name'],
-                        $item['item_type'] ?? 'physical', $price, $item['quantity'], $itemSubtotal
+                        $orderId,
+                        $item['product_id'],
+                        $item['name'],
+                        $item['item_type'] ?? 'physical',
+                        $price,
+                        $item['quantity'],
+                        $itemSubtotal
                     ]);
                 } else {
                     $stmt = $this->db->prepare("
@@ -598,21 +629,25 @@ class UnifiedShop
                         VALUES (?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
-                        $orderId, $item['product_id'], $item['name'],
-                        $price, $item['quantity'], $itemSubtotal
+                        $orderId,
+                        $item['product_id'],
+                        $item['name'],
+                        $price,
+                        $item['quantity'],
+                        $itemSubtotal
                     ]);
                 }
-                
+
                 // Reduce stock
                 $stmt = $this->db->prepare("UPDATE {$itemsTable} SET stock = stock - ? WHERE id = ?");
                 $stmt->execute([$item['quantity'], $item['product_id']]);
             }
-            
+
             // Clear cart
             $this->clearCart($userId);
-            
+
             $this->db->commit();
-            
+
             return [
                 'success' => true,
                 'order_id' => $orderId,
@@ -622,7 +657,7 @@ class UnifiedShop
                 'grand_total' => $grandTotal,
                 'items' => $cartItems
             ];
-            
+
         } catch (Exception $e) {
             $this->db->rollBack();
             return ['success' => false, 'error' => $e->getMessage()];
@@ -635,77 +670,81 @@ class UnifiedShop
     public function getOrders($userId, $limit = 20)
     {
         $table = $this->getOrdersTable();
-        if (!$table) return [];
-        
+        if (!$table)
+            return [];
+
         $sql = "SELECT * FROM {$table} WHERE user_id = ?";
         $params = [$userId];
-        
+
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
-        $sql .= " ORDER BY created_at DESC LIMIT " . (int)$limit;
-        
+
+        $sql .= " ORDER BY created_at DESC LIMIT " . (int) $limit;
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get order by ID or order_number
      */
     public function getOrder($identifier, $userId = null)
     {
         $table = $this->getOrdersTable();
-        if (!$table) return null;
-        
+        if (!$table)
+            return null;
+
         $sql = "SELECT * FROM {$table} WHERE (id = ? OR order_number = ? OR order_number LIKE ?)";
         $params = [$identifier, $identifier, "%{$identifier}"];
-        
+
         if ($userId) {
             $sql .= " AND user_id = ?";
             $params[] = $userId;
         }
-        
+
         if ($this->lineAccountId && $this->hasColumn($table, 'line_account_id')) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
             $params[] = $this->lineAccountId;
         }
-        
+
         $sql .= " LIMIT 1";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get order items
      */
     public function getOrderItems($orderId)
     {
         $table = $this->getOrderItemsTable();
-        if (!$table) return [];
-        
+        if (!$table)
+            return [];
+
         $idCol = $table === 'transaction_items' ? 'transaction_id' : 'order_id';
-        
+
         $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE {$idCol} = ?");
         $stmt->execute([$orderId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Update order status
      */
     public function updateOrderStatus($orderId, $status, $additionalData = [])
     {
         $table = $this->getOrdersTable();
-        if (!$table) return false;
-        
+        if (!$table)
+            return false;
+
         $sets = ['status = ?'];
         $params = [$status];
-        
+
         // Handle additional fields
         foreach ($additionalData as $key => $value) {
             if ($this->hasColumn($table, $key)) {
@@ -713,7 +752,7 @@ class UnifiedShop
                 $params[] = $value;
             }
         }
-        
+
         // Auto-set timestamps
         $timestampMap = [
             'paid' => 'paid_at',
@@ -721,37 +760,39 @@ class UnifiedShop
             'delivered' => 'delivered_at',
             'cancelled' => 'cancelled_at'
         ];
-        
+
         if (isset($timestampMap[$status]) && $this->hasColumn($table, $timestampMap[$status])) {
             $sets[] = "{$timestampMap[$status]} = NOW()";
         }
-        
+
         $params[] = $orderId;
-        
+
         $sql = "UPDATE {$table} SET " . implode(', ', $sets) . " WHERE id = ?";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
-    
+
     /**
      * Update payment status
      */
     public function updatePaymentStatus($orderId, $status)
     {
         $table = $this->getOrdersTable();
-        if (!$table) return false;
-        
+        if (!$table)
+            return false;
+
         $stmt = $this->db->prepare("UPDATE {$table} SET payment_status = ? WHERE id = ?");
         return $stmt->execute([$status, $orderId]);
     }
-    
+
     /**
      * Ensure order tables exist
      */
     private function ensureOrderTables()
     {
-        if ($this->tableExists('orders')) return;
-        
+        if ($this->tableExists('orders'))
+            return;
+
         $this->db->exec("CREATE TABLE IF NOT EXISTS orders (
             id INT AUTO_INCREMENT PRIMARY KEY,
             line_account_id INT DEFAULT NULL,
@@ -780,7 +821,7 @@ class UnifiedShop
             INDEX idx_user (user_id),
             INDEX idx_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        
+
         $this->db->exec("CREATE TABLE IF NOT EXISTS order_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
             order_id INT NOT NULL,
@@ -793,69 +834,72 @@ class UnifiedShop
             INDEX idx_order (order_id),
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        
+
         $this->tableCache['exists_orders'] = true;
         $this->tableCache['exists_order_items'] = true;
     }
 
     // ==================== USER STATE (for checkout flow) ====================
-    
+
     /**
      * Get user state
      */
     public function getUserState($userId)
     {
-        if (!$this->tableExists('user_states')) return null;
-        
+        if (!$this->tableExists('user_states'))
+            return null;
+
         $stmt = $this->db->prepare("SELECT * FROM user_states WHERE user_id = ? AND (expires_at IS NULL OR expires_at > NOW())");
         $stmt->execute([$userId]);
         $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($state && isset($state['state_data'])) {
             $state['state_data'] = json_decode($state['state_data'], true);
         }
-        
+
         return $state;
     }
-    
+
     /**
      * Set user state
      */
     public function setUserState($userId, $state, $data = [], $expiresMinutes = 30)
     {
         $this->ensureUserStateTable();
-        
+
         $expiresAt = date('Y-m-d H:i:s', strtotime("+{$expiresMinutes} minutes"));
-        
+
         $stmt = $this->db->prepare("
             INSERT INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE state = ?, state_data = ?, expires_at = ?, updated_at = NOW()
         ");
         $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE);
         $stmt->execute([$userId, $state, $dataJson, $expiresAt, $state, $dataJson, $expiresAt]);
-        
+
         return true;
     }
-    
+
     /**
      * Clear user state
      */
     public function clearUserState($userId)
     {
-        if (!$this->tableExists('user_states')) return true;
-        
+        if (!$this->tableExists('user_states'))
+            return true;
+
         $stmt = $this->db->prepare("DELETE FROM user_states WHERE user_id = ?");
         $stmt->execute([$userId]);
         return true;
     }
-    
+
     /**
      * Ensure user_states table exists
      */
     private function ensureUserStateTable()
     {
-        if ($this->tableExists('user_states')) return;
-        
+        if ($this->tableExists('user_states'))
+            return;
+
         $this->db->exec("CREATE TABLE IF NOT EXISTS user_states (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
@@ -868,19 +912,20 @@ class UnifiedShop
             INDEX idx_state (state),
             INDEX idx_expires (expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        
+
         $this->tableCache['exists_user_states'] = true;
     }
-    
+
     // ==================== BEHAVIOR TRACKING ====================
-    
+
     /**
      * Track user behavior
      */
     public function trackBehavior($userId, $type, $data = [])
     {
-        if (!$this->tableExists('user_behaviors')) return;
-        
+        if (!$this->tableExists('user_behaviors'))
+            return;
+
         try {
             $stmt = $this->db->prepare("INSERT INTO user_behaviors (user_id, behavior_type, behavior_data) VALUES (?, ?, ?)");
             $stmt->execute([$userId, $type, json_encode($data, JSON_UNESCAPED_UNICODE)]);
@@ -888,39 +933,40 @@ class UnifiedShop
             // Ignore errors
         }
     }
-    
+
     // ==================== PAYMENT SLIPS ====================
-    
+
     /**
      * Save payment slip (use transaction_id - unified with LIFF)
      */
     public function savePaymentSlip($orderId, $userId, $imageUrl, $amount = null)
     {
         $this->ensurePaymentSlipTable();
-        
+
         $stmt = $this->db->prepare("
             INSERT INTO payment_slips (transaction_id, user_id, image_url, amount, status) 
             VALUES (?, ?, ?, ?, 'pending')
         ");
         $stmt->execute([$orderId, $userId, $imageUrl, $amount]);
-        
+
         // Update order slip_image if column exists
         $ordersTable = $this->getOrdersTable();
         if ($ordersTable && $this->hasColumn($ordersTable, 'slip_image')) {
             $stmt = $this->db->prepare("UPDATE {$ordersTable} SET slip_image = ? WHERE id = ?");
             $stmt->execute([$imageUrl, $orderId]);
         }
-        
+
         return $this->db->lastInsertId();
     }
-    
+
     /**
      * Ensure payment_slips table exists
      */
     private function ensurePaymentSlipTable()
     {
-        if ($this->tableExists('payment_slips')) return;
-        
+        if ($this->tableExists('payment_slips'))
+            return;
+
         $this->db->exec("CREATE TABLE IF NOT EXISTS payment_slips (
             id INT AUTO_INCREMENT PRIMARY KEY,
             order_id INT,
@@ -939,72 +985,88 @@ class UnifiedShop
             INDEX idx_user (user_id),
             INDEX idx_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        
+
         $this->tableCache['exists_payment_slips'] = true;
     }
 
     // ==================== LINE BOT INTEGRATION ====================
-    
+
     /**
      * Process LINE message
      */
     public function processMessage($userId, $userDbId, $message, $replyToken)
     {
-        if (!$this->line) return null;
-        
+        if (!$this->line)
+            return null;
+
         $text = mb_strtolower(trim($message));
-        
+
         // Check user state first
         $state = $this->getUserState($userDbId);
         if ($state) {
             return $this->handleStatefulMessage($userId, $userDbId, $message, $replyToken, $state);
         }
-        
+
         // Command routing
         $commands = [
-            'menu' => 'showMainMenu', 'เมนู' => 'showMainMenu', 'help' => 'showMainMenu', '?' => 'showMainMenu',
-            'shop' => 'showCategories', 'ร้าน' => 'showCategories', 'สินค้า' => 'showCategories', 'ซื้อ' => 'showCategories',
-            'cart' => 'showCart', 'ตะกร้า' => 'showCart',
-            'checkout' => 'startCheckout', 'สั่งซื้อ' => 'startCheckout', 'ชำระเงิน' => 'startCheckout', 'ยืนยันสั่งซื้อ' => 'startCheckout',
-            'orders' => 'showOrders', 'order' => 'showOrders', 'คำสั่งซื้อ' => 'showOrders', 'ออเดอร์' => 'showOrders',
-            'contact' => 'showContact', 'ติดต่อ' => 'showContact',
-            'clear' => 'clearCartCommand', 'ล้างตะกร้า' => 'clearCartCommand',
+            'menu' => 'showMainMenu',
+            'เมนู' => 'showMainMenu',
+            'help' => 'showMainMenu',
+            '?' => 'showMainMenu',
+            'shop' => 'showCategories',
+            'ร้าน' => 'showCategories',
+            'สินค้า' => 'showCategories',
+            'ซื้อ' => 'showCategories',
+            'cart' => 'showCart',
+            'ตะกร้า' => 'showCart',
+            'checkout' => 'startCheckout',
+            'สั่งซื้อ' => 'startCheckout',
+            'ชำระเงิน' => 'startCheckout',
+            'ยืนยันสั่งซื้อ' => 'startCheckout',
+            'orders' => 'showOrders',
+            'order' => 'showOrders',
+            'คำสั่งซื้อ' => 'showOrders',
+            'ออเดอร์' => 'showOrders',
+            'contact' => 'showContact',
+            'ติดต่อ' => 'showContact',
+            'clear' => 'clearCartCommand',
+            'ล้างตะกร้า' => 'clearCartCommand',
         ];
-        
+
         foreach ($commands as $cmd => $method) {
             if ($text === $cmd || mb_strpos($text, $cmd) !== false) {
                 return $this->$method($userId, $userDbId, $replyToken);
             }
         }
-        
+
         // Pattern matching
         if (preg_match('/^(add|เพิ่ม)\s*(\d+)(?:\s+(\d+))?$/iu', $text, $matches)) {
-            return $this->addToCartCommand($userId, $userDbId, (int)$matches[2], (int)($matches[3] ?? 1), $replyToken);
+            return $this->addToCartCommand($userId, $userDbId, (int) $matches[2], (int) ($matches[3] ?? 1), $replyToken);
         }
-        
+
         if (preg_match('/^(remove|ลบ|ลบสินค้า)\s*(\d+)$/iu', $text, $matches)) {
-            return $this->removeFromCartCommand($userId, $userDbId, (int)$matches[2], $replyToken);
+            return $this->removeFromCartCommand($userId, $userDbId, (int) $matches[2], $replyToken);
         }
-        
+
         if (preg_match('/^(item|product|สินค้า|ดู)\s*(\d+)$/iu', $text, $matches)) {
-            return $this->showItemDetail($userId, $userDbId, (int)$matches[2], $replyToken);
+            return $this->showItemDetail($userId, $userDbId, (int) $matches[2], $replyToken);
         }
-        
+
         if (preg_match('/^(cat|category|หมวด|หมวดหมู่)\s*(\d+)$/iu', $text, $matches)) {
-            return $this->showCategoryItems($userId, $userDbId, (int)$matches[2], $replyToken);
+            return $this->showCategoryItems($userId, $userDbId, (int) $matches[2], $replyToken);
         }
-        
+
         if (preg_match('/^(search|ค้นหา|หา)\s+(.+)$/iu', $text, $matches)) {
             return $this->searchItemsCommand($userId, $userDbId, $matches[2], $replyToken);
         }
-        
+
         if (preg_match('/^(order|ออเดอร์|คำสั่งซื้อ)\s+#?(ORD)?([0-9]+)$/iu', $text, $matches)) {
             return $this->showOrderDetail($userId, $userDbId, $matches[3], $replyToken);
         }
-        
+
         return null; // Not handled
     }
-    
+
     /**
      * Handle stateful message (checkout flow)
      */
@@ -1012,33 +1074,33 @@ class UnifiedShop
     {
         $stateName = $state['state'];
         $stateData = $state['state_data'] ?? [];
-        
+
         switch ($stateName) {
             case 'checkout_name':
                 $stateData['name'] = $message;
                 $this->setUserState($userDbId, 'checkout_phone', $stateData);
                 return $this->replyText($replyToken, "📱 กรุณาพิมพ์เบอร์โทรศัพท์:");
-                
+
             case 'checkout_phone':
                 $stateData['phone'] = $message;
                 $this->setUserState($userDbId, 'checkout_address', $stateData);
                 return $this->replyText($replyToken, "📍 กรุณาพิมพ์ที่อยู่จัดส่ง:");
-                
+
             case 'checkout_address':
                 $stateData['address'] = $message;
                 $this->clearUserState($userDbId);
                 return $this->completeCheckout($userId, $userDbId, $stateData, $replyToken);
-                
+
             case 'awaiting_slip':
                 // Handle slip upload (image message)
                 return $this->replyText($replyToken, "📤 กรุณาส่งรูปสลิปการโอนเงิน");
-                
+
             default:
                 $this->clearUserState($userDbId);
                 return null;
         }
     }
-    
+
     /**
      * Reply with text
      */
@@ -1046,7 +1108,7 @@ class UnifiedShop
     {
         return $this->line->replyMessage($replyToken, [['type' => 'text', 'text' => $text]]);
     }
-    
+
     /**
      * Reply with flex
      */
@@ -1056,22 +1118,22 @@ class UnifiedShop
     }
 
     // ==================== BOT COMMANDS ====================
-    
+
     public function showMainMenu($userId, $userDbId, $replyToken)
     {
         $shopName = $this->getSetting('shop_name', 'LINE Shop');
         $flex = FlexTemplates::mainMenu($shopName);
         return $this->replyFlex($replyToken, $flex, 'เมนูหลัก');
     }
-    
+
     public function showCategories($userId, $userDbId, $replyToken)
     {
         $categories = $this->getCategories(10);
-        
+
         if (empty($categories)) {
             return $this->replyText($replyToken, "📦 ยังไม่มีหมวดหมู่สินค้า");
         }
-        
+
         $bubbles = [];
         foreach ($categories as $cat) {
             $bubble = [
@@ -1094,68 +1156,71 @@ class UnifiedShop
                     ]
                 ]
             ];
-            
+
             if (!empty($cat['image_url'])) {
                 $bubble['hero'] = [
-                    'type' => 'image', 'url' => $cat['image_url'], 'size' => 'full',
-                    'aspectRatio' => '1:1', 'aspectMode' => 'cover',
+                    'type' => 'image',
+                    'url' => $cat['image_url'],
+                    'size' => 'full',
+                    'aspectRatio' => '1:1',
+                    'aspectMode' => 'cover',
                     'action' => ['type' => 'message', 'text' => "หมวด {$cat['id']}"]
                 ];
             }
-            
+
             $bubbles[] = $bubble;
         }
-        
+
         $flex = ['type' => 'carousel', 'contents' => $bubbles];
         return $this->replyFlex($replyToken, $flex, 'หมวดหมู่สินค้า');
     }
-    
+
     public function showCategoryItems($userId, $userDbId, $categoryId, $replyToken)
     {
         $items = $this->getItemsByCategory($categoryId, 10);
-        
+
         if (empty($items)) {
             return $this->replyText($replyToken, "📦 ไม่มีสินค้าในหมวดนี้");
         }
-        
+
         $flex = $this->buildItemsCarousel($items);
         return $this->replyFlex($replyToken, $flex, 'สินค้า');
     }
-    
+
     public function showItemDetail($userId, $userDbId, $itemId, $replyToken)
     {
         $item = $this->getItem($itemId);
-        
+
         if (!$item) {
             return $this->replyText($replyToken, "❌ ไม่พบสินค้านี้");
         }
-        
+
         $flex = FlexTemplates::productCard($item);
         $this->trackBehavior($userDbId, 'view_item', ['item_id' => $itemId]);
         return $this->replyFlex($replyToken, $flex, $item['name']);
     }
-    
+
     public function searchItemsCommand($userId, $userDbId, $keyword, $replyToken)
     {
         $items = $this->searchItems($keyword, 10);
-        
+
         if (empty($items)) {
             return $this->replyText($replyToken, "🔍 ไม่พบสินค้าที่ค้นหา '{$keyword}'");
         }
-        
+
         $flex = $this->buildItemsCarousel($items);
         return $this->replyFlex($replyToken, $flex, "ผลการค้นหา: {$keyword}");
     }
-    
+
     public function showCart($userId, $userDbId, $replyToken)
     {
         $items = $this->getCart($userDbId);
-        
+
         if (empty($items)) {
             $flex = FlexTemplates::info('ตะกร้าว่าง', 'ยังไม่มีสินค้าในตะกร้า', [['label' => '🛒 ไปช้อป', 'text' => 'shop']]);
             return $this->replyFlex($replyToken, $flex, 'ตะกร้าว่าง');
         }
-        
+
         $total = 0;
         $cartItems = [];
         foreach ($items as $item) {
@@ -1164,40 +1229,40 @@ class UnifiedShop
             $total += $subtotal;
             $cartItems[] = ['name' => $item['name'], 'quantity' => $item['quantity'], 'subtotal' => $subtotal];
         }
-        
+
         $flex = FlexTemplates::cartSummary($cartItems, $total, count($items));
         return $this->replyFlex($replyToken, $flex, 'ตะกร้าสินค้า');
     }
-    
+
     public function addToCartCommand($userId, $userDbId, $productId, $qty, $replyToken)
     {
         $result = $this->addToCart($userDbId, $productId, $qty);
-        
+
         if (!$result['success']) {
             return $this->replyText($replyToken, "❌ " . $result['error']);
         }
-        
+
         $item = $result['item'];
         $flex = FlexTemplates::success(
             'เพิ่มลงตะกร้าแล้ว!',
             "{$item['name']} x{$qty}",
             [['label' => '🛍️ ดูตะกร้า', 'text' => 'cart'], ['label' => '🛒 ช้อปต่อ', 'text' => 'shop']]
         );
-        
+
         $this->trackBehavior($userDbId, 'add_to_cart', ['item_id' => $productId, 'quantity' => $qty]);
         return $this->replyFlex($replyToken, $flex, 'เพิ่มลงตะกร้า');
     }
-    
+
     public function removeFromCartCommand($userId, $userDbId, $productId, $replyToken)
     {
         $result = $this->removeFromCart($userDbId, $productId);
-        
+
         if ($result['success']) {
             return $this->replyText($replyToken, "✅ ลบสินค้าออกจากตะกร้าแล้ว\n\nพิมพ์ 'ตะกร้า' เพื่อดูตะกร้า");
         }
         return $this->replyText($replyToken, "❌ ไม่พบสินค้านี้ในตะกร้า");
     }
-    
+
     public function clearCartCommand($userId, $userDbId, $replyToken)
     {
         $this->clearCart($userDbId);
@@ -1207,11 +1272,11 @@ class UnifiedShop
     public function startCheckout($userId, $userDbId, $replyToken)
     {
         $items = $this->getCart($userDbId);
-        
+
         if (empty($items)) {
             return $this->replyText($replyToken, "❌ ตะกร้าว่างเปล่า\n\nพิมพ์ 'shop' เพื่อดูสินค้า");
         }
-        
+
         // Check if all items are digital (skip shipping info)
         $allDigital = true;
         foreach ($items as $item) {
@@ -1221,91 +1286,108 @@ class UnifiedShop
                 break;
             }
         }
-        
+
         if ($allDigital) {
             // Skip shipping info for digital items
             return $this->completeCheckout($userId, $userDbId, [], $replyToken);
         }
-        
+
         // Start checkout flow - ask for name
         $this->setUserState($userDbId, 'checkout_name', []);
         return $this->replyText($replyToken, "📝 กรุณาพิมพ์ชื่อ-นามสกุล ผู้รับสินค้า:");
     }
-    
+
     private function completeCheckout($userId, $userDbId, $shippingInfo, $replyToken)
     {
         $result = $this->createOrder($userDbId, $shippingInfo);
-        
+
         if (!$result['success']) {
             return $this->replyText($replyToken, "❌ " . $result['error']);
         }
-        
+
         // Build order confirmation flex
         $settings = $this->getSettings();
         $orderNum = str_replace('ORD', '', $result['order_number']);
-        
+
         // Build items list
         $itemsContent = [];
         foreach ($result['items'] as $item) {
             $price = $item['sale_price'] ?: $item['price'];
             $subtotal = $price * $item['quantity'];
             $itemsContent[] = [
-                'type' => 'box', 'layout' => 'horizontal',
+                'type' => 'box',
+                'layout' => 'horizontal',
                 'contents' => [
                     ['type' => 'text', 'text' => "{$item['name']} x{$item['quantity']}", 'size' => 'sm', 'flex' => 3, 'wrap' => true],
                     ['type' => 'text', 'text' => '฿' . number_format($subtotal), 'size' => 'sm', 'align' => 'end', 'flex' => 1]
                 ]
             ];
         }
-        
+
         // Payment info
         $paymentContents = [];
         if (!empty($settings['promptpay_number'])) {
             $paymentContents[] = [
-                'type' => 'box', 'layout' => 'horizontal',
+                'type' => 'box',
+                'layout' => 'horizontal',
                 'contents' => [
                     ['type' => 'text', 'text' => '💚 พร้อมเพย์:', 'size' => 'sm', 'flex' => 1],
                     ['type' => 'text', 'text' => $settings['promptpay_number'], 'size' => 'sm', 'flex' => 2, 'weight' => 'bold']
                 ]
             ];
         }
-        
+
         $bankAccounts = json_decode($settings['bank_accounts'] ?? '{"banks":[]}', true)['banks'] ?? [];
         foreach ($bankAccounts as $bank) {
             $paymentContents[] = [
-                'type' => 'box', 'layout' => 'vertical', 'margin' => 'sm',
+                'type' => 'box',
+                'layout' => 'vertical',
+                'margin' => 'sm',
                 'contents' => [
                     ['type' => 'text', 'text' => "🏦 {$bank['name']}", 'size' => 'sm', 'weight' => 'bold'],
                     ['type' => 'text', 'text' => "{$bank['account']} ({$bank['holder']})", 'size' => 'xs', 'color' => '#888888']
                 ]
             ];
         }
-        
+
         $bubble = [
             'type' => 'bubble',
             'size' => 'mega',
             'header' => [
-                'type' => 'box', 'layout' => 'vertical',
+                'type' => 'box',
+                'layout' => 'vertical',
                 'contents' => [
                     ['type' => 'text', 'text' => '✅ สั่งซื้อสำเร็จ!', 'color' => '#FFFFFF', 'weight' => 'bold', 'size' => 'xl'],
                     ['type' => 'text', 'text' => "ออเดอร์ #{$orderNum}", 'color' => '#FFFFFF', 'size' => 'sm', 'margin' => 'sm']
                 ],
-                'backgroundColor' => '#06C755', 'paddingAll' => 'xl'
+                'backgroundColor' => '#06C755',
+                'paddingAll' => 'xl'
             ],
             'body' => [
-                'type' => 'box', 'layout' => 'vertical',
+                'type' => 'box',
+                'layout' => 'vertical',
                 'contents' => [
                     ['type' => 'text', 'text' => '📦 รายการสินค้า', 'weight' => 'bold', 'size' => 'md', 'color' => '#06C755'],
                     ['type' => 'box', 'layout' => 'vertical', 'contents' => $itemsContent, 'margin' => 'md', 'spacing' => 'sm'],
                     ['type' => 'separator', 'margin' => 'lg'],
-                    ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'lg', 'contents' => [
-                        ['type' => 'text', 'text' => 'ค่าจัดส่ง', 'size' => 'sm', 'color' => '#888888'],
-                        ['type' => 'text', 'text' => $result['shipping_fee'] > 0 ? '฿' . number_format($result['shipping_fee']) : 'ฟรี!', 'size' => 'sm', 'align' => 'end', 'color' => $result['shipping_fee'] > 0 ? '#333333' : '#06C755']
-                    ]],
-                    ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'md', 'contents' => [
-                        ['type' => 'text', 'text' => 'ยอดรวมทั้งหมด', 'weight' => 'bold', 'size' => 'md'],
-                        ['type' => 'text', 'text' => '฿' . number_format($result['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end']
-                    ]],
+                    [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'lg',
+                        'contents' => [
+                            ['type' => 'text', 'text' => 'ค่าจัดส่ง', 'size' => 'sm', 'color' => '#888888'],
+                            ['type' => 'text', 'text' => $result['shipping_fee'] > 0 ? '฿' . number_format($result['shipping_fee']) : 'ฟรี!', 'size' => 'sm', 'align' => 'end', 'color' => $result['shipping_fee'] > 0 ? '#333333' : '#06C755']
+                        ]
+                    ],
+                    [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'md',
+                        'contents' => [
+                            ['type' => 'text', 'text' => 'ยอดรวมทั้งหมด', 'weight' => 'bold', 'size' => 'md'],
+                            ['type' => 'text', 'text' => '฿' . number_format($result['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end']
+                        ]
+                    ],
                     ['type' => 'separator', 'margin' => 'xl'],
                     ['type' => 'text', 'text' => '💳 ช่องทางชำระเงิน', 'weight' => 'bold', 'size' => 'md', 'color' => '#06C755', 'margin' => 'xl'],
                     ['type' => 'box', 'layout' => 'vertical', 'contents' => $paymentContents, 'margin' => 'md', 'spacing' => 'sm']
@@ -1313,7 +1395,9 @@ class UnifiedShop
                 'paddingAll' => 'xl'
             ],
             'footer' => [
-                'type' => 'box', 'layout' => 'vertical', 'spacing' => 'sm',
+                'type' => 'box',
+                'layout' => 'vertical',
+                'spacing' => 'sm',
                 'contents' => [
                     ['type' => 'text', 'text' => '📤 ชำระเงินแล้ว ส่งสลิปมาได้เลย!', 'size' => 'sm', 'align' => 'center', 'color' => '#F59E0B', 'weight' => 'bold'],
                     ['type' => 'button', 'action' => ['type' => 'message', 'label' => '📋 ดูออเดอร์ของฉัน', 'text' => 'orders'], 'style' => 'secondary', 'height' => 'sm', 'margin' => 'md']
@@ -1321,7 +1405,7 @@ class UnifiedShop
                 'paddingAll' => 'lg'
             ]
         ];
-        
+
         $this->trackBehavior($userDbId, 'checkout', ['order_id' => $result['order_id'], 'total' => $result['grand_total']]);
         return $this->replyFlex($replyToken, $bubble, "ออเดอร์ #{$orderNum}");
     }
@@ -1329,133 +1413,175 @@ class UnifiedShop
     public function showOrders($userId, $userDbId, $replyToken)
     {
         $orders = $this->getOrders($userDbId, 10);
-        
+
         if (empty($orders)) {
             return $this->replyText($replyToken, "📋 ยังไม่มีคำสั่งซื้อ\n\nพิมพ์ 'shop' เพื่อเริ่มช้อปปิ้ง!");
         }
-        
+
         $bubbles = [];
         foreach ($orders as $order) {
             $orderItems = $this->getOrderItems($order['id']);
             $statusInfo = $this->getStatusInfo($order['status']);
             $orderNum = str_replace('ORD', '', $order['order_number']);
-            
+
             $bubbles[] = [
                 'type' => 'bubble',
                 'size' => 'kilo',
                 'body' => [
-                    'type' => 'box', 'layout' => 'vertical',
+                    'type' => 'box',
+                    'layout' => 'vertical',
                     'contents' => [
-                        ['type' => 'box', 'layout' => 'horizontal', 'contents' => [
-                            ['type' => 'text', 'text' => "#{$orderNum}", 'weight' => 'bold', 'size' => 'md', 'flex' => 1],
-                            ['type' => 'text', 'text' => "{$statusInfo['emoji']} {$statusInfo['text']}", 'size' => 'sm', 'color' => $statusInfo['color'], 'align' => 'end', 'weight' => 'bold']
-                        ]],
+                        [
+                            'type' => 'box',
+                            'layout' => 'horizontal',
+                            'contents' => [
+                                ['type' => 'text', 'text' => "#{$orderNum}", 'weight' => 'bold', 'size' => 'md', 'flex' => 1],
+                                ['type' => 'text', 'text' => "{$statusInfo['emoji']} {$statusInfo['text']}", 'size' => 'sm', 'color' => $statusInfo['color'], 'align' => 'end', 'weight' => 'bold']
+                            ]
+                        ],
                         ['type' => 'separator', 'margin' => 'md'],
-                        ['type' => 'box', 'layout' => 'vertical', 'margin' => 'md', 'spacing' => 'sm', 'contents' => [
-                            ['type' => 'box', 'layout' => 'horizontal', 'contents' => [
-                                ['type' => 'text', 'text' => 'วันที่สั่ง:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
-                                ['type' => 'text', 'text' => date('d/m/Y', strtotime($order['created_at'])), 'size' => 'xs', 'align' => 'end', 'flex' => 1]
-                            ]],
-                            ['type' => 'box', 'layout' => 'horizontal', 'contents' => [
-                                ['type' => 'text', 'text' => 'รายการ:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
-                                ['type' => 'text', 'text' => count($orderItems) . ' รายการ', 'size' => 'xs', 'align' => 'end', 'flex' => 1]
-                            ]],
-                            ['type' => 'box', 'layout' => 'horizontal', 'contents' => [
-                                ['type' => 'text', 'text' => 'ยอดรวม:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
-                                ['type' => 'text', 'text' => '฿' . number_format($order['grand_total']), 'size' => 'md', 'color' => '#06C755', 'weight' => 'bold', 'align' => 'end', 'flex' => 1]
-                            ]]
-                        ]]
+                        [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'margin' => 'md',
+                            'spacing' => 'sm',
+                            'contents' => [
+                                [
+                                    'type' => 'box',
+                                    'layout' => 'horizontal',
+                                    'contents' => [
+                                        ['type' => 'text', 'text' => 'วันที่สั่ง:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
+                                        ['type' => 'text', 'text' => date('d/m/Y', strtotime($order['created_at'])), 'size' => 'xs', 'align' => 'end', 'flex' => 1]
+                                    ]
+                                ],
+                                [
+                                    'type' => 'box',
+                                    'layout' => 'horizontal',
+                                    'contents' => [
+                                        ['type' => 'text', 'text' => 'รายการ:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
+                                        ['type' => 'text', 'text' => count($orderItems) . ' รายการ', 'size' => 'xs', 'align' => 'end', 'flex' => 1]
+                                    ]
+                                ],
+                                [
+                                    'type' => 'box',
+                                    'layout' => 'horizontal',
+                                    'contents' => [
+                                        ['type' => 'text', 'text' => 'ยอดรวม:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
+                                        ['type' => 'text', 'text' => '฿' . number_format($order['grand_total']), 'size' => 'md', 'color' => '#06C755', 'weight' => 'bold', 'align' => 'end', 'flex' => 1]
+                                    ]
+                                ]
+                            ]
+                        ]
                     ]
                 ],
                 'footer' => [
-                    'type' => 'box', 'layout' => 'vertical',
+                    'type' => 'box',
+                    'layout' => 'vertical',
                     'contents' => [
                         ['type' => 'button', 'action' => ['type' => 'message', 'label' => 'ดูรายละเอียด', 'text' => "ออเดอร์ {$orderNum}"], 'style' => 'link', 'height' => 'sm', 'color' => '#06C755']
                     ]
                 ]
             ];
         }
-        
+
         $flex = ['type' => 'carousel', 'contents' => array_slice($bubbles, 0, 10)];
         return $this->replyFlex($replyToken, $flex, 'คำสั่งซื้อของคุณ');
     }
-    
+
     public function showOrderDetail($userId, $userDbId, $orderNum, $replyToken)
     {
         $order = $this->getOrder($orderNum, $userDbId);
-        
+
         if (!$order) {
             return $this->replyText($replyToken, "❌ ไม่พบคำสั่งซื้อ #{$orderNum}");
         }
-        
+
         $items = $this->getOrderItems($order['id']);
         $statusInfo = $this->getStatusInfo($order['status']);
         $settings = $this->getSettings();
         $orderNum = str_replace('ORD', '', $order['order_number']);
-        
+
         // Build items content
         $itemsContent = [];
         foreach ($items as $item) {
             $itemsContent[] = [
-                'type' => 'box', 'layout' => 'horizontal',
+                'type' => 'box',
+                'layout' => 'horizontal',
                 'contents' => [
                     ['type' => 'text', 'text' => "{$item['product_name']} x{$item['quantity']}", 'size' => 'sm', 'flex' => 3, 'wrap' => true],
                     ['type' => 'text', 'text' => '฿' . number_format($item['subtotal']), 'size' => 'sm', 'align' => 'end', 'flex' => 1]
                 ]
             ];
         }
-        
+
         // Footer buttons
         $footerContents = [];
         if ($order['status'] === 'pending' && ($order['payment_status'] ?? 'pending') === 'pending') {
             $footerContents[] = ['type' => 'button', 'action' => ['type' => 'message', 'label' => '📤 อัพโหลดสลิป', 'text' => 'โอนแล้ว'], 'style' => 'primary', 'color' => '#06C755'];
         }
         $footerContents[] = ['type' => 'button', 'action' => ['type' => 'uri', 'label' => '📞 ติดต่อเรา', 'uri' => 'tel:' . ($settings['contact_phone'] ?? '0000000000')], 'style' => 'link'];
-        
+
         $bubble = [
             'type' => 'bubble',
             'body' => [
-                'type' => 'box', 'layout' => 'vertical',
+                'type' => 'box',
+                'layout' => 'vertical',
                 'contents' => [
                     ['type' => 'text', 'text' => "ออเดอร์ #{$orderNum}", 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755'],
-                    ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'md', 'contents' => [
-                        ['type' => 'text', 'text' => "{$statusInfo['emoji']} {$statusInfo['text']}", 'size' => 'sm', 'color' => $statusInfo['color'], 'weight' => 'bold']
-                    ]],
-                    ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'lg', 'contents' => [
-                        ['type' => 'text', 'text' => 'วันที่สั่งซื้อ:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
-                        ['type' => 'text', 'text' => $this->formatThaiDate($order['created_at']), 'size' => 'xs', 'align' => 'end', 'flex' => 2]
-                    ]],
+                    [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'md',
+                        'contents' => [
+                            ['type' => 'text', 'text' => "{$statusInfo['emoji']} {$statusInfo['text']}", 'size' => 'sm', 'color' => $statusInfo['color'], 'weight' => 'bold']
+                        ]
+                    ],
+                    [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'lg',
+                        'contents' => [
+                            ['type' => 'text', 'text' => 'วันที่สั่งซื้อ:', 'size' => 'xs', 'color' => '#888888', 'flex' => 1],
+                            ['type' => 'text', 'text' => $this->formatThaiDate($order['created_at']), 'size' => 'xs', 'align' => 'end', 'flex' => 2]
+                        ]
+                    ],
                     ['type' => 'separator', 'margin' => 'lg'],
                     ['type' => 'text', 'text' => 'รายการสินค้า', 'weight' => 'bold', 'size' => 'sm', 'color' => '#06C755', 'margin' => 'lg'],
                     ['type' => 'box', 'layout' => 'vertical', 'margin' => 'md', 'spacing' => 'sm', 'contents' => $itemsContent],
                     ['type' => 'separator', 'margin' => 'lg'],
-                    ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'lg', 'contents' => [
-                        ['type' => 'text', 'text' => 'ยอดรวมทั้งหมด', 'weight' => 'bold', 'size' => 'sm', 'flex' => 1],
-                        ['type' => 'text', 'text' => '฿' . number_format($order['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end', 'flex' => 1]
-                    ]]
+                    [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'lg',
+                        'contents' => [
+                            ['type' => 'text', 'text' => 'ยอดรวมทั้งหมด', 'weight' => 'bold', 'size' => 'sm', 'flex' => 1],
+                            ['type' => 'text', 'text' => '฿' . number_format($order['grand_total']), 'weight' => 'bold', 'size' => 'xl', 'color' => '#06C755', 'align' => 'end', 'flex' => 1]
+                        ]
+                    ]
                 ]
             ],
             'footer' => ['type' => 'box', 'layout' => 'vertical', 'spacing' => 'sm', 'contents' => $footerContents, 'paddingAll' => 'lg']
         ];
-        
+
         return $this->replyFlex($replyToken, $bubble, "ออเดอร์ #{$orderNum}");
     }
-    
+
     public function showContact($userId, $userDbId, $replyToken)
     {
         $settings = $this->getSettings();
         $shopName = $settings['shop_name'] ?? 'LINE Shop';
         $phone = $settings['contact_phone'] ?? '';
-        
+
         $text = "📞 ติดต่อ {$shopName}\n\n";
-        if ($phone) $text .= "📱 โทร: {$phone}\n";
+        if ($phone)
+            $text .= "📱 โทร: {$phone}\n";
         $text .= "\n💬 หรือพิมพ์ข้อความมาได้เลย!";
-        
+
         return $this->replyText($replyToken, $text);
     }
-    
+
     // ==================== HELPERS ====================
-    
+
     private function buildItemsCarousel($items)
     {
         $bubbles = [];
@@ -1464,28 +1590,34 @@ class UnifiedShop
         }
         return ['type' => 'carousel', 'contents' => $bubbles];
     }
-    
+
     private function buildItemCard($item)
     {
         $itemType = $item['item_type'] ?? 'physical';
         $price = $item['sale_price'] ?? $item['price'];
-        
-        $typeIcon = match($itemType) {
-            'digital' => '🎮', 'service' => '💆', 'booking' => '📅', 'content' => '📚', default => '📦'
-        };
-        
+
+        $icons = [
+            'digital' => '🎮',
+            'service' => '💆',
+            'booking' => '📅',
+            'content' => '📚'
+        ];
+        $typeIcon = $icons[$itemType] ?? '📦';
+
         $priceContents = [['type' => 'text', 'text' => '฿' . number_format($price), 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755']];
         if (!empty($item['sale_price']) && $item['sale_price'] < $item['price']) {
             $priceContents[] = ['type' => 'text', 'text' => '฿' . number_format($item['price']), 'size' => 'xs', 'color' => '#AAAAAA', 'decoration' => 'line-through', 'margin' => 'sm'];
         }
-        
+
         $stockText = $item['stock'] > 0 ? "📦 เหลือ {$item['stock']} ชิ้น" : "❌ สินค้าหมด";
-        if ($itemType === 'digital') $stockText = $item['stock'] > 0 ? "✅ พร้อมส่งทันที" : "❌ หมด";
-        
+        if ($itemType === 'digital')
+            $stockText = $item['stock'] > 0 ? "✅ พร้อมส่งทันที" : "❌ หมด";
+
         $bubble = [
             'type' => 'bubble',
             'body' => [
-                'type' => 'box', 'layout' => 'vertical',
+                'type' => 'box',
+                'layout' => 'vertical',
                 'contents' => [
                     ['type' => 'text', 'text' => "{$typeIcon} {$item['name']}", 'weight' => 'bold', 'size' => 'md', 'wrap' => true],
                     ['type' => 'box', 'layout' => 'horizontal', 'contents' => $priceContents, 'margin' => 'md'],
@@ -1494,7 +1626,8 @@ class UnifiedShop
                 'paddingAll' => 'lg'
             ],
             'footer' => [
-                'type' => 'box', 'layout' => 'vertical',
+                'type' => 'box',
+                'layout' => 'vertical',
                 'contents' => [
                     ['type' => 'button', 'action' => ['type' => 'message', 'label' => '🛒 เพิ่มลงตะกร้า', 'text' => "add {$item['id']}"], 'style' => 'primary', 'color' => '#06C755'],
                     ['type' => 'button', 'action' => ['type' => 'message', 'label' => '📋 รายละเอียด', 'text' => "item {$item['id']}"], 'style' => 'secondary', 'margin' => 'sm']
@@ -1502,18 +1635,21 @@ class UnifiedShop
                 'paddingAll' => 'lg'
             ]
         ];
-        
+
         if (!empty($item['image_url'])) {
             $bubble['hero'] = [
-                'type' => 'image', 'url' => $item['image_url'], 'size' => 'full',
-                'aspectRatio' => '1:1', 'aspectMode' => 'cover',
+                'type' => 'image',
+                'url' => $item['image_url'],
+                'size' => 'full',
+                'aspectRatio' => '1:1',
+                'aspectMode' => 'cover',
                 'action' => ['type' => 'message', 'text' => "item {$item['id']}"]
             ];
         }
-        
+
         return $bubble;
     }
-    
+
     private function getStatusInfo($status)
     {
         $map = [
@@ -1529,13 +1665,13 @@ class UnifiedShop
         ];
         return $map[$status] ?? ['text' => $status, 'color' => '#666666', 'emoji' => '📋'];
     }
-    
+
     private function formatThaiDate($datetime)
     {
         $timestamp = strtotime($datetime);
         $thaiMonths = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
         $day = date('j', $timestamp);
-        $month = $thaiMonths[(int)date('n', $timestamp)];
+        $month = $thaiMonths[(int) date('n', $timestamp)];
         $year = date('Y', $timestamp) + 543;
         $time = date('H:i', $timestamp);
         return "{$day} {$month} {$year} เวลา {$time}";

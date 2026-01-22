@@ -16,19 +16,19 @@ class BusinessBot
     private $lineAccountId;
     private $settings;
     private $botMode = 'shop'; // shop, general, auto_reply_only
-    
+
     // Bot Modes
     const MODE_SHOP = 'shop';
     const MODE_GENERAL = 'general';
     const MODE_AUTO_REPLY_ONLY = 'auto_reply_only';
-    
+
     // Item Types
     const TYPE_PHYSICAL = 'physical';
     const TYPE_DIGITAL = 'digital';
     const TYPE_SERVICE = 'service';
     const TYPE_BOOKING = 'booking';
     const TYPE_CONTENT = 'content';
-    
+
     // Delivery Methods
     const DELIVER_SHIPPING = 'shipping';
     const DELIVER_EMAIL = 'email';
@@ -44,29 +44,31 @@ class BusinessBot
         $this->loadBotMode();
         $this->loadSettings();
     }
-    
+
     /**
      * Load bot mode from line_accounts table
      */
     private function loadBotMode()
     {
         $this->botMode = self::MODE_SHOP; // default
-        
-        if (!$this->lineAccountId) return;
-        
+
+        if (!$this->lineAccountId)
+            return;
+
         try {
             // ตรวจสอบว่ามี column bot_mode หรือไม่
             $stmt = $this->db->query("SHOW COLUMNS FROM line_accounts LIKE 'bot_mode'");
-            if ($stmt->rowCount() == 0) return;
-            
+            if ($stmt->rowCount() == 0)
+                return;
+
             $stmt = $this->db->prepare("SELECT bot_mode FROM line_accounts WHERE id = ?");
             $stmt->execute([$this->lineAccountId]);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($result && !empty($result['bot_mode'])) {
                 $this->botMode = $result['bot_mode'];
             }
-            
+
             $this->logDebug('loadBotMode', 'Bot mode loaded', [
                 'line_account_id' => $this->lineAccountId,
                 'bot_mode' => $this->botMode
@@ -76,7 +78,7 @@ class BusinessBot
             $this->logDebug('loadBotMode', 'Error loading bot mode: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Get current bot mode
      */
@@ -84,7 +86,7 @@ class BusinessBot
     {
         return $this->botMode;
     }
-    
+
     /**
      * Check if shop features are enabled
      */
@@ -92,7 +94,7 @@ class BusinessBot
     {
         return $this->botMode === self::MODE_SHOP;
     }
-    
+
     /**
      * Helper: Reply with text message (properly formatted as array)
      */
@@ -100,7 +102,7 @@ class BusinessBot
     {
         return $this->line->replyMessage($replyToken, [['type' => 'text', 'text' => $text]]);
     }
-    
+
     /**
      * Helper: Reply with flex message (properly formatted as array)
      */
@@ -113,7 +115,7 @@ class BusinessBot
     {
         $this->settings = [];
         $foundForAccount = false;
-        
+
         // Try shop_settings first (main settings table)
         try {
             if ($this->lineAccountId) {
@@ -126,7 +128,7 @@ class BusinessBot
                     $foundForAccount = true;
                 }
             }
-            
+
             // ถ้าไม่พบ settings สำหรับ account นี้ ให้ใช้ค่า default (ร้านปิด)
             if (!$foundForAccount) {
                 $this->settings = [
@@ -140,7 +142,7 @@ class BusinessBot
             // shop_settings table doesn't exist
             $this->settings = ['is_open' => 0];
         }
-        
+
         // Log settings loaded for debugging
         $this->logDebug('loadSettings', 'Settings loaded', [
             'line_account_id' => $this->lineAccountId,
@@ -149,7 +151,7 @@ class BusinessBot
             'shop_name' => $this->settings['shop_name'] ?? 'not set'
         ]);
     }
-    
+
     /**
      * Check if shop is open
      */
@@ -169,41 +171,41 @@ class BusinessBot
     public function processMessage($userId, $userDbId, $message, $replyToken)
     {
         $text = mb_strtolower(trim($message));
-        
+
         $this->logDebug('processMessage', 'Processing message', [
             'userId' => $userId,
             'userDbId' => $userDbId,
             'message' => mb_substr($message, 0, 50),
             'bot_mode' => $this->botMode
         ]);
-        
+
         // Reset command - ให้ลูกค้า clear state ได้เอง
         if (in_array($text, ['reset', 'รีเซ็ต', 'เริ่มใหม่', 'clear', 'ล้าง'])) {
             $this->clearUserState($userDbId);
             return $this->replyText($replyToken, "✅ รีเซ็ตเรียบร้อยแล้ว\n\nพิมพ์ 'menu' เพื่อดูเมนู หรือ 'shop' เพื่อดูสินค้า");
         }
-        
+
         // ถ้าเป็นโหมด auto_reply_only ให้ return null เพื่อให้ AutoReply handler จัดการ
         if ($this->botMode === self::MODE_AUTO_REPLY_ONLY) {
             $this->logDebug('processMessage', 'Auto reply only mode - skipping BusinessBot');
             return null; // Let AutoReply handler process
         }
-        
+
         // ถ้าเป็นโหมด general ให้ return null ทันที - ไม่ตอบกลับอะไรเลย แค่บันทึกข้อมูล
         if ($this->botMode === self::MODE_GENERAL) {
             $this->logDebug('processMessage', 'General mode - no reply, just record data');
             return null; // ไม่ตอบกลับ - ให้ webhook จัดการ
         }
-        
+
         // Check user state first (ยกเว้นโหมด auto_reply_only)
         $state = $this->getUserState($userDbId);
-        
+
         $this->logDebug('processMessage', 'State check result', [
             'userDbId' => $userDbId,
             'hasState' => $state ? true : false,
             'stateName' => $state['state'] ?? 'none'
         ]);
-        
+
         if ($state) {
             // Check state timeout (30 minutes)
             $stateTime = strtotime($state['updated_at'] ?? $state['created_at'] ?? 'now');
@@ -221,189 +223,13 @@ class BusinessBot
                 }
             }
         }
-        
-        // Commands ที่ใช้ได้เสมอ (ไม่ว่าร้านจะเปิดหรือปิด หรือโหมดใดก็ตาม)
-        $alwaysAvailableCommands = [
-            // เมนูหลัก
-            'menu' => 'showMainMenu',
-            'เมนู' => 'showMainMenu',
-            'help' => 'showMainMenu',
-            'ช่วยเหลือ' => 'showMainMenu',
-            '?' => 'showMainMenu',
-            
-            // ติดต่อ
-            'contact' => 'showContact',
-            'ติดต่อ' => 'showContact',
-            'ติดต่อเรา' => 'showContact',
-            
-            // แต้มสะสม - ใช้ได้ทุกโหมด
-            'points' => 'showPoints',
-            'point' => 'showPoints',
-            'แต้ม' => 'showPoints',
-            'คะแนน' => 'showPoints',
-            'แต้มสะสม' => 'showPoints',
-            'rewards' => 'showRewards',
-            'ของรางวัล' => 'showRewards',
-            'แลกของ' => 'showRewards',
-            // บัตรสมาชิก
-            'member' => 'showMemberCard',
-            'บัตรสมาชิก' => 'showMemberCard',
-            'สมาชิก' => 'showMemberCard',
-            'card' => 'showMemberCard',
-            'mycard' => 'showMemberCard',
-        ];
-        
-        // Commands ที่ดูได้แม้ร้านปิด แต่ต้องเป็นโหมด shop
-        $shopHistoryCommands = [
-            'orders' => 'showOrders',
-            'order' => 'showOrders',
-            'คำสั่งซื้อ' => 'showOrders',
-            'ออเดอร์' => 'showOrders',
-            'transactions' => 'showOrders',
-        ];
-        
-        // Commands ที่ต้องการโหมด shop และร้านเปิด
-        $shopCommands = [
-            // ดูสินค้า/บริการ
-            'shop' => 'showCategories',
-            'ร้าน' => 'showCategories',
-            'สินค้า' => 'showCategories',
-            'ซื้อ' => 'showCategories',
-            'catalog' => 'showCategories',
-            'บริการ' => 'showCategories',
-            
-            // ตะกร้า
-            'cart' => 'showCart',
-            'ตะกร้า' => 'showCart',
-            'รถเข็น' => 'showCart',
-            
-            // สั่งซื้อ
-            'checkout' => 'startCheckout',
-            'สั่งซื้อ' => 'startCheckout',
-            'ชำระเงิน' => 'startCheckout',
-            'จ่ายเงิน' => 'startCheckout',
-            'ยืนยันสั่งซื้อ' => 'startCheckout',
-            '✅ ยืนยันสั่งซื้อ' => 'startCheckout',
-            
-            // สลิป/ชำระเงิน
-            'สลิป' => 'showSlipInfo',
-            'slip' => 'showSlipInfo',
-            'โอนเงิน' => 'showSlipInfo',
-            'โอนแล้ว' => 'showSlipInfo',
-        ];
-        
-        // ตรวจสอบ commands ที่ใช้ได้เสมอ
-        foreach ($alwaysAvailableCommands as $cmd => $method) {
-            if ($text === $cmd) {
-                try {
-                    $this->$method($userId, $userDbId, $replyToken);
-                    return true;
-                } catch (Exception $e) {
-                    error_log("BusinessBot {$method} error: " . $e->getMessage());
-                    $this->logError($method, $e->getMessage(), ['user_id' => $userId, 'command' => $cmd]);
-                    $this->replyText($replyToken, "❌ เกิดข้อผิดพลาด: " . $e->getMessage());
-                    return true;
-                }
-            }
-        }
-        
-        // ตรวจสอบ shop history commands - ต้องเป็นโหมด shop
-        foreach ($shopHistoryCommands as $cmd => $method) {
-            if ($text === $cmd) {
-                // ถ้าไม่ใช่โหมด shop แจ้งว่าไม่มีฟีเจอร์นี้
-                if (!$this->isShopModeEnabled()) {
-                    $this->replyText($replyToken, "ℹ️ บัญชีนี้ไม่ได้เปิดใช้งานระบบร้านค้า\n\nพิมพ์ 'เมนู' เพื่อดูคำสั่งที่ใช้ได้");
-                    return true;
-                }
-                
-                try {
-                    $this->$method($userId, $userDbId, $replyToken);
-                    return true;
-                } catch (Exception $e) {
-                    error_log("BusinessBot {$method} error: " . $e->getMessage());
-                    $this->replyText($replyToken, "❌ เกิดข้อผิดพลาด: " . $e->getMessage());
-                    return true;
-                }
-            }
-        }
-        
-        // ตรวจสอบ shop commands - ต้องเป็นโหมด shop และร้านเปิด
-        foreach ($shopCommands as $cmd => $method) {
-            if ($text === $cmd) {
-                // ถ้าไม่ใช่โหมด shop
-                if (!$this->isShopModeEnabled()) {
-                    $this->replyText($replyToken, "ℹ️ บัญชีนี้ไม่ได้เปิดใช้งานระบบร้านค้า\n\nพิมพ์ 'เมนู' เพื่อดูคำสั่งที่ใช้ได้");
-                    return true;
-                }
-                
-                // ถ้าร้านปิด แจ้งเตือนและไม่ทำงาน
-                if (!$this->isShopOpen()) {
-                    $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว\n\nพิมพ์ 'ติดต่อ' เพื่อติดต่อเรา\nหรือพิมพ์ 'ออเดอร์' เพื่อดูคำสั่งซื้อเดิม");
-                    return true;
-                }
-                
-                try {
-                    $this->$method($userId, $userDbId, $replyToken);
-                    return true;
-                } catch (Exception $e) {
-                    error_log("BusinessBot {$method} error: " . $e->getMessage());
-                    $this->logError($method, $e->getMessage(), ['user_id' => $userId, 'command' => $cmd]);
-                    $this->replyText($replyToken, "❌ เกิดข้อผิดพลาด: " . $e->getMessage());
-                    return true;
-                }
-            }
-        }
-        
-        // Pattern matching - ต้องเป็นโหมด shop และร้านเปิด
-        $shopPatterns = [
-            // เพิ่มสินค้าลงตะกร้า
-            ['/^(add|เพิ่ม)\s*(\d+)(?:\s+(\d+))?$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $itemId = (int)$matches[2];
-                $qty = isset($matches[3]) ? (int)$matches[3] : 1;
-                $this->addToCart($userId, $userDbId, $itemId, $qty, $replyToken);
-            }],
-            // ลบสินค้าจากตะกร้า
-            ['/^(remove|ลบ|ลบสินค้า)\s*(\d+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->removeFromCart($userId, $userDbId, (int)$matches[2], $replyToken);
-            }],
-            // ดูรายละเอียดสินค้า
-            ['/^(item|product|สินค้า|ดู)\s*(\d+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->showItemDetail($userId, $userDbId, (int)$matches[2], $replyToken);
-            }],
-            // ดูหมวดหมู่
-            ['/^(cat|category|หมวด|หมวดหมู่)\s*(\d+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->showCategoryItems($userId, $userDbId, (int)$matches[2], $replyToken);
-            }],
-            // จองบริการ
-            ['/^(book|จอง|นัดหมาย)\s*(\d+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->startBooking($userId, $userDbId, (int)$matches[2], $replyToken);
-            }],
-            // ค้นหาสินค้า
-            ['/^(search|ค้นหา|หา)\s+(.+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->searchItems($userId, $userDbId, $matches[2], $replyToken);
-            }],
-            // แลกของรางวัล
-            ['/^(redeem|แลก)\s*(\d+)$/iu', function($matches) use ($userId, $userDbId, $replyToken) {
-                $this->redeemReward($userId, $userDbId, (int)$matches[2], $replyToken);
-            }],
-        ];
-        
-        foreach ($shopPatterns as [$pattern, $handler]) {
-            if (preg_match($pattern, $text, $matches)) {
-                // ต้องเป็นโหมด shop
-                if (!$this->isShopModeEnabled()) {
-                    $this->replyText($replyToken, "ℹ️ บัญชีนี้ไม่ได้เปิดใช้งานระบบร้านค้า");
-                    return true;
-                }
-                if (!$this->isShopOpen()) {
-                    $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว");
-                    return true;
-                }
-                $handler($matches);
-                return true;
-            }
-        }
-        
+
+
+
+        // Pattern matching - Removed legacy text commands
+        // All shop interactions should go through LIFF
+
+
         // ล้างตะกร้า - ต้องเป็นโหมด shop และร้านเปิด
         if (in_array($text, ['clear', 'ล้างตะกร้า', 'เคลียร์ตะกร้า'])) {
             if (!$this->isShopModeEnabled()) {
@@ -417,10 +243,10 @@ class BusinessBot
             $this->clearCart($userId, $userDbId, $replyToken);
             return true;
         }
-        
+
         // Track behavior for unknown messages
         $this->trackBehavior($userDbId, 'message', ['text' => $message]);
-        
+
         return null; // Let other handlers process
     }
 
@@ -441,7 +267,7 @@ class BusinessBot
             error_log("[BusinessBot] {$source}: {$message}");
         }
     }
-    
+
     /**
      * Log debug info to dev_logs table
      */
@@ -469,18 +295,18 @@ class BusinessBot
             $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE id = ? AND is_active = 1");
             $stmt->execute([$itemId]);
             $item = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($item && isset($item['action_data'])) {
                 $item['action_data'] = json_decode($item['action_data'], true);
             }
-            
+
             return $item;
         } catch (Exception $e) {
             $this->logError('getItem', $e->getMessage(), ['item_id' => $itemId]);
             return null;
         }
     }
-    
+
     /**
      * Get items table name (for backward compatibility)
      */
@@ -488,7 +314,7 @@ class BusinessBot
     {
         return 'products';
     }
-    
+
     /**
      * Get transactions table name
      */
@@ -514,27 +340,27 @@ class BusinessBot
     {
         $businessType = $this->settings['business_type'] ?? 'hybrid';
         $shopName = $this->settings['shop_name'] ?? 'LINE Business';
-        
+
         // ถ้าเป็นโหมด general แสดงเมนูแบบไม่มีร้านค้า
         if ($this->botMode === self::MODE_GENERAL) {
             return $this->showGeneralModeMenu($userId, $userDbId, $replyToken, $shopName);
         }
-        
+
         // โหมด shop - ตรวจสอบว่าร้านเปิดหรือปิด
         $isOpen = $this->isShopOpen();
-        
+
         // ถ้าร้านปิด แสดงเมนูแบบจำกัด
         if (!$isOpen) {
             return $this->showClosedShopMenu($userId, $userDbId, $replyToken, $shopName);
         }
-        
+
         $menuItems = $this->getMenuItemsByBusinessType($businessType);
         $flex = FlexTemplates::mainMenu($shopName, $menuItems);
         $message = FlexTemplates::toMessage($flex, 'เมนูหลัก', 'shop', 'main');
-        
+
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     /**
      * Show menu for general mode (no shop features)
      */
@@ -571,11 +397,11 @@ class BusinessBot
                 'paddingAll' => 'lg'
             ]
         ];
-        
+
         $message = ['type' => 'flex', 'altText' => 'เมนูหลัก', 'contents' => $bubble];
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     /**
      * Show menu when shop is closed
      */
@@ -615,11 +441,11 @@ class BusinessBot
                 'paddingAll' => 'lg'
             ]
         ];
-        
+
         $message = ['type' => 'flex', 'altText' => 'ร้านค้าปิดให้บริการชั่วคราว', 'contents' => $bubble];
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     private function getMenuItemsByBusinessType($type)
     {
         $baseItems = [
@@ -627,7 +453,7 @@ class BusinessBot
             ['icon' => '🛍️', 'label' => 'ตะกร้า', 'text' => 'cart', 'color' => '#3B82F6'],
             ['icon' => '📋', 'label' => 'รายการของฉัน', 'text' => 'orders', 'color' => '#8B5CF6'],
         ];
-        
+
         switch ($type) {
             case 'digital':
                 $baseItems[0] = ['icon' => '🎮', 'label' => 'สินค้าดิจิทัล', 'text' => 'shop', 'color' => '#06C755'];
@@ -637,9 +463,9 @@ class BusinessBot
                 $baseItems[2] = ['icon' => '📋', 'label' => 'การจองของฉัน', 'text' => 'orders', 'color' => '#8B5CF6'];
                 break;
         }
-        
+
         $baseItems[] = ['icon' => '📞', 'label' => 'ติดต่อเรา', 'text' => 'contact', 'color' => '#EF4444'];
-        
+
         return $baseItems;
     }
 
@@ -653,32 +479,33 @@ class BusinessBot
         if (!$this->isShopOpen()) {
             return $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว\n\nกรุณาติดต่อเราภายหลัง");
         }
-        
+
         try {
             // ตรวจสอบว่ามี LIFF ID หรือไม่ - ถ้ามีจะส่ง LIFF Shop URL
             $liffId = $this->getLiffId();
-            
+
             if ($liffId) {
                 // ส่ง LIFF Shop Flex Message
                 return $this->sendLiffShopMessage($userId, $userDbId, $replyToken, $liffId);
             }
-            
+
             // Fallback: ใช้ carousel เดิมถ้าไม่มี LIFF
             return $this->showCategoriesCarousel($userId, $userDbId, $replyToken);
-            
+
         } catch (Exception $e) {
             error_log("BusinessBot showCategories error: " . $e->getMessage());
             return $this->replyText($replyToken, "🛒 ระบบร้านค้ายังไม่พร้อมใช้งาน\n\nกรุณาติดต่อผู้ดูแลระบบ");
         }
     }
-    
+
     /**
      * Get LIFF ID for this line account
      */
     private function getLiffId()
     {
-        if (!$this->lineAccountId) return null;
-        
+        if (!$this->lineAccountId)
+            return null;
+
         try {
             $stmt = $this->db->prepare("SELECT liff_id FROM line_accounts WHERE id = ? AND liff_id IS NOT NULL AND liff_id != ''");
             $stmt->execute([$this->lineAccountId]);
@@ -687,7 +514,7 @@ class BusinessBot
             return null;
         }
     }
-    
+
     /**
      * Send LIFF Shop Flex Message
      */
@@ -695,7 +522,7 @@ class BusinessBot
     {
         $shopName = $this->settings['shop_name'] ?? 'LINE Shop';
         $liffUrl = "https://liff.line.me/{$liffId}";
-        
+
         // Get base URL from settings or construct from request
         $baseUrl = $this->settings['base_url'] ?? '';
         if (empty($baseUrl)) {
@@ -706,7 +533,7 @@ class BusinessBot
                 $baseUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
             }
         }
-        
+
         // LIFF Shop URL - ใช้ LIFF URL ถ้ามี liff_id
         if ($liffId) {
             $shopUrl = "https://liff.line.me/{$liffId}?page=shop&user={$userId}";
@@ -714,23 +541,25 @@ class BusinessBot
             // Fallback to direct URL if no LIFF ID
             $shopUrl = rtrim($baseUrl, '/') . "/liff-shop.php?user={$userId}";
         }
-        
+
         // Get product count
         $productCount = 0;
         try {
             $stmt = $this->db->prepare("SELECT COUNT(*) FROM business_items WHERE is_active = 1 AND (line_account_id = ? OR line_account_id IS NULL)");
             $stmt->execute([$this->lineAccountId]);
             $productCount = $stmt->fetchColumn() ?: 0;
-        } catch (Exception $e) {}
-        
+        } catch (Exception $e) {
+        }
+
         // Get cart count
         $cartCount = 0;
         try {
             $stmt = $this->db->prepare("SELECT SUM(quantity) FROM cart_items WHERE user_id = ?");
             $stmt->execute([$userDbId]);
             $cartCount = $stmt->fetchColumn() ?: 0;
-        } catch (Exception $e) {}
-        
+        } catch (Exception $e) {
+        }
+
         // Build Flex Message
         $bubble = [
             'type' => 'bubble',
@@ -815,7 +644,7 @@ class BusinessBot
                 'paddingAll' => 'lg'
             ]
         ];
-        
+
         // Add cart button if has items
         if ($cartCount > 0) {
             // ใช้ LIFF URL ถ้ามี liff_id
@@ -836,14 +665,14 @@ class BusinessBot
                 'margin' => 'sm'
             ];
         }
-        
+
         $message = ['type' => 'flex', 'altText' => "🛍️ {$shopName} - เลือกซื้อสินค้า", 'contents' => $bubble];
-        
+
         $this->trackBehavior($userDbId, 'view_shop', ['via' => 'liff']);
-        
+
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     /**
      * Show categories carousel (fallback when no LIFF)
      */
@@ -852,7 +681,7 @@ class BusinessBot
         // ตรวจสอบว่าตารางมีอยู่หรือไม่
         $table = 'item_categories';
         $tableExists = false;
-        
+
         try {
             $this->db->query("SELECT 1 FROM item_categories LIMIT 1");
             $tableExists = true;
@@ -865,18 +694,19 @@ class BusinessBot
                 $tableExists = false;
             }
         }
-        
+
         if (!$tableExists) {
             return $this->replyText($replyToken, "🛒 ระบบร้านค้ายังไม่พร้อมใช้งาน\n\nกรุณาติดต่อผู้ดูแลระบบ");
         }
-        
+
         // ตรวจสอบว่ามี column line_account_id หรือไม่
         $hasAccountCol = false;
         try {
             $stmt = $this->db->query("SHOW COLUMNS FROM {$table} LIKE 'line_account_id'");
             $hasAccountCol = $stmt->rowCount() > 0;
-        } catch (Exception $e) {}
-        
+        } catch (Exception $e) {
+        }
+
         $sql = "SELECT * FROM {$table} WHERE is_active = 1";
         if ($this->lineAccountId && $hasAccountCol) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
@@ -886,19 +716,19 @@ class BusinessBot
             $stmt = $this->db->query($sql . " ORDER BY sort_order ASC");
         }
         $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         if (empty($categories)) {
             return $this->replyText($replyToken, "📦 ยังไม่มีหมวดหมู่สินค้า\n\nกรุณาเพิ่มหมวดหมู่ในระบบหลังบ้าน");
         }
-        
+
         $flex = $this->buildCategoriesCarousel($categories);
         $message = FlexTemplates::toMessage($flex, 'หมวดหมู่', 'shop');
-        
+
         $this->trackBehavior($userDbId, 'view_categories', []);
-        
+
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     private function buildCategoriesCarousel($categories)
     {
         $bubbles = [];
@@ -923,7 +753,7 @@ class BusinessBot
                     ]
                 ]
             ];
-            
+
             // เพิ่ม hero image ถ้ามี
             if (!empty($cat['image_url'])) {
                 $bubble['hero'] = [
@@ -935,16 +765,23 @@ class BusinessBot
                     'action' => ['type' => 'message', 'text' => "หมวด {$cat['id']}"]
                 ];
             }
-            
+
             $bubbles[] = $bubble;
         }
-        
+
         if (empty($bubbles)) {
-            return ['type' => 'bubble', 'body' => ['type' => 'box', 'layout' => 'vertical', 'contents' => [
-                ['type' => 'text', 'text' => 'ยังไม่มีหมวดหมู่', 'align' => 'center']
-            ]]];
+            return [
+                'type' => 'bubble',
+                'body' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => [
+                        ['type' => 'text', 'text' => 'ยังไม่มีหมวดหมู่', 'align' => 'center']
+                    ]
+                ]
+            ];
         }
-        
+
         return ['type' => 'carousel', 'contents' => $bubbles];
     }
 
@@ -954,7 +791,7 @@ class BusinessBot
     public function showCategoryItems($userId, $userDbId, $categoryId, $replyToken)
     {
         $table = $this->getItemsTable();
-        
+
         $sql = "SELECT * FROM {$table} WHERE category_id = ? AND is_active = 1 AND stock > 0";
         if ($this->lineAccountId) {
             $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
@@ -965,19 +802,19 @@ class BusinessBot
             $stmt->execute([$categoryId]);
         }
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         if (empty($items)) {
             return $this->replyText($replyToken, 'ไม่มีสินค้าในหมวดนี้');
         }
-        
+
         $flex = $this->buildItemsCarousel($items);
         $message = FlexTemplates::toMessage($flex, 'สินค้า', 'shop');
-        
+
         $this->trackBehavior($userDbId, 'view_category', ['category_id' => $categoryId]);
-        
+
         return $this->line->replyMessage($replyToken, [$message]);
     }
-    
+
     /**
      * Build items carousel based on item type
      */
@@ -989,43 +826,35 @@ class BusinessBot
         }
         return ['type' => 'carousel', 'contents' => $bubbles];
     }
-    
+
     /**
      * Build single item card based on type
      */
+    /**
+     * Build single item card based on type
+     * Restored for backward compatibility with showItemDetail
+     */
     private function buildItemCard($item)
     {
-        $itemType = $item['item_type'] ?? self::TYPE_PHYSICAL;
+        $itemType = $item['item_type'] ?? 'physical';
         $price = $item['sale_price'] ?? $item['price'];
-        
-        // Type-specific icon
-        $typeIcon = match($itemType) {
-            self::TYPE_DIGITAL => '🎮',
-            self::TYPE_SERVICE => '💆',
-            self::TYPE_BOOKING => '📅',
-            self::TYPE_CONTENT => '📚',
-            default => '📦'
-        };
-        
-        // Action button based on type
-        $actionLabel = match($itemType) {
-            self::TYPE_BOOKING => '📅 จองเลย',
-            self::TYPE_SERVICE => '📝 นัดหมาย',
-            default => '🛒 เพิ่มลงตะกร้า'
-        };
-        
-        $actionText = match($itemType) {
-            self::TYPE_BOOKING, self::TYPE_SERVICE => "book {$item['id']}",
-            default => "add {$item['id']}"
-        };
-        
-        $priceContents = [
-            ['type' => 'text', 'text' => '฿' . number_format($price), 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755']
+
+        $icons = [
+            'digital' => '🎮',
+            'service' => '💆',
+            'booking' => '📅',
+            'content' => '📚'
         ];
-        
+        $typeIcon = $icons[$itemType] ?? '📦';
+
+        $priceContents = [['type' => 'text', 'text' => '฿' . number_format($price), 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755']];
         if (!empty($item['sale_price']) && $item['sale_price'] < $item['price']) {
             $priceContents[] = ['type' => 'text', 'text' => '฿' . number_format($item['price']), 'size' => 'xs', 'color' => '#AAAAAA', 'decoration' => 'line-through', 'margin' => 'sm'];
         }
+
+        $stockText = $item['stock'] > 0 ? "📦 เหลือ {$item['stock']} ชิ้น" : "❌ สินค้าหมด";
+        if ($itemType === 'digital')
+            $stockText = $item['stock'] > 0 ? "✅ พร้อมส่งทันที" : "❌ หมด";
 
         $bubble = [
             'type' => 'bubble',
@@ -1035,7 +864,7 @@ class BusinessBot
                 'contents' => [
                     ['type' => 'text', 'text' => "{$typeIcon} {$item['name']}", 'weight' => 'bold', 'size' => 'md', 'wrap' => true],
                     ['type' => 'box', 'layout' => 'horizontal', 'contents' => $priceContents, 'margin' => 'md'],
-                    ['type' => 'text', 'text' => $this->getStockText($item), 'size' => 'xs', 'color' => '#888888', 'margin' => 'sm']
+                    ['type' => 'text', 'text' => $stockText, 'size' => 'xs', 'color' => '#888888', 'margin' => 'sm']
                 ],
                 'paddingAll' => 'lg'
             ],
@@ -1043,14 +872,13 @@ class BusinessBot
                 'type' => 'box',
                 'layout' => 'vertical',
                 'contents' => [
-                    ['type' => 'button', 'action' => ['type' => 'message', 'label' => $actionLabel, 'text' => $actionText], 'style' => 'primary', 'color' => '#06C755'],
+                    ['type' => 'button', 'action' => ['type' => 'message', 'label' => '🛒 เพิ่มลงตะกร้า', 'text' => "add {$item['id']}"], 'style' => 'primary', 'color' => '#06C755'],
                     ['type' => 'button', 'action' => ['type' => 'message', 'label' => '📋 รายละเอียด', 'text' => "item {$item['id']}"], 'style' => 'secondary', 'margin' => 'sm']
                 ],
                 'paddingAll' => 'lg'
             ]
         ];
-        
-        // เพิ่ม hero image ถ้ามี (ไม่ใส่ถ้าไม่มีรูป เพราะ LINE API ไม่รับ null)
+
         if (!empty($item['image_url'])) {
             $bubble['hero'] = [
                 'type' => 'image',
@@ -1061,268 +889,123 @@ class BusinessBot
                 'action' => ['type' => 'message', 'text' => "item {$item['id']}"]
             ];
         }
-        
+
         return $bubble;
     }
-    
+
     private function getStockText($item)
     {
         $itemType = $item['item_type'] ?? self::TYPE_PHYSICAL;
-        
-        return match($itemType) {
-            self::TYPE_DIGITAL => $item['stock'] > 0 ? "✅ พร้อมส่งทันที" : "❌ หมด",
-            self::TYPE_SERVICE, self::TYPE_BOOKING => "📅 เปิดจอง",
-            default => $item['stock'] > 0 ? "📦 เหลือ {$item['stock']} ชิ้น" : "❌ สินค้าหมด"
-        };
+
+        switch ($itemType) {
+            case self::TYPE_DIGITAL:
+                return $item['stock'] > 0 ? "✅ พร้อมส่งทันที" : "❌ หมด";
+            case self::TYPE_SERVICE:
+            case self::TYPE_BOOKING:
+                return "📅 เปิดจอง";
+            default:
+                return $item['stock'] > 0 ? "📦 เหลือ {$item['stock']} ชิ้น" : "❌ สินค้าหมด";
+        }
     }
 
     /**
      * Add item to cart
      */
+    /**
+     * Legacy method - removed
+     */
     public function addToCart($userId, $userDbId, $itemId, $qty, $replyToken)
+    {
+        return $this->showCategories($userId, $userDbId, $replyToken);
+    }
+
+    /**
+     * Show cart
+     */
+    /**
+     * Show cart - Redirect to LIFF
+     */
+    public function showCart($userId, $userDbId, $replyToken)
     {
         // ตรวจสอบว่าร้านเปิดหรือไม่
         if (!$this->isShopOpen()) {
             return $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว");
         }
-        
-        $item = $this->getItem($itemId);
-        if (!$item) {
-            return $this->replyText($replyToken, 'ไม่พบสินค้านี้');
+
+        $liffId = $this->getLiffId();
+        if ($liffId) {
+            return $this->sendLiffShopMessage($userId, $userDbId, $replyToken, $liffId);
         }
-        
-        if ($item['stock'] < $qty) {
-            return $this->replyText($replyToken, "สินค้าเหลือไม่พอ (เหลือ {$item['stock']} ชิ้น)");
-        }
-        
-        // Check max quantity
-        if (!empty($item['max_quantity']) && $qty > $item['max_quantity']) {
-            return $this->replyText($replyToken, "สั่งได้สูงสุด {$item['max_quantity']} ชิ้นต่อครั้ง");
-        }
-        
-        // Add to cart (upsert)
-        $stmt = $this->db->prepare("INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, ?) 
-                                    ON DUPLICATE KEY UPDATE quantity = quantity + ?");
-        $stmt->execute([$userDbId, $itemId, $qty, $qty]);
-        
-        $this->trackBehavior($userDbId, 'add_to_cart', ['item_id' => $itemId, 'quantity' => $qty]);
-        
-        $flex = FlexTemplates::success(
-            'เพิ่มลงตะกร้าแล้ว!',
-            "{$item['name']} x{$qty}",
-            [
-                ['label' => '🛍️ ดูตะกร้า', 'text' => 'cart'],
-                ['label' => '🛒 ช้อปต่อ', 'text' => 'shop']
-            ]
-        );
-        
-        return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'เพิ่มลงตะกร้า')]);
+
+        return $this->replyText($replyToken, "🛒 กรุณาใช้เมนูร้านค้าใน LINE เพื่อดูตะกร้าสินค้า");
     }
-    
+
     /**
-     * Show cart
+     * Helper to show LIFF checkout link
      */
-    public function showCart($userId, $userDbId, $replyToken)
+    public function showLiffCheckoutLink($userId, $userDbId, $replyToken)
     {
-        try {
-            $table = $this->getItemsTable();
-            
-            // ตรวจสอบว่าตาราง cart_items มีอยู่หรือไม่
-            try {
-                $this->db->query("SELECT 1 FROM cart_items LIMIT 1");
-            } catch (Exception $e) {
-                // สร้างตาราง cart_items
-                $this->db->exec("CREATE TABLE IF NOT EXISTS cart_items (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    product_id INT NOT NULL,
-                    quantity INT DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_cart_item (user_id, product_id)
-                )");
-            }
-            
-            $stmt = $this->db->prepare("SELECT c.*, p.name, p.price, p.sale_price, p.image_url 
-                                        FROM cart_items c 
-                                        JOIN {$table} p ON c.product_id = p.id 
-                                        WHERE c.user_id = ?");
-            $stmt->execute([$userDbId]);
-            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $items = [];
+        // ตรวจสอบว่าร้านเปิดหรือไม่
+        if (!$this->isShopOpen()) {
+            return $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว");
         }
-        
-        if (empty($items)) {
-            $flex = FlexTemplates::info('ตะกร้าว่าง', 'ยังไม่มีสินค้าในตะกร้า', [['label' => '🛒 ไปช้อป', 'text' => 'shop']]);
-            return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'ตะกร้าว่าง')]);
+
+        $liffId = $this->getLiffId();
+        if ($liffId) {
+            return $this->sendLiffShopMessage($userId, $userDbId, $replyToken, $liffId);
         }
-        
-        $total = 0;
-        $cartItems = [];
-        foreach ($items as $item) {
-            $price = $item['sale_price'] ?? $item['price'];
-            $subtotal = $price * $item['quantity'];
-            $total += $subtotal;
-            $cartItems[] = [
-                'name' => $item['name'],
-                'quantity' => $item['quantity'],
-                'subtotal' => $subtotal
-            ];
-        }
-        
-        $flex = FlexTemplates::cartSummary($cartItems, $total, count($items));
-        return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'ตะกร้าสินค้า', 'shop')]);
+
+        return $this->replyText($replyToken, "🛒 กรุณาใช้เมนูร้านค้าใน LINE เพื่อสั่งซื้อสินค้า");
     }
-    
+
     /**
      * Remove item from cart
      */
     public function removeFromCart($userId, $userDbId, $productId, $replyToken)
     {
-        try {
-            $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ? AND product_id = ?");
-            $stmt->execute([$userDbId, $productId]);
-            
-            if ($stmt->rowCount() > 0) {
-                return $this->replyText($replyToken, "✅ ลบสินค้าออกจากตะกร้าแล้ว\n\nพิมพ์ 'ตะกร้า' เพื่อดูตะกร้า");
-            }
-            return $this->replyText($replyToken, '❌ ไม่พบสินค้านี้ในตะกร้า');
-        } catch (Exception $e) {
-            return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาด');
-        }
+        return $this->showCart($userId, $userDbId, $replyToken);
     }
-    
+
     /**
      * Clear cart
      */
     public function clearCart($userId, $userDbId, $replyToken)
     {
-        try {
-            $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ?");
-            $stmt->execute([$userDbId]);
-            
-            return $this->replyText($replyToken, "🗑️ ล้างตะกร้าแล้ว\n\nพิมพ์ 'shop' เพื่อดูสินค้า");
-        } catch (Exception $e) {
-            return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาด');
-        }
+        return $this->showCart($userId, $userDbId, $replyToken);
     }
-    
+
     /**
      * Search items
      */
+    /**
+     * Legacy method - removed
+     */
     public function searchItems($userId, $userDbId, $keyword, $replyToken)
     {
-        try {
-            $table = $this->getItemsTable();
-            $searchTerm = '%' . $keyword . '%';
-            
-            $sql = "SELECT * FROM {$table} WHERE (name LIKE ? OR description LIKE ?) AND is_active = 1";
-            if ($this->lineAccountId) {
-                $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
-                $sql .= " ORDER BY id DESC LIMIT 10";
-                $stmt = $this->db->prepare($sql);
-                $stmt->execute([$searchTerm, $searchTerm, $this->lineAccountId]);
-            } else {
-                $sql .= " ORDER BY id DESC LIMIT 10";
-                $stmt = $this->db->prepare($sql);
-                $stmt->execute([$searchTerm, $searchTerm]);
-            }
-            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            if (empty($items)) {
-                return $this->replyText($replyToken, "🔍 ไม่พบสินค้าที่ค้นหา '{$keyword}'\n\nพิมพ์ 'shop' เพื่อดูสินค้าทั้งหมด");
-            }
-            
-            $flex = $this->buildItemsCarousel($items);
-            $message = FlexTemplates::toMessage($flex, "ผลการค้นหา: {$keyword}", 'shop');
-            
-            return $this->line->replyMessage($replyToken, [$message]);
-        } catch (Exception $e) {
-            return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาดในการค้นหา');
+        // ตรวจสอบว่าร้านเปิดหรือไม่
+        if (!$this->isShopOpen()) {
+            return $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว");
         }
+
+        $liffId = $this->getLiffId();
+        if ($liffId) {
+            return $this->sendLiffShopMessage($userId, $userDbId, $replyToken, $liffId);
+        }
+
+        return $this->replyText($replyToken, "🛒 กรุณาใช้เมนูร้านค้าใน LINE เพื่อค้นหาสินค้า");
     }
 
     /**
      * Start checkout process - different flow based on item types
      */
+    /**
+     * Legacy method - removed
+     */
     public function startCheckout($userId, $userDbId, $replyToken)
     {
-        // ตรวจสอบว่าร้านเปิดหรือไม่
-        if (!$this->isShopOpen()) {
-            return $this->replyText($replyToken, "🚫 ขออภัย ร้านค้าปิดให้บริการชั่วคราว\n\nไม่สามารถสั่งซื้อได้ในขณะนี้");
-        }
-        
-        $this->logDebug('startCheckout', 'Starting checkout V2', ['user_id' => $userDbId]);
-        
-        $table = $this->getItemsTable();
-        
-        // ตรวจสอบว่าตาราง products มี column item_type หรือไม่
-        $hasItemTypeCol = false;
-        try {
-            $stmt = $this->db->query("SHOW COLUMNS FROM {$table} LIKE 'item_type'");
-            $hasItemTypeCol = $stmt->rowCount() > 0;
-        } catch (Exception $e) {}
-        
-        if ($hasItemTypeCol) {
-            $stmt = $this->db->prepare("SELECT c.*, p.name, p.price, p.sale_price, p.item_type, p.delivery_method 
-                                        FROM cart_items c 
-                                        JOIN {$table} p ON c.product_id = p.id 
-                                        WHERE c.user_id = ?");
-        } else {
-            $stmt = $this->db->prepare("SELECT c.*, p.name, p.price, p.sale_price, 'physical' as item_type, 'shipping' as delivery_method 
-                                        FROM cart_items c 
-                                        JOIN {$table} p ON c.product_id = p.id 
-                                        WHERE c.user_id = ?");
-        }
-        $stmt->execute([$userDbId]);
-        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        if (empty($items)) {
-            return $this->replyText($replyToken, "❌ ตะกร้าว่างเปล่า\n\nพิมพ์ 'shop' เพื่อดูสินค้า");
-        }
-        
-        // ถ้าไม่มี item_type column → ใช้ quick checkout (สร้าง order เลย)
-        if (!$hasItemTypeCol) {
-            return $this->quickCheckout($userId, $userDbId, $items, $replyToken);
-        }
-        
-        // Determine checkout flow based on item types
-        $hasPhysical = false;
-        $hasDigital = false;
-        
-        foreach ($items as $item) {
-            $type = $item['item_type'] ?? self::TYPE_PHYSICAL;
-            $delivery = $item['delivery_method'] ?? self::DELIVER_SHIPPING;
-            
-            if ($type === self::TYPE_PHYSICAL || $delivery === self::DELIVER_SHIPPING) {
-                $hasPhysical = true;
-            }
-            if (in_array($type, [self::TYPE_DIGITAL, self::TYPE_CONTENT]) || 
-                in_array($delivery, [self::DELIVER_EMAIL, self::DELIVER_LINE, self::DELIVER_DOWNLOAD])) {
-                $hasDigital = true;
-            }
-        }
-        
-        // Calculate cart summary
-        $subtotal = 0;
-        $itemCount = 0;
-        foreach ($items as $item) {
-            $price = $item['sale_price'] ?? $item['price'];
-            $subtotal += $price * $item['quantity'];
-            $itemCount += $item['quantity'];
-        }
-        
-        // Show delivery options with Flex Message
-        if ($hasPhysical) {
-            $this->setUserState($userDbId, 'checkout_delivery', ['has_digital' => $hasDigital, 'subtotal' => $subtotal]);
-            return $this->showDeliveryOptions($userId, $userDbId, $replyToken, $subtotal, $itemCount);
-        } else {
-            // Digital only - skip to payment method
-            $this->setUserState($userDbId, 'checkout_payment', ['delivery_type' => 'digital', 'subtotal' => $subtotal]);
-            return $this->showPaymentOptions($userId, $userDbId, $replyToken, $subtotal, 0);
-        }
+        return $this->showLiffCheckoutLink($userId, $userDbId, $replyToken);
     }
-    
+
     /**
      * Show delivery options - Flex Message
      */
@@ -1331,19 +1014,19 @@ class BusinessBot
         $shippingFee = $this->settings['shipping_fee'] ?? 50;
         $freeShippingMin = $this->settings['free_shipping_min'] ?? 500;
         $isFreeShipping = $subtotal >= $freeShippingMin;
-        
+
         // Get LIFF URL - pass LINE User ID for LIFF authentication
         $liffUrl = $this->getLiffCheckoutUrl($userDbId, $userId);
-        
+
         // ถ้ามี LIFF - แสดง LIFF เป็นหลัก
         if ($liffUrl) {
             return $this->showLiffCheckout($userId, $userDbId, $replyToken, $subtotal, $itemCount, $liffUrl, $shippingFee, $isFreeShipping);
         }
-        
+
         // ถ้าไม่มี LIFF - แสดงแบบเดิม
         return $this->showTraditionalCheckout($userId, $userDbId, $replyToken, $subtotal, $itemCount, $shippingFee, $isFreeShipping);
     }
-    
+
     /**
      * Show LIFF checkout (primary method)
      */
@@ -1423,12 +1106,12 @@ class BusinessBot
                 ]
             ]
         ];
-        
+
         return $this->line->replyMessage($replyToken, [
             ['type' => 'flex', 'altText' => 'สั่งซื้อสินค้า - กดเพื่อดำเนินการ', 'contents' => $bubble]
         ]);
     }
-    
+
     /**
      * Show traditional checkout (fallback when no LIFF)
      */
@@ -1453,7 +1136,7 @@ class BusinessBot
                 'color' => '#AAAAAA'
             ]
         ];
-        
+
         $bubble = [
             'type' => 'bubble',
             'body' => [
@@ -1472,12 +1155,12 @@ class BusinessBot
                 'contents' => $buttons
             ]
         ];
-        
+
         return $this->line->replyMessage($replyToken, [
             ['type' => 'flex', 'altText' => 'เลือกวิธีรับสินค้า', 'contents' => $bubble]
         ]);
     }
-    
+
     /**
      * Get LIFF checkout URL
      */
@@ -1489,18 +1172,19 @@ class BusinessBot
             $stmt->execute([$this->lineAccountId ?: 1]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             $liffId = $row['liff_id'] ?? '';
-            
-            if (!$liffId) return null;
-            
+
+            if (!$liffId)
+                return null;
+
             // Use LINE User ID if provided, otherwise use DB ID
             $userParam = $lineUserId ?: $userDbId;
-            
+
             return "https://liff.line.me/{$liffId}?page=checkout&user={$userParam}";
         } catch (Exception $e) {
             return null;
         }
     }
-    
+
     /**
      * Quick checkout - สร้าง order ทันที (สำหรับ products table แบบเดิม)
      */
@@ -1513,7 +1197,7 @@ class BusinessBot
                 $price = $item['sale_price'] ?? $item['price'];
                 $total += $price * $item['quantity'];
             }
-            
+
             // Get shipping fee
             $shippingFee = $this->settings['shipping_fee'] ?? 0;
             $freeShippingMin = $this->settings['free_shipping_min'] ?? 0;
@@ -1521,17 +1205,18 @@ class BusinessBot
                 $shippingFee = 0;
             }
             $grandTotal = $total + $shippingFee;
-            
+
             // Create order
             $orderNumber = 'ORD' . date('ymdHis') . str_pad(mt_rand(1, 99), 2, '0', STR_PAD_LEFT);
-            
+
             // Check if orders table has line_account_id
             $hasAccountCol = false;
             try {
                 $stmt = $this->db->query("SHOW COLUMNS FROM orders LIKE 'line_account_id'");
                 $hasAccountCol = $stmt->rowCount() > 0;
-            } catch (Exception $e) {}
-            
+            } catch (Exception $e) {
+            }
+
             if ($hasAccountCol && $this->lineAccountId) {
                 $stmt = $this->db->prepare("INSERT INTO orders (line_account_id, order_number, user_id, total_amount, shipping_fee, grand_total, status, payment_status) VALUES (?, ?, ?, ?, ?, ?, 'pending', 'pending')");
                 $stmt->execute([$this->lineAccountId, $orderNumber, $userDbId, $total, $shippingFee, $grandTotal]);
@@ -1540,16 +1225,16 @@ class BusinessBot
                 $stmt->execute([$orderNumber, $userDbId, $total, $shippingFee, $grandTotal]);
             }
             $orderId = $this->db->lastInsertId();
-            
+
             // Add order items
             $itemsContent = [];
             foreach ($items as $item) {
                 $price = $item['sale_price'] ?? $item['price'];
                 $subtotal = $price * $item['quantity'];
-                
+
                 $stmt = $this->db->prepare("INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, subtotal) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$orderId, $item['product_id'], $item['name'], $price, $item['quantity'], $subtotal]);
-                
+
                 $itemsContent[] = [
                     'type' => 'box',
                     'layout' => 'horizontal',
@@ -1559,15 +1244,15 @@ class BusinessBot
                     ]
                 ];
             }
-            
+
             // Clear cart
             $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ?");
             $stmt->execute([$userDbId]);
-            
+
             // Get payment info
             $bankAccounts = json_decode($this->settings['bank_accounts'] ?? '{"banks":[]}', true)['banks'] ?? [];
             $promptpay = $this->settings['promptpay_number'] ?? '';
-            
+
             $paymentContents = [];
             if ($promptpay) {
                 $paymentContents[] = [
@@ -1599,7 +1284,7 @@ class BusinessBot
             if (empty($paymentContents)) {
                 $paymentContents[] = ['type' => 'text', 'text' => 'กรุณาติดต่อร้านค้า', 'size' => 'sm', 'color' => '#888888'];
             }
-            
+
             // Build Flex Message
             $bubble = [
                 'type' => 'bubble',
@@ -1650,76 +1335,46 @@ class BusinessBot
                     ]
                 ]
             ];
-            
+
             // Set state to await slip
             $this->setUserState($userDbId, 'awaiting_slip', ['order_id' => $orderId]);
-            
+
             return $this->line->replyMessage($replyToken, [
                 ['type' => 'flex', 'altText' => "ออเดอร์ #{$orderNumber}", 'contents' => $bubble]
             ]);
-            
+
         } catch (Exception $e) {
             $this->logError('quickCheckout', $e->getMessage(), ['user_id' => $userDbId]);
             return $this->replyText($replyToken, "❌ เกิดข้อผิดพลาด: " . $e->getMessage());
         }
     }
-    
+
     /**
      * Handle stateful messages (checkout flow, booking, etc.)
      */
     private function handleStatefulMessage($userId, $userDbId, $message, $replyToken, $state)
     {
+        // Legacy state machine removed for checkout
+        // Only keep valid states if any (e.g. awaiting_slip)
         $stateName = $state['state'];
-        $stateData = json_decode($state['state_data'] ?? '{}', true);
-        $text = mb_strtolower(trim($message));
-        
-        $this->logDebug('handleStatefulMessage', "Processing state: {$stateName}", [
-            'user_id' => $userDbId,
-            'state' => $stateName,
-            'message' => mb_substr($message, 0, 50)
-        ]);
-        
-        // Global cancel/reset commands - ใช้ได้ทุก state
-        if (in_array($text, ['ยกเลิก', 'cancel', 'ไม่', 'no', 'ออก', 'exit', 'quit', 'reset', 'รีเซ็ต', 'เริ่มใหม่'])) {
+
+        // Clear legacy checkout states
+        if (strpos($stateName, 'checkout_') === 0) {
             $this->clearUserState($userDbId);
-            return $this->replyText($replyToken, "❌ ยกเลิกเรียบร้อยแล้ว\n\nพิมพ์ 'menu' เพื่อดูเมนู หรือ 'shop' เพื่อดูสินค้า");
+            // Prompt to use LIFF instead
+            return $this->showLiffCheckoutLink($userId, $userDbId, $replyToken);
         }
-        
-        // Menu command - clear state and show menu
-        if (in_array($text, ['menu', 'เมนู', 'help', '?'])) {
-            $this->clearUserState($userDbId);
-            return false; // Let main handler process menu command
+
+        if ($stateName === 'awaiting_slip') {
+            $stateData = json_decode($state['state_data'] ?? '{}', true);
+            return $this->handleSlipUpload($userId, $userDbId, $message, $replyToken, $stateData);
         }
-        
-        switch ($stateName) {
-            case 'checkout_delivery':
-                return $this->handleDeliveryChoice($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'checkout_address':
-                return $this->handleAddressInput($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'checkout_payment':
-                return $this->handlePaymentChoice($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'checkout_confirm':
-                return $this->handleCheckoutConfirm($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'booking_select_date':
-                return $this->handleBookingDate($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'booking_select_time':
-                return $this->handleBookingTime($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            case 'awaiting_slip':
-                return $this->handleSlipUpload($userId, $userDbId, $message, $replyToken, $stateData);
-            
-            default:
-                $this->logDebug('handleStatefulMessage', "Unknown state: {$stateName}, clearing", ['user_id' => $userDbId]);
-                $this->clearUserState($userDbId);
-                return null;
-        }
+
+        // unknown state, clear
+        $this->clearUserState($userDbId);
+        return null;
     }
-    
+
     /**
      * Handle delivery choice (จัดส่ง/รับที่ร้าน)
      */
@@ -1727,19 +1382,19 @@ class BusinessBot
     {
         $text = mb_strtolower(trim($message));
         $subtotal = $stateData['subtotal'] ?? 0;
-        
+
         // ยกเลิก
         if (in_array($text, ['ยกเลิก', 'cancel', 'ไม่', 'no', 'ออก', 'exit', 'quit'])) {
             $this->clearUserState($userDbId);
             return $this->replyText($replyToken, "❌ ยกเลิกการสั่งซื้อแล้ว\n\nพิมพ์ 'cart' เพื่อดูตะกร้า หรือ 'menu' เพื่อดูเมนู");
         }
-        
+
         // กลับไปเมนู
         if (in_array($text, ['menu', 'เมนู', 'help', '?'])) {
             $this->clearUserState($userDbId);
             return false; // Let main handler process menu command
         }
-        
+
         // จัดส่ง - รองรับหลายรูปแบบ
         if (in_array($text, ['จัดส่ง', 'shipping', 'ส่ง', 'delivery', 'ship', '1', 'ส่งของ', 'ส่งถึงบ้าน', 'ส่งบ้าน'])) {
             // Need address
@@ -1747,7 +1402,7 @@ class BusinessBot
             $this->setUserState($userDbId, 'checkout_address', $stateData);
             return $this->replyText($replyToken, "📦 กรุณาส่งที่อยู่จัดส่ง\n\nรูปแบบ:\nชื่อ-นามสกุล\nเบอร์โทร\nที่อยู่\n\nตัวอย่าง:\nสมชาย ใจดี\n0812345678\n123 ถ.สุขุมวิท แขวงคลองเตย เขตคลองเตย กทม 10110\n\n💡 พิมพ์ 'ยกเลิก' เพื่อยกเลิก");
         }
-        
+
         // รับที่ร้าน - รองรับหลายรูปแบบ
         if (in_array($text, ['รับที่ร้าน', 'pickup', 'รับเอง', '2', 'รับ', 'มารับ', 'มารับเอง', 'รับของ', 'ไปรับ'])) {
             // Skip to payment
@@ -1756,17 +1411,17 @@ class BusinessBot
             $this->setUserState($userDbId, 'checkout_payment', $stateData);
             return $this->showPaymentOptions($userId, $userDbId, $replyToken, $subtotal, 0);
         }
-        
+
         // ถ้าพิมพ์อะไรมาก็ไม่รู้จัก - แสดงตัวเลือกใหม่พร้อมคำแนะนำ
         $helpText = "🚚 กรุณาเลือกวิธีรับสินค้า:\n\n";
         $helpText .= "📦 พิมพ์ 'จัดส่ง' - ส่งถึงบ้าน\n";
         $helpText .= "🏪 พิมพ์ 'รับที่ร้าน' - มารับเอง\n";
         $helpText .= "❌ พิมพ์ 'ยกเลิก' - ยกเลิกการสั่งซื้อ\n\n";
         $helpText .= "หรือกดปุ่มด้านบนได้เลยค่ะ";
-        
+
         return $this->replyText($replyToken, $helpText);
     }
-    
+
     /**
      * Show payment options - Flex Message
      */
@@ -1775,9 +1430,9 @@ class BusinessBot
         $total = $subtotal + $shippingFee;
         $promptpay = $this->settings['promptpay_number'] ?? '';
         $codEnabled = $this->settings['cod_enabled'] ?? true;
-        
+
         $buttons = [];
-        
+
         // Transfer option
         $buttons[] = [
             'type' => 'button',
@@ -1785,7 +1440,7 @@ class BusinessBot
             'style' => 'primary',
             'color' => '#06C755'
         ];
-        
+
         // COD option (if enabled)
         if ($codEnabled) {
             $buttons[] = [
@@ -1794,14 +1449,14 @@ class BusinessBot
                 'style' => 'secondary'
             ];
         }
-        
+
         $buttons[] = [
             'type' => 'button',
             'action' => ['type' => 'message', 'label' => '❌ ยกเลิก', 'text' => 'ยกเลิก'],
             'style' => 'secondary',
             'color' => '#AAAAAA'
         ];
-        
+
         $bubble = [
             'type' => 'bubble',
             'body' => [
@@ -1846,41 +1501,41 @@ class BusinessBot
                 'contents' => $buttons
             ]
         ];
-        
+
         return $this->line->replyMessage($replyToken, [
             ['type' => 'flex', 'altText' => 'เลือกวิธีชำระเงิน', 'contents' => $bubble]
         ]);
     }
-    
+
     /**
      * Handle payment choice
      */
     private function handlePaymentChoice($userId, $userDbId, $message, $replyToken, $stateData)
     {
         $text = mb_strtolower(trim($message));
-        
+
         // โอนเงิน - รองรับหลายรูปแบบ
         if (in_array($text, ['โอนเงิน', 'โอน', 'transfer', 'พร้อมเพย์', 'promptpay', '1', 'โอนก่อน', 'จ่ายก่อน'])) {
             $stateData['payment_method'] = 'transfer';
             return $this->createOrderAndShowPayment($userId, $userDbId, $replyToken, $stateData);
         }
-        
+
         // COD - รองรับหลายรูปแบบ
         if (in_array($text, ['cod', 'เก็บเงินปลายทาง', 'ปลายทาง', '2', 'จ่ายปลายทาง', 'เก็บปลายทาง'])) {
             $stateData['payment_method'] = 'cod';
             return $this->createOrderAndShowPayment($userId, $userDbId, $replyToken, $stateData);
         }
-        
+
         // ถ้าพิมพ์อะไรมาก็ไม่รู้จัก - แสดงตัวเลือกใหม่พร้อมคำแนะนำ
         $helpText = "💳 กรุณาเลือกวิธีชำระเงิน:\n\n";
         $helpText .= "💰 พิมพ์ 'โอนเงิน' - โอนเงินก่อน\n";
         $helpText .= "📦 พิมพ์ 'COD' - เก็บเงินปลายทาง\n";
         $helpText .= "❌ พิมพ์ 'ยกเลิก' - ยกเลิกการสั่งซื้อ\n\n";
         $helpText .= "หรือกดปุ่มด้านบนได้เลยค่ะ";
-        
+
         return $this->replyText($replyToken, $helpText);
     }
-    
+
     /**
      * Create order and show payment info
      */
@@ -1889,27 +1544,27 @@ class BusinessBot
         $deliveryType = $stateData['delivery_type'] ?? 'shipping';
         $deliveryInfo = $stateData['delivery_info'] ?? [];
         $paymentMethod = $stateData['payment_method'] ?? 'transfer';
-        
+
         // Create transaction
         $transactionId = $this->createTransaction($userDbId, $stateData);
-        
+
         if (!$transactionId) {
             return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาด กรุณาลองใหม่');
         }
-        
+
         // Get transaction details
         $transTable = $this->getTransactionsTable();
         $stmt = $this->db->prepare("SELECT * FROM {$transTable} WHERE id = ?");
         $stmt->execute([$transactionId]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         // Clear cart
         $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ?");
         $stmt->execute([$userDbId]);
-        
+
         // Clear state
         $this->clearUserState($userDbId);
-        
+
         if ($paymentMethod === 'cod') {
             return $this->showCODConfirmation($userId, $userDbId, $replyToken, $order, $deliveryInfo);
         } else {
@@ -1918,7 +1573,7 @@ class BusinessBot
             return $this->showTransferPaymentInfo($userId, $userDbId, $replyToken, $order, $deliveryInfo);
         }
     }
-    
+
     /**
      * Show COD confirmation
      */
@@ -1946,7 +1601,7 @@ class BusinessBot
                 ]
             ]
         ];
-        
+
         if (!empty($deliveryInfo['name'])) {
             $bubble['body']['contents'][] = ['type' => 'separator', 'margin' => 'lg'];
             $bubble['body']['contents'][] = ['type' => 'text', 'text' => '📍 ที่อยู่จัดส่ง', 'weight' => 'bold', 'size' => 'sm', 'margin' => 'lg'];
@@ -1954,9 +1609,9 @@ class BusinessBot
             $bubble['body']['contents'][] = ['type' => 'text', 'text' => $deliveryInfo['phone'] ?? '', 'size' => 'sm'];
             $bubble['body']['contents'][] = ['type' => 'text', 'text' => $deliveryInfo['address'] ?? '', 'size' => 'sm', 'wrap' => true];
         }
-        
+
         $bubble['body']['contents'][] = ['type' => 'text', 'text' => '🚚 รอการจัดส่ง 1-3 วันทำการ', 'size' => 'sm', 'color' => '#888888', 'margin' => 'lg', 'wrap' => true];
-        
+
         $bubble['footer'] = [
             'type' => 'box',
             'layout' => 'vertical',
@@ -1966,12 +1621,12 @@ class BusinessBot
                 ['type' => 'button', 'action' => ['type' => 'message', 'label' => '🛒 ช้อปต่อ', 'text' => 'shop'], 'style' => 'secondary']
             ]
         ];
-        
+
         return $this->line->replyMessage($replyToken, [
             ['type' => 'flex', 'altText' => "ออเดอร์ #{$order['order_number']} - COD", 'contents' => $bubble]
         ]);
     }
-    
+
     /**
      * Show transfer payment info
      */
@@ -1979,7 +1634,7 @@ class BusinessBot
     {
         $bankAccounts = json_decode($this->settings['bank_accounts'] ?? '{"banks":[]}', true)['banks'] ?? [];
         $promptpay = $this->settings['promptpay_number'] ?? '';
-        
+
         $paymentContents = [];
         if ($promptpay) {
             $paymentContents[] = [
@@ -2011,7 +1666,7 @@ class BusinessBot
         if (empty($paymentContents)) {
             $paymentContents[] = ['type' => 'text', 'text' => 'กรุณาติดต่อร้านค้า', 'size' => 'sm', 'color' => '#888888'];
         }
-        
+
         $bubble = [
             'type' => 'bubble',
             'body' => [
@@ -2052,17 +1707,17 @@ class BusinessBot
                 ]
             ]
         ];
-        
+
         return $this->line->replyMessage($replyToken, [
             ['type' => 'flex', 'altText' => "ออเดอร์ #{$order['order_number']}", 'contents' => $bubble]
         ]);
     }
-    
+
     private function handleAddressInput($userId, $userDbId, $message, $replyToken, $stateData)
     {
         // Check for cancel - handled by global handler in handleStatefulMessage
         $text = mb_strtolower(trim($message));
-        
+
         // ถ้าพิมพ์คำสั่งพิเศษ
         if (in_array($text, ['กลับ', 'back', 'ย้อน'])) {
             // กลับไปเลือกวิธีจัดส่ง
@@ -2070,7 +1725,7 @@ class BusinessBot
             $subtotal = $stateData['subtotal'] ?? 0;
             return $this->showDeliveryOptions($userId, $userDbId, $replyToken, $subtotal, 0);
         }
-        
+
         // Parse address (simple format: name\nphone\naddress)
         $lines = explode("\n", trim($message));
         if (count($lines) < 3) {
@@ -2086,14 +1741,14 @@ class BusinessBot
             $helpText .= "💡 พิมพ์ 'ยกเลิก' เพื่อยกเลิก หรือ 'กลับ' เพื่อเลือกวิธีจัดส่งใหม่";
             return $this->replyText($replyToken, $helpText);
         }
-        
+
         $deliveryInfo = [
             'type' => 'shipping',
             'name' => trim($lines[0]),
             'phone' => trim($lines[1]),
             'address' => trim(implode(' ', array_slice($lines, 2)))
         ];
-        
+
         // Calculate shipping fee
         $subtotal = $stateData['subtotal'] ?? 0;
         $shippingFee = $this->settings['shipping_fee'] ?? 50;
@@ -2101,11 +1756,11 @@ class BusinessBot
         if ($subtotal >= $freeShippingMin) {
             $shippingFee = 0;
         }
-        
+
         $stateData['delivery_info'] = $deliveryInfo;
         $stateData['shipping_fee'] = $shippingFee;
         $this->setUserState($userDbId, 'checkout_payment', $stateData);
-        
+
         return $this->showPaymentOptions($userId, $userDbId, $replyToken, $subtotal, $shippingFee);
     }
 
@@ -2121,13 +1776,13 @@ class BusinessBot
                                     WHERE c.user_id = ?");
         $stmt->execute([$userDbId]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         $subtotal = 0;
         foreach ($items as $item) {
             $price = $item['sale_price'] ?? $item['price'];
             $subtotal += $price * $item['quantity'];
         }
-        
+
         $shippingFee = 0;
         if ($deliveryType === 'shipping') {
             $shippingFee = $this->settings['shipping_fee'] ?? 50;
@@ -2136,9 +1791,9 @@ class BusinessBot
                 $shippingFee = 0;
             }
         }
-        
+
         $total = $subtotal + $shippingFee;
-        
+
         // Build summary message
         $summaryText = "📋 สรุปคำสั่งซื้อ\n\n";
         foreach ($items as $item) {
@@ -2150,35 +1805,35 @@ class BusinessBot
             $summaryText .= "\n🚚 ค่าส่ง: ฿" . number_format($shippingFee);
         }
         $summaryText .= "\n\n💵 รวมทั้งหมด: ฿" . number_format($total);
-        
+
         if ($deliveryInfo) {
             $summaryText .= "\n\n📦 ส่งถึง:\n{$deliveryInfo['name']}\n{$deliveryInfo['phone']}\n{$deliveryInfo['address']}";
         } elseif ($deliveryType === 'digital') {
             $summaryText .= "\n\n📧 ส่งทาง LINE ทันทีหลังชำระเงิน";
         }
-        
+
         $summaryText .= "\n\n✅ พิมพ์ 'ยืนยัน' เพื่อสร้างออเดอร์";
-        
+
         return $this->replyText($replyToken, $summaryText);
     }
-    
+
     private function handleCheckoutConfirm($userId, $userDbId, $message, $replyToken, $stateData)
     {
         $text = strtolower(trim($message));
-        
+
         if (!in_array($text, ['ยืนยัน', 'confirm', 'yes', 'ok'])) {
             return $this->replyText($replyToken, 'พิมพ์ "ยืนยัน" เพื่อสร้างออเดอร์ หรือ "ยกเลิก" เพื่อยกเลิก');
         }
-        
+
         // Create transaction
         $transactionId = $this->createTransaction($userDbId, $stateData);
-        
+
         if (!$transactionId) {
             return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาด กรุณาลองใหม่');
         }
-        
+
         $this->clearUserState($userDbId);
-        
+
         // Show payment info
         return $this->showPaymentInfo($userId, $userDbId, $transactionId, $replyToken);
     }
@@ -2190,10 +1845,10 @@ class BusinessBot
     {
         try {
             $this->db->beginTransaction();
-            
+
             $table = $this->getItemsTable();
             $transTable = $this->getTransactionsTable();
-            
+
             // Get cart items
             $stmt = $this->db->prepare("SELECT c.*, p.name, p.price, p.sale_price, p.item_type, p.delivery_method, p.action_data 
                                         FROM cart_items c 
@@ -2201,19 +1856,19 @@ class BusinessBot
                                         WHERE c.user_id = ?");
             $stmt->execute([$userDbId]);
             $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             if (empty($items)) {
                 $this->db->rollBack();
                 return null;
             }
-            
+
             // Calculate totals
             $subtotal = 0;
             foreach ($items as $item) {
                 $price = $item['sale_price'] ?? $item['price'];
                 $subtotal += $price * $item['quantity'];
             }
-            
+
             $deliveryType = $stateData['delivery_type'] ?? 'shipping';
             $shippingFee = 0;
             if ($deliveryType === 'shipping') {
@@ -2223,10 +1878,10 @@ class BusinessBot
                     $shippingFee = 0;
                 }
             }
-            
+
             $total = $subtotal + $shippingFee;
             $orderNumber = 'TXN' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
-            
+
             // Determine transaction type
             $hasBooking = false;
             foreach ($items as $item) {
@@ -2236,16 +1891,16 @@ class BusinessBot
                 }
             }
             $transactionType = $hasBooking ? 'booking' : 'purchase';
-            
+
             // Insert transaction
             $deliveryInfo = $stateData['delivery_info'] ?? null;
             $paymentMethod = $stateData['payment_method'] ?? 'transfer';
-            
+
             // กำหนดสถานะตาม payment method
             // COD: ข้ามขั้นตอนรอชำระเงิน ไปยืนยันออเดอร์เลย
             $orderStatus = ($paymentMethod === 'cod') ? 'confirmed' : 'pending';
             $paymentStatus = ($paymentMethod === 'cod') ? 'cod_pending' : 'pending';
-            
+
             if ($transTable === 'transactions') {
                 $stmt = $this->db->prepare("INSERT INTO transactions 
                     (line_account_id, transaction_type, order_number, user_id, total_amount, shipping_fee, grand_total, delivery_info, payment_method, status, payment_status) 
@@ -2282,37 +1937,37 @@ class BusinessBot
                     $paymentStatus
                 ]);
             }
-            
+
             $transactionId = $this->db->lastInsertId();
-            
+
             // Insert transaction items
             $itemsTable = $transTable === 'transactions' ? 'transaction_items' : 'order_items';
             $fkColumn = $transTable === 'transactions' ? 'transaction_id' : 'order_id';
-            
+
             foreach ($items as $item) {
                 $price = $item['sale_price'] ?? $item['price'];
                 $itemSubtotal = $price * $item['quantity'];
-                
+
                 $stmt = $this->db->prepare("INSERT INTO {$itemsTable} 
-                    ({$fkColumn}, product_id, product_name, product_price, quantity, subtotal" . 
+                    ({$fkColumn}, product_id, product_name, product_price, quantity, subtotal" .
                     ($itemsTable === 'transaction_items' ? ", item_type" : "") . ") 
                     VALUES (?, ?, ?, ?, ?, ?" . ($itemsTable === 'transaction_items' ? ", ?" : "") . ")");
-                
+
                 $params = [$transactionId, $item['product_id'], $item['name'], $price, $item['quantity'], $itemSubtotal];
                 if ($itemsTable === 'transaction_items') {
                     $params[] = $item['item_type'] ?? self::TYPE_PHYSICAL;
                 }
                 $stmt->execute($params);
-                
+
                 // Reduce stock
                 $stmt = $this->db->prepare("UPDATE {$table} SET stock = stock - ? WHERE id = ?");
                 $stmt->execute([$item['quantity'], $item['product_id']]);
             }
-            
+
             // Clear cart
             $stmt = $this->db->prepare("DELETE FROM cart_items WHERE user_id = ?");
             $stmt->execute([$userDbId]);
-            
+
             // WMS Integration: Set wms_status to pending_pick for COD orders (already confirmed)
             if ($orderStatus === 'confirmed' && $transTable === 'transactions') {
                 try {
@@ -2322,13 +1977,13 @@ class BusinessBot
                     // wms_status column may not exist, ignore
                 }
             }
-            
+
             $this->db->commit();
-            
+
             $this->trackBehavior($userDbId, 'purchase', ['transaction_id' => $transactionId, 'amount' => $total]);
-            
+
             return $transactionId;
-            
+
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log("Create transaction error: " . $e->getMessage());
@@ -2345,37 +2000,37 @@ class BusinessBot
         $stmt = $this->db->prepare("SELECT * FROM {$transTable} WHERE id = ?");
         $stmt->execute([$transactionId]);
         $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         $orderNumber = $transaction['order_number'];
         $total = $transaction['grand_total'];
-        
+
         // Get bank accounts
         $bankAccounts = json_decode($this->settings['bank_accounts'] ?? '{"banks":[]}', true);
         $promptpay = $this->settings['promptpay_number'] ?? '';
-        
+
         $paymentText = "💳 ชำระเงิน\n\n";
         $paymentText .= "📋 เลขที่: {$orderNumber}\n";
         $paymentText .= "💰 ยอดชำระ: ฿" . number_format($total, 2) . "\n\n";
-        
+
         if ($promptpay) {
             $paymentText .= "📱 PromptPay: {$promptpay}\n\n";
         }
-        
+
         if (!empty($bankAccounts['banks'])) {
             $paymentText .= "🏦 โอนเงิน:\n";
             foreach ($bankAccounts['banks'] as $bank) {
                 $paymentText .= "• {$bank['name']}: {$bank['account']}\n  ชื่อ: {$bank['holder']}\n";
             }
         }
-        
+
         $paymentText .= "\n📸 หลังโอนเงิน กรุณาส่งสลิปมาที่นี่";
-        
+
         // Set state to await slip
         $this->setUserState($userDbId, 'awaiting_slip', ['transaction_id' => $transactionId]);
-        
+
         return $this->replyText($replyToken, $paymentText);
     }
-    
+
     /**
      * Handle slip upload
      * Note: This is called when user sends a TEXT message while in awaiting_slip state
@@ -2385,23 +2040,23 @@ class BusinessBot
     {
         // รองรับทั้ง order_id และ transaction_id
         $orderId = $stateData['order_id'] ?? $stateData['transaction_id'] ?? null;
-        
+
         if (!$orderId) {
             $this->clearUserState($userDbId);
             return null;
         }
-        
+
         // ถ้าผู้ใช้พิมพ์ข้อความแทนที่จะส่งรูป ให้แนะนำให้ส่งรูป
         $textLower = mb_strtolower(trim($message));
         if (!in_array($textLower, ['ยกเลิก', 'cancel', 'ออก', 'exit'])) {
             return $this->replyText($replyToken, "📸 กรุณาส่งรูปสลิปการโอนเงินมาเลยค่ะ\n\n(หรือพิมพ์ 'ยกเลิก' เพื่อยกเลิก)");
         }
-        
+
         // ผู้ใช้ต้องการยกเลิก
         $this->clearUserState($userDbId);
         return $this->replyText($replyToken, "❌ ยกเลิกการส่งสลิปแล้ว\n\nพิมพ์ 'orders' เพื่อดูรายการของคุณ\nหรือพิมพ์ 'สลิป' เพื่อส่งสลิปใหม่");
     }
-    
+
     /**
      * Show user's orders/transactions
      */
@@ -2410,20 +2065,21 @@ class BusinessBot
         $orders = [];
         try {
             $transTable = $this->getTransactionsTable();
-            
+
             // ถ้าไม่มีตาราง
             if (!$transTable) {
                 $flex = FlexTemplates::info('ยังไม่มีรายการ', 'ระบบคำสั่งซื้อยังไม่พร้อมใช้งาน', [['label' => '🛒 ไปช้อป', 'text' => 'shop']]);
                 return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'รายการของฉัน')]);
             }
-            
+
             // ตรวจสอบว่ามี column line_account_id หรือไม่
             $hasAccountCol = false;
             try {
                 $stmt = $this->db->query("SHOW COLUMNS FROM {$transTable} LIKE 'line_account_id'");
                 $hasAccountCol = $stmt->rowCount() > 0;
-            } catch (Exception $e) {}
-            
+            } catch (Exception $e) {
+            }
+
             $sql = "SELECT * FROM {$transTable} WHERE user_id = ?";
             if ($this->lineAccountId && $hasAccountCol) {
                 $sql .= " AND (line_account_id = ? OR line_account_id IS NULL)";
@@ -2441,16 +2097,16 @@ class BusinessBot
             $this->logError('showOrders', $e->getMessage());
             $orders = [];
         }
-        
+
         if (empty($orders)) {
             $flex = FlexTemplates::info('ยังไม่มีรายการ', 'คุณยังไม่มีรายการสั่งซื้อ', [['label' => '🛒 ไปช้อป', 'text' => 'shop']]);
             return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'รายการของฉัน')]);
         }
-        
+
         $bubbles = [];
         foreach ($orders as $order) {
             $statusConfig = $this->getStatusConfig($order['status']);
-            
+
             $bubbles[] = [
                 'type' => 'bubble',
                 'size' => 'kilo',
@@ -2460,31 +2116,36 @@ class BusinessBot
                     'contents' => [
                         ['type' => 'text', 'text' => "#{$order['order_number']}", 'weight' => 'bold', 'size' => 'md'],
                         ['type' => 'text', 'text' => "฿" . number_format($order['grand_total'], 2), 'size' => 'xl', 'weight' => 'bold', 'color' => '#06C755', 'margin' => 'md'],
-                        ['type' => 'box', 'layout' => 'horizontal', 'contents' => [
-                            ['type' => 'text', 'text' => $statusConfig['icon'] . ' ' . $statusConfig['text'], 'size' => 'sm', 'color' => $statusConfig['color']]
-                        ], 'margin' => 'md'],
+                        [
+                            'type' => 'box',
+                            'layout' => 'horizontal',
+                            'contents' => [
+                                ['type' => 'text', 'text' => $statusConfig['icon'] . ' ' . $statusConfig['text'], 'size' => 'sm', 'color' => $statusConfig['color']]
+                            ],
+                            'margin' => 'md'
+                        ],
                         ['type' => 'text', 'text' => date('d/m/Y H:i', strtotime($order['created_at'])), 'size' => 'xs', 'color' => '#888888', 'margin' => 'md']
                     ],
                     'paddingAll' => 'lg'
                 ]
             ];
         }
-        
+
         $flex = ['type' => 'carousel', 'contents' => $bubbles];
         return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'รายการของฉัน')]);
     }
-    
+
     private function getStatusConfig($status)
     {
-        return match($status) {
+        $configs = [
             'pending' => ['icon' => '⏳', 'text' => 'รอดำเนินการ', 'color' => '#F59E0B'],
             'confirmed' => ['icon' => '✅', 'text' => 'ยืนยันแล้ว', 'color' => '#06C755'],
             'paid' => ['icon' => '💰', 'text' => 'ชำระแล้ว', 'color' => '#06C755'],
             'shipping' => ['icon' => '🚚', 'text' => 'กำลังจัดส่ง', 'color' => '#3B82F6'],
             'delivered' => ['icon' => '📦', 'text' => 'จัดส่งแล้ว', 'color' => '#10B981'],
-            'cancelled' => ['icon' => '❌', 'text' => 'ยกเลิก', 'color' => '#EF4444'],
-            default => ['icon' => '📋', 'text' => $status, 'color' => '#888888']
-        };
+            'cancelled' => ['icon' => '❌', 'text' => 'ยกเลิก', 'color' => '#EF4444']
+        ];
+        return $configs[$status] ?? ['icon' => '📋', 'text' => $status, 'color' => '#888888'];
     }
 
     /**
@@ -2497,28 +2158,30 @@ class BusinessBot
             $stmt = $this->db->prepare("SELECT * FROM users WHERE id = ?");
             $stmt->execute([$userDbId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!$user) {
                 return $this->replyText($replyToken, "ไม่พบข้อมูลสมาชิก");
             }
-            
+
             // Get points
             require_once __DIR__ . '/LoyaltyPoints.php';
             $loyalty = new \LoyaltyPoints($this->db, $this->lineAccountId);
             $userPoints = $loyalty->getUserPoints($userDbId);
             $history = $loyalty->getPointsHistory($userDbId, 5);
-            
+
             // Get member tier
             $tier = $this->getMemberTier($userPoints['total_points']);
-            
+
             // Get shop name
             $shopName = 'LINE Shop';
             try {
                 $stmt = $this->db->query("SELECT shop_name FROM shop_settings WHERE id = 1");
                 $settings = $stmt->fetch();
-                if ($settings) $shopName = $settings['shop_name'];
-            } catch (Exception $e) {}
-            
+                if ($settings)
+                    $shopName = $settings['shop_name'];
+            } catch (Exception $e) {
+            }
+
             // Build history contents
             $historyContents = [];
             if (!empty($history)) {
@@ -2526,13 +2189,18 @@ class BusinessBot
                 foreach (array_slice($history, 0, 3) as $h) {
                     $sign = $h['type'] === 'earn' ? '+' : '-';
                     $color = $h['type'] === 'earn' ? '#06C755' : '#EF4444';
-                    $historyContents[] = ['type' => 'box', 'layout' => 'horizontal', 'margin' => 'sm', 'contents' => [
-                        ['type' => 'text', 'text' => mb_substr($h['description'], 0, 18), 'size' => 'xs', 'color' => '#888888', 'flex' => 3],
-                        ['type' => 'text', 'text' => $sign . number_format(abs($h['points'])), 'size' => 'xs', 'color' => $color, 'align' => 'end', 'flex' => 1]
-                    ]];
+                    $historyContents[] = [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'margin' => 'sm',
+                        'contents' => [
+                            ['type' => 'text', 'text' => mb_substr($h['description'], 0, 18), 'size' => 'xs', 'color' => '#888888', 'flex' => 3],
+                            ['type' => 'text', 'text' => $sign . number_format(abs($h['points'])), 'size' => 'xs', 'color' => $color, 'align' => 'end', 'flex' => 1]
+                        ]
+                    ];
                 }
             }
-            
+
             // Build Points Card Flex (Member Card Style)
             $pointsCard = [
                 'type' => 'bubble',
@@ -2646,7 +2314,7 @@ class BusinessBot
                     'paddingAll' => 'md'
                 ]
             ];
-            
+
             return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($pointsCard, 'แต้มสะสม')]);
         } catch (Exception $e) {
             $this->logError('showPoints', $e->getMessage());
@@ -2664,33 +2332,43 @@ class BusinessBot
             $loyalty = new \LoyaltyPoints($this->db, $this->lineAccountId);
             $rewards = $loyalty->getRewards(true);
             $userPoints = $loyalty->getUserPoints($userDbId);
-            
+
             if (empty($rewards)) {
                 $flex = FlexTemplates::info('ยังไม่มีของรางวัล', 'ร้านค้ายังไม่มีของรางวัลให้แลก', [['label' => 'ดูแต้ม', 'text' => 'แต้ม']]);
                 return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'ของรางวัล')]);
             }
-            
+
             $bubbles = [];
             foreach (array_slice($rewards, 0, 10) as $reward) {
                 $canRedeem = $userPoints['available_points'] >= $reward['points_required'];
                 $bubble = [
                     'type' => 'bubble',
                     'size' => 'kilo',
-                    'body' => ['type' => 'box', 'layout' => 'vertical', 'contents' => [
-                        ['type' => 'text', 'text' => $reward['name'], 'weight' => 'bold', 'size' => 'md', 'wrap' => true],
-                        ['type' => 'text', 'text' => number_format($reward['points_required']) . ' แต้ม', 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755', 'margin' => 'md'],
-                        ['type' => 'text', 'text' => $reward['stock'] < 0 ? 'ไม่จำกัดจำนวน' : "เหลือ {$reward['stock']} ชิ้น", 'size' => 'xs', 'color' => '#888888', 'margin' => 'sm']
-                    ], 'paddingAll' => 'lg'],
-                    'footer' => ['type' => 'box', 'layout' => 'vertical', 'contents' => [
-                        ['type' => 'button', 'action' => ['type' => 'message', 'label' => $canRedeem ? 'แลกเลย' : 'แต้มไม่พอ', 'text' => "redeem {$reward['id']}"], 'style' => $canRedeem ? 'primary' : 'secondary', 'color' => $canRedeem ? '#06C755' : '#CCCCCC', 'height' => 'sm']
-                    ], 'paddingAll' => 'md']
+                    'body' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            ['type' => 'text', 'text' => $reward['name'], 'weight' => 'bold', 'size' => 'md', 'wrap' => true],
+                            ['type' => 'text', 'text' => number_format($reward['points_required']) . ' แต้ม', 'size' => 'lg', 'weight' => 'bold', 'color' => '#06C755', 'margin' => 'md'],
+                            ['type' => 'text', 'text' => $reward['stock'] < 0 ? 'ไม่จำกัดจำนวน' : "เหลือ {$reward['stock']} ชิ้น", 'size' => 'xs', 'color' => '#888888', 'margin' => 'sm']
+                        ],
+                        'paddingAll' => 'lg'
+                    ],
+                    'footer' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            ['type' => 'button', 'action' => ['type' => 'message', 'label' => $canRedeem ? 'แลกเลย' : 'แต้มไม่พอ', 'text' => "redeem {$reward['id']}"], 'style' => $canRedeem ? 'primary' : 'secondary', 'color' => $canRedeem ? '#06C755' : '#CCCCCC', 'height' => 'sm']
+                        ],
+                        'paddingAll' => 'md'
+                    ]
                 ];
                 if (!empty($reward['image_url'])) {
                     $bubble['hero'] = ['type' => 'image', 'url' => $reward['image_url'], 'size' => 'full', 'aspectRatio' => '4:3', 'aspectMode' => 'cover'];
                 }
                 $bubbles[] = $bubble;
             }
-            
+
             $flex = ['type' => 'carousel', 'contents' => $bubbles];
             return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'ของรางวัล')]);
         } catch (Exception $e) {
@@ -2709,30 +2387,33 @@ class BusinessBot
             $stmt = $this->db->prepare("SELECT * FROM users WHERE id = ?");
             $stmt->execute([$userDbId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!$user) {
                 return $this->replyText($replyToken, "ไม่พบข้อมูลสมาชิก");
             }
-            
+
             // Get points
             $points = ['available_points' => 0, 'total_points' => 0];
             try {
                 require_once __DIR__ . '/LoyaltyPoints.php';
                 $loyalty = new \LoyaltyPoints($this->db, $this->lineAccountId);
                 $points = $loyalty->getUserPoints($userDbId);
-            } catch (Exception $e) {}
-            
+            } catch (Exception $e) {
+            }
+
             // Get member tier
             $tier = $this->getMemberTier($points['total_points']);
-            
+
             // Get shop name
             $shopName = 'LINE Shop';
             try {
                 $stmt = $this->db->query("SELECT shop_name FROM shop_settings WHERE id = 1");
                 $settings = $stmt->fetch();
-                if ($settings) $shopName = $settings['shop_name'];
-            } catch (Exception $e) {}
-            
+                if ($settings)
+                    $shopName = $settings['shop_name'];
+            } catch (Exception $e) {
+            }
+
             // Build member card Flex
             $memberCard = [
                 'type' => 'bubble',
@@ -2844,7 +2525,7 @@ class BusinessBot
                     'paddingAll' => 'md'
                 ]
             ];
-            
+
             return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($memberCard, 'บัตรสมาชิก')]);
         } catch (Exception $e) {
             $this->logError('showMemberCard', $e->getMessage());
@@ -2879,7 +2560,7 @@ class BusinessBot
             require_once __DIR__ . '/LoyaltyPoints.php';
             $loyalty = new \LoyaltyPoints($this->db, $this->lineAccountId);
             $result = $loyalty->redeemReward($userDbId, $rewardId);
-            
+
             if ($result['success']) {
                 $flex = FlexTemplates::success(
                     'แลกของรางวัลสำเร็จ!',
@@ -2905,25 +2586,25 @@ class BusinessBot
         if (!$item) {
             return $this->replyText($replyToken, 'ไม่พบบริการนี้');
         }
-        
+
         $itemType = $item['item_type'] ?? self::TYPE_PHYSICAL;
         if (!in_array($itemType, [self::TYPE_BOOKING, self::TYPE_SERVICE])) {
             // Not a bookable item, add to cart instead
             return $this->addToCart($userId, $userDbId, $itemId, 1, $replyToken);
         }
-        
+
         // Set state for booking flow
         $this->setUserState($userDbId, 'booking_select_date', ['item_id' => $itemId, 'item_name' => $item['name']]);
-        
+
         // Show date picker (simplified - just ask for date)
         $message = "📅 จอง: {$item['name']}\n\n";
         $message .= "กรุณาพิมพ์วันที่ต้องการจอง\n";
         $message .= "รูปแบบ: DD/MM/YYYY\n";
         $message .= "ตัวอย่าง: " . date('d/m/Y', strtotime('+1 day'));
-        
+
         return $this->replyText($replyToken, $message);
     }
-    
+
     private function handleBookingDate($userId, $userDbId, $message, $replyToken, $stateData)
     {
         // Parse date
@@ -2933,68 +2614,69 @@ class BusinessBot
         } elseif (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})/', $message, $matches)) {
             $date = $message;
         }
-        
+
         if (!$date || strtotime($date) < strtotime('today')) {
             return $this->replyText($replyToken, "❌ วันที่ไม่ถูกต้อง กรุณาระบุวันที่ในอนาคต\nรูปแบบ: DD/MM/YYYY");
         }
-        
+
         $stateData['booking_date'] = $date;
         $this->setUserState($userDbId, 'booking_select_time', $stateData);
-        
+
         $message = "⏰ เลือกเวลา\n\n";
         $message .= "วันที่: " . date('d/m/Y', strtotime($date)) . "\n\n";
         $message .= "กรุณาพิมพ์เวลาที่ต้องการ\n";
         $message .= "รูปแบบ: HH:MM\n";
         $message .= "ตัวอย่าง: 10:00, 14:30";
-        
+
         return $this->replyText($replyToken, $message);
     }
-    
+
     private function handleBookingTime($userId, $userDbId, $message, $replyToken, $stateData)
     {
         // Parse time
         if (!preg_match('/(\d{1,2}):(\d{2})/', $message, $matches)) {
             return $this->replyText($replyToken, "❌ เวลาไม่ถูกต้อง\nรูปแบบ: HH:MM");
         }
-        
+
         $time = sprintf('%02d:%02d', $matches[1], $matches[2]);
         $stateData['booking_time'] = $time;
-        
+
         // Create booking
         $bookingId = $this->createBooking($userDbId, $stateData);
-        
+
         $this->clearUserState($userDbId);
-        
+
         if (!$bookingId) {
             return $this->replyText($replyToken, '❌ เกิดข้อผิดพลาด กรุณาลองใหม่');
         }
-        
+
         $flex = FlexTemplates::success(
             'จองสำเร็จ!',
             "{$stateData['item_name']}\n📅 " . date('d/m/Y', strtotime($stateData['booking_date'])) . " ⏰ {$time}",
             [['label' => '📋 ดูการจอง', 'text' => 'orders']]
         );
-        
+
         return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, 'จองสำเร็จ')]);
     }
-    
+
     private function createBooking($userDbId, $stateData)
     {
         try {
             $item = $this->getItem($stateData['item_id']);
-            if (!$item) return null;
-            
+            if (!$item)
+                return null;
+
             $price = $item['sale_price'] ?? $item['price'];
             $orderNumber = 'BK' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
-            
+
             $transTable = $this->getTransactionsTable();
-            
+
             $deliveryInfo = [
                 'type' => 'booking',
                 'date' => $stateData['booking_date'],
                 'time' => $stateData['booking_time']
             ];
-            
+
             if ($transTable === 'transactions') {
                 $stmt = $this->db->prepare("INSERT INTO transactions 
                     (line_account_id, transaction_type, order_number, user_id, total_amount, grand_total, delivery_info, status) 
@@ -3020,20 +2702,20 @@ class BusinessBot
                     "Booking: {$stateData['booking_date']} {$stateData['booking_time']}"
                 ]);
             }
-            
+
             $transactionId = $this->db->lastInsertId();
-            
+
             // Insert item
             $itemsTable = $transTable === 'transactions' ? 'transaction_items' : 'order_items';
             $fkColumn = $transTable === 'transactions' ? 'transaction_id' : 'order_id';
-            
+
             $stmt = $this->db->prepare("INSERT INTO {$itemsTable} ({$fkColumn}, product_id, product_name, product_price, quantity, subtotal) VALUES (?, ?, ?, ?, 1, ?)");
             $stmt->execute([$transactionId, $item['id'], $item['name'], $price, $price]);
-            
+
             $this->trackBehavior($userDbId, 'booking', ['transaction_id' => $transactionId, 'item_id' => $item['id']]);
-            
+
             return $transactionId;
-            
+
         } catch (Exception $e) {
             error_log("Create booking error: " . $e->getMessage());
             return null;
@@ -3047,22 +2729,24 @@ class BusinessBot
     {
         try {
             $item = $this->getItem($itemId);
-            if (!$item) return false;
-            
+            if (!$item)
+                return false;
+
             $actionData = $item['action_data'] ?? [];
             $deliveryMethod = $item['delivery_method'] ?? self::DELIVER_LINE;
-            
+
             // Get transaction and user
             $transTable = $this->getTransactionsTable();
             $stmt = $this->db->prepare("SELECT t.*, u.line_user_id FROM {$transTable} t JOIN users u ON t.user_id = u.id WHERE t.id = ?");
             $stmt->execute([$transactionId]);
             $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$transaction) return false;
-            
+
+            if (!$transaction)
+                return false;
+
             $lineUserId = $transaction['line_user_id'];
             $fulfillmentData = [];
-            
+
             switch ($deliveryMethod) {
                 case self::DELIVER_LINE:
                     // Send via LINE message
@@ -3071,12 +2755,12 @@ class BusinessBot
                         $message .= "📋 รายการ: {$item['name']}\n";
                         $message .= "🔑 โค้ด: {$actionData['game_code']}\n\n";
                         $message .= "⚠️ กรุณาเก็บโค้ดนี้ไว้ ใช้ได้ครั้งเดียว";
-                        
+
                         $this->line->pushMessage($lineUserId, $message);
                         $fulfillmentData['code_sent'] = $actionData['game_code'];
                     }
                     break;
-                    
+
                 case self::DELIVER_DOWNLOAD:
                     // Send download link
                     if (!empty($actionData['download_url'])) {
@@ -3086,35 +2770,35 @@ class BusinessBot
                         if (!empty($item['validity_days'])) {
                             $message .= "⏰ ลิงก์หมดอายุใน {$item['validity_days']} วัน";
                         }
-                        
+
                         $this->line->pushMessage($lineUserId, $message);
                         $fulfillmentData['download_url'] = $actionData['download_url'];
                     }
                     break;
-                    
+
                 case self::DELIVER_EMAIL:
                     // Mark for email delivery (handled separately)
                     $fulfillmentData['email_pending'] = true;
                     break;
             }
-            
+
             // Update transaction item as delivered
             $itemsTable = $transTable === 'transactions' ? 'transaction_items' : 'order_items';
             $fkColumn = $transTable === 'transactions' ? 'transaction_id' : 'order_id';
-            
+
             if ($transTable === 'transactions') {
                 $stmt = $this->db->prepare("UPDATE transaction_items SET item_data = ?, delivered_at = NOW() WHERE {$fkColumn} = ? AND product_id = ?");
                 $stmt->execute([json_encode($fulfillmentData), $transactionId, $itemId]);
             }
-            
+
             return true;
-            
+
         } catch (Exception $e) {
             error_log("Fulfill digital item error: " . $e->getMessage());
             return false;
         }
     }
-    
+
     /**
      * Auto-fulfill all digital items in a transaction
      */
@@ -3124,58 +2808,60 @@ class BusinessBot
         $itemsTable = $transTable === 'transactions' ? 'transaction_items' : 'order_items';
         $fkColumn = $transTable === 'transactions' ? 'transaction_id' : 'order_id';
         $table = $this->getItemsTable();
-        
+
         $stmt = $this->db->prepare("SELECT ti.*, p.item_type, p.delivery_method 
                                     FROM {$itemsTable} ti 
                                     JOIN {$table} p ON ti.product_id = p.id 
                                     WHERE ti.{$fkColumn} = ?");
         $stmt->execute([$transactionId]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         $allFulfilled = true;
         foreach ($items as $item) {
             $itemType = $item['item_type'] ?? self::TYPE_PHYSICAL;
             $deliveryMethod = $item['delivery_method'] ?? self::DELIVER_SHIPPING;
-            
+
             // Auto-fulfill digital items
-            if (in_array($itemType, [self::TYPE_DIGITAL, self::TYPE_CONTENT]) ||
-                in_array($deliveryMethod, [self::DELIVER_LINE, self::DELIVER_DOWNLOAD, self::DELIVER_EMAIL])) {
-                
+            if (
+                in_array($itemType, [self::TYPE_DIGITAL, self::TYPE_CONTENT]) ||
+                in_array($deliveryMethod, [self::DELIVER_LINE, self::DELIVER_DOWNLOAD, self::DELIVER_EMAIL])
+            ) {
+
                 if (!$this->fulfillDigitalItem($transactionId, $item['product_id'])) {
                     $allFulfilled = false;
                 }
             }
         }
-        
+
         // Update transaction fulfillment status
         if ($transTable === 'transactions') {
             $status = $allFulfilled ? 'fulfilled' : 'processing';
             $stmt = $this->db->prepare("UPDATE transactions SET fulfillment_status = ?, fulfilled_at = IF(? = 'fulfilled', NOW(), NULL) WHERE id = ?");
             $stmt->execute([$status, $status, $transactionId]);
         }
-        
+
         return $allFulfilled;
     }
 
     // =============================================
     // User State Management
     // =============================================
-    
+
     public function getUserState($userDbId)
     {
         try {
             // ตรวจสอบว่าตารางมีอยู่ก่อน
             $this->ensureUserStatesTable();
-            
+
             // ลองดึงข้อมูลโดยไม่ตรวจสอบ expires_at ก่อน
             $stmt = $this->db->prepare("SELECT * FROM user_states WHERE user_id = ?");
             $stmt->execute([$userDbId]);
             $rawState = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($rawState) {
                 // ตรวจสอบว่า expires_at หมดอายุหรือยัง
                 $expired = $rawState['expires_at'] && strtotime($rawState['expires_at']) < time();
-                
+
                 $this->logDebug('getUserState', "Raw state found", [
                     'user_id' => $userDbId,
                     'state' => $rawState['state'],
@@ -3183,7 +2869,7 @@ class BusinessBot
                     'expired' => $expired,
                     'now' => date('Y-m-d H:i:s')
                 ]);
-                
+
                 if (!$expired) {
                     return $rawState;
                 } else {
@@ -3192,49 +2878,50 @@ class BusinessBot
                     return null;
                 }
             }
-            
+
             return null;
         } catch (Exception $e) {
             $this->logError('getUserState', $e->getMessage(), ['user_id' => $userDbId]);
             return null;
         }
     }
-    
+
     public function setUserState($userDbId, $state, $data = [], $expiresMinutes = 30)
     {
         try {
             // ตรวจสอบและสร้างตาราง user_states ถ้าไม่มี
             $this->ensureUserStatesTable();
-            
+
             $expiresAt = date('Y-m-d H:i:s', strtotime("+{$expiresMinutes} minutes"));
             $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE);
-            
+
             // ใช้ REPLACE INTO เพื่อให้ทำงานได้กับทุก schema
             $stmt = $this->db->prepare("REPLACE INTO user_states (user_id, state, state_data, expires_at) VALUES (?, ?, ?, ?)");
             $stmt->execute([$userDbId, $state, $dataJson, $expiresAt]);
-            
+
             $this->logDebug('setUserState', "State set: {$state}", [
-                'user_id' => $userDbId, 
-                'state' => $state, 
+                'user_id' => $userDbId,
+                'state' => $state,
                 'expires_at' => $expiresAt,
                 'rowCount' => $stmt->rowCount()
             ]);
-            
+
             return true;
         } catch (Exception $e) {
             $this->logError('setUserState', $e->getMessage(), ['user_id' => $userDbId, 'state' => $state]);
             return false;
         }
     }
-    
+
     /**
      * ตรวจสอบและสร้างตาราง user_states ถ้าไม่มี
      */
     private function ensureUserStatesTable()
     {
         static $checked = false;
-        if ($checked) return;
-        
+        if ($checked)
+            return;
+
         try {
             $this->db->query("SELECT 1 FROM user_states LIMIT 1");
             // ตารางมีอยู่แล้ว - ใช้ได้เลย
@@ -3252,7 +2939,7 @@ class BusinessBot
         }
         $checked = true;
     }
-    
+
     public function clearUserState($userDbId)
     {
         try {
@@ -3263,66 +2950,75 @@ class BusinessBot
             return false;
         }
     }
-    
+
     /**
      * Check if state is related to shop features
      */
     private function isShopRelatedState($stateName)
     {
         $shopStates = [
-            'checkout', 'awaiting_address', 'awaiting_phone', 'awaiting_payment',
-            'awaiting_slip', 'booking', 'awaiting_booking_date', 'awaiting_booking_time',
-            'cart', 'order', 'payment'
+            'checkout',
+            'awaiting_address',
+            'awaiting_phone',
+            'awaiting_payment',
+            'awaiting_slip',
+            'booking',
+            'awaiting_booking_date',
+            'awaiting_booking_time',
+            'cart',
+            'order',
+            'payment'
         ];
-        
+
         foreach ($shopStates as $shopState) {
             if (stripos($stateName, $shopState) !== false) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     // =============================================
     // User Behavior Tracking & Tagging
     // =============================================
-    
+
     public function trackBehavior($userDbId, $type, $data = [])
     {
         try {
             $stmt = $this->db->prepare("INSERT INTO user_behaviors (line_account_id, user_id, behavior_type, behavior_data) VALUES (?, ?, ?, ?)");
             $stmt->execute([$this->lineAccountId, $userDbId, $type, json_encode($data)]);
-            
+
             // Check auto-tagging rules
             $this->checkAutoTagging($userDbId, $type, $data);
-            
+
             return true;
         } catch (Exception $e) {
             // Table might not exist yet
             return false;
         }
     }
-    
+
     private function checkAutoTagging($userDbId, $behaviorType, $data)
     {
         try {
             $stmt = $this->db->query("SELECT * FROM user_tags WHERE auto_assign_rules IS NOT NULL");
             $tags = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             foreach ($tags as $tag) {
                 $rules = json_decode($tag['auto_assign_rules'], true);
-                if (!$rules) continue;
-                
+                if (!$rules)
+                    continue;
+
                 $shouldAssign = false;
-                
+
                 switch ($rules['trigger'] ?? '') {
                     case 'behavior':
                         if (($rules['action'] ?? '') === $behaviorType) {
                             $shouldAssign = true;
                         }
                         break;
-                        
+
                     case 'keyword':
                         $keywords = $rules['keywords'] ?? [];
                         $text = $data['text'] ?? '';
@@ -3333,7 +3029,7 @@ class BusinessBot
                             }
                         }
                         break;
-                        
+
                     case 'purchase_count':
                         if ($behaviorType === 'purchase') {
                             $minCount = $rules['min_count'] ?? 5;
@@ -3345,7 +3041,7 @@ class BusinessBot
                         }
                         break;
                 }
-                
+
                 if ($shouldAssign) {
                     $this->assignTag($userDbId, $tag['id'], 'auto');
                 }
@@ -3354,7 +3050,7 @@ class BusinessBot
             // Tags table might not exist
         }
     }
-    
+
     public function assignTag($userDbId, $tagId, $assignedBy = 'manual')
     {
         try {
@@ -3365,7 +3061,7 @@ class BusinessBot
             return false;
         }
     }
-    
+
     public function removeTag($userDbId, $tagId)
     {
         try {
@@ -3376,7 +3072,7 @@ class BusinessBot
             return false;
         }
     }
-    
+
     public function getUserTags($userDbId)
     {
         try {
@@ -3393,7 +3089,7 @@ class BusinessBot
     // =============================================
     // Rich Menu Personalization
     // =============================================
-    
+
     /**
      * Assign personalized Rich Menu to user based on tags/status
      */
@@ -3403,22 +3099,24 @@ class BusinessBot
             // Get user tags
             $tags = $this->getUserTags($userDbId);
             $tagNames = array_column($tags, 'name');
-            
+
             // Determine which Rich Menu to assign
             $richMenuId = $this->determineRichMenu($userDbId, $tagNames);
-            
-            if (!$richMenuId) return false;
-            
+
+            if (!$richMenuId)
+                return false;
+
             // Get LINE Rich Menu ID
             $stmt = $this->db->prepare("SELECT line_rich_menu_id FROM rich_menus WHERE id = ?");
             $stmt->execute([$richMenuId]);
             $richMenu = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$richMenu || !$richMenu['line_rich_menu_id']) return false;
-            
+
+            if (!$richMenu || !$richMenu['line_rich_menu_id'])
+                return false;
+
             // Assign via LINE API
             $result = $this->line->linkRichMenuToUser($lineUserId, $richMenu['line_rich_menu_id']);
-            
+
             if ($result['code'] === 200) {
                 // Save assignment
                 $stmt = $this->db->prepare("INSERT INTO user_rich_menus (line_account_id, user_id, rich_menu_id, line_rich_menu_id, assigned_reason) 
@@ -3426,73 +3124,82 @@ class BusinessBot
                                             ON DUPLICATE KEY UPDATE rich_menu_id = ?, line_rich_menu_id = ?, assigned_reason = ?, assigned_at = NOW()");
                 $reason = implode(',', $tagNames) ?: 'default';
                 $stmt->execute([
-                    $this->lineAccountId, $userDbId, $richMenuId, $richMenu['line_rich_menu_id'], $reason,
-                    $richMenuId, $richMenu['line_rich_menu_id'], $reason
+                    $this->lineAccountId,
+                    $userDbId,
+                    $richMenuId,
+                    $richMenu['line_rich_menu_id'],
+                    $reason,
+                    $richMenuId,
+                    $richMenu['line_rich_menu_id'],
+                    $reason
                 ]);
                 return true;
             }
-            
+
             return false;
-            
+
         } catch (Exception $e) {
             error_log("Assign Rich Menu error: " . $e->getMessage());
             return false;
         }
     }
-    
+
     private function determineRichMenu($userDbId, $tagNames)
     {
         // Priority-based menu selection
         // 1. VIP customers
         if (in_array('VIP', $tagNames)) {
             $menu = $this->getRichMenuByName('VIP Menu');
-            if ($menu) return $menu['id'];
+            if ($menu)
+                return $menu['id'];
         }
-        
+
         // 2. New customers
         if (in_array('New Customer', $tagNames)) {
             $menu = $this->getRichMenuByName('Welcome Menu');
-            if ($menu) return $menu['id'];
+            if ($menu)
+                return $menu['id'];
         }
-        
+
         // 3. Inactive customers
         if (in_array('Inactive', $tagNames)) {
             $menu = $this->getRichMenuByName('Re-engagement Menu');
-            if ($menu) return $menu['id'];
+            if ($menu)
+                return $menu['id'];
         }
-        
+
         // 4. Default menu
         $stmt = $this->db->prepare("SELECT id FROM rich_menus WHERE is_default = 1 AND (line_account_id = ? OR line_account_id IS NULL) LIMIT 1");
         $stmt->execute([$this->lineAccountId]);
         $menu = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         return $menu ? $menu['id'] : null;
     }
-    
+
     private function getRichMenuByName($name)
     {
         $stmt = $this->db->prepare("SELECT * FROM rich_menus WHERE name LIKE ? AND (line_account_id = ? OR line_account_id IS NULL) LIMIT 1");
         $stmt->execute(["%{$name}%", $this->lineAccountId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     // =============================================
     // Helper Methods
     // =============================================
-    
+
     public function showItemDetail($userId, $userDbId, $itemId, $replyToken)
     {
         $item = $this->getItem($itemId);
         if (!$item) {
             return $this->line->replyMessage($replyToken, ['type' => 'text', 'text' => 'ไม่พบสินค้านี้']);
         }
-        
+
         $this->trackBehavior($userDbId, 'view_item', ['item_id' => $itemId]);
-        
+
         $flex = $this->buildItemCard($item);
         return $this->line->replyMessage($replyToken, [FlexTemplates::toMessage($flex, $item['name'], 'shop')]);
     }
-    
+
     public function showHelp($userId, $userDbId, $replyToken)
     {
         $helpText = "📖 วิธีใช้งาน\n\n";
@@ -3502,24 +3209,24 @@ class BusinessBot
         $helpText .= "📞 contact - ติดต่อเรา\n\n";
         $helpText .= "💡 พิมพ์ 'add [เลข]' เพื่อเพิ่มสินค้า\n";
         $helpText .= "💡 พิมพ์ 'book [เลข]' เพื่อจองบริการ";
-        
+
         return $this->line->replyMessage($replyToken, ['type' => 'text', 'text' => $helpText]);
     }
-    
+
     public function showContact($userId, $userDbId, $replyToken)
     {
         $shopName = $this->settings['shop_name'] ?? 'LINE Business';
         $phone = $this->settings['contact_phone'] ?? '';
-        
+
         $contactText = "📞 ติดต่อ {$shopName}\n\n";
         if ($phone) {
             $contactText .= "📱 โทร: {$phone}\n";
         }
         $contactText .= "💬 แชทกับเราได้ที่นี่เลย!";
-        
+
         return $this->line->replyMessage($replyToken, ['type' => 'text', 'text' => $contactText]);
     }
-    
+
     public function showSlipInfo($userId, $userDbId, $replyToken)
     {
         // หาออเดอร์ที่รอชำระเงิน
@@ -3528,27 +3235,27 @@ class BusinessBot
             $stmt = $this->db->prepare("SELECT * FROM {$transTable} WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1");
             $stmt->execute([$userDbId]);
             $order = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($order) {
                 // มีออเดอร์รอชำระ - ขอให้ส่งสลิป
                 $this->setUserState($userDbId, 'awaiting_slip', ['order_id' => $order['id']]);
-                
+
                 $text = "💳 ส่งสลิปชำระเงิน\n\n";
                 $text .= "📋 ออเดอร์: #{$order['order_number']}\n";
                 $text .= "💰 ยอดชำระ: ฿" . number_format($order['grand_total'], 2) . "\n\n";
                 $text .= "📸 กรุณาส่งรูปสลิปการโอนเงินมาเลยค่ะ";
-                
+
                 return $this->line->replyMessage($replyToken, ['type' => 'text', 'text' => $text]);
             }
         } catch (Exception $e) {
             // ตารางไม่มี
         }
-        
+
         // ไม่มีออเดอร์รอชำระ
         $text = "📋 ยังไม่มีรายการที่รอชำระเงิน\n\n";
         $text .= "พิมพ์ 'shop' เพื่อดูสินค้า\n";
         $text .= "หรือพิมพ์ 'orders' เพื่อดูรายการของคุณ";
-        
+
         return $this->line->replyMessage($replyToken, ['type' => 'text', 'text' => $text]);
     }
 }

@@ -15,9 +15,11 @@ define('MTK_LINK', ''); // link to MTK sheet
 define('ARP_LINK', ''); // link to ARP sheet
 
 $SYSTEM_ALIAS = [
-    'mk' => 'mtk', 'mtk' => 'mtk',
-    'aw' => 'arp', 'arp' => 'arp'
-];แ
+    'mk' => 'mtk',
+    'mtk' => 'mtk',
+    'aw' => 'arp',
+    'arp' => 'arp'
+];
 
 $SYSTEMS = [
     'mtk' => [
@@ -35,25 +37,29 @@ $SYSTEMS = [
 ];
 
 /********************** PROPERTIES (แทน PropertiesService) **********************/
-function getProperty($key) {
+function getProperty($key)
+{
     $props = file_exists(PROPS_FILE) ? json_decode(file_get_contents(PROPS_FILE), true) : [];
     return $props[$key] ?? null;
 }
 
-function setProperty($key, $value) {
+function setProperty($key, $value)
+{
     $props = file_exists(PROPS_FILE) ? json_decode(file_get_contents(PROPS_FILE), true) : [];
     $props[$key] = $value;
     file_put_contents(PROPS_FILE, json_encode($props, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
-function deleteProperty($key) {
+function deleteProperty($key)
+{
     $props = file_exists(PROPS_FILE) ? json_decode(file_get_contents(PROPS_FILE), true) : [];
     unset($props[$key]);
     file_put_contents(PROPS_FILE, json_encode($props, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
 /********************** DATA (แทน Google Sheets) **********************/
-function getCampaigns() {
+function getCampaigns()
+{
     if (!file_exists(DATA_FILE)) {
         // สร้างข้อมูลตัวอย่าง
         $sample = [
@@ -66,12 +72,14 @@ function getCampaigns() {
     return json_decode(file_get_contents(DATA_FILE), true) ?: [];
 }
 
-function saveCampaigns($data) {
+function saveCampaigns($data)
+{
     file_put_contents(DATA_FILE, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
 /********************** LINE API **********************/
-function getUserProfile($userId) {
+function getUserProfile($userId)
+{
     $ch = curl_init("https://api.line.me/v2/bot/profile/{$userId}");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -83,27 +91,30 @@ function getUserProfile($userId) {
     return $code === 200 ? json_decode($res, true) : null;
 }
 
-function pushLine($text) {
+function pushLine($text)
+{
     $userId = getProperty('LAST_USER_ID');
     $userName = getProperty('LAST_USER_NAME');
-    
+
     if ($userId && $userName) {
         $header = "@{$userName}\n";
         $message = [
             'type' => 'text',
             'text' => $header . $text,
             'mention' => [
-                'mentionees' => [[
-                    'index' => 0,
-                    'length' => mb_strlen($userName) + 1,
-                    'userId' => $userId
-                ]]
+                'mentionees' => [
+                    [
+                        'index' => 0,
+                        'length' => mb_strlen($userName) + 1,
+                        'userId' => $userId
+                    ]
+                ]
             ]
         ];
     } else {
         $message = ['type' => 'text', 'text' => $text];
     }
-    
+
     $ch = curl_init('https://api.line.me/v2/bot/message/push');
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
@@ -122,14 +133,16 @@ function pushLine($text) {
 }
 
 /********************** STATUS UTILS **********************/
-function getStatus($systemKey) {
+function getStatus($systemKey)
+{
     global $SYSTEMS;
     $col = $SYSTEMS[$systemKey]['statusCol'];
     $data = getCampaigns();
     return array_map(fn($r) => ['name' => $r['name'], 'status' => $r[$col]], $data);
 }
 
-function buildStatusText($systemKey) {
+function buildStatusText($systemKey)
+{
     $statuses = getStatus($systemKey);
     $lines = [];
     foreach ($statuses as $c) {
@@ -139,17 +152,20 @@ function buildStatusText($systemKey) {
     return implode("\n", $lines);
 }
 
-function getPending($systemKey) {
+function getPending($systemKey)
+{
     return array_filter(getStatus($systemKey), fn($c) => $c['status'] !== 'Done');
 }
 
-function getProgress($systemKey) {
+function getProgress($systemKey)
+{
     $all = getStatus($systemKey);
     $done = count(array_filter($all, fn($c) => $c['status'] === 'Done'));
     return ['done' => $done, 'total' => count($all)];
 }
 
-function buildStatusBlockBoth() {
+function buildStatusBlockBoth()
+{
     global $SYSTEMS;
     $msg = '';
     foreach (['mtk', 'arp'] as $k) {
@@ -161,11 +177,13 @@ function buildStatusBlockBoth() {
 }
 
 /********************** FUZZY MATCH **********************/
-function levenshtein_utf8($a, $b) {
+function levenshtein_utf8($a, $b)
+{
     return levenshtein(mb_strtolower($a), mb_strtolower($b));
 }
 
-function findClosest($input, $list) {
+function findClosest($input, $list)
+{
     $best = null;
     $bestScore = PHP_INT_MAX;
     foreach ($list as $name) {
@@ -180,27 +198,28 @@ function findClosest($input, $list) {
 
 
 /********************** UPDATE STATUS **********************/
-function updateStatus($systemKey, $input) {
+function updateStatus($systemKey, $input)
+{
     global $SYSTEMS;
     $sys = $SYSTEMS[$systemKey];
     $otherKey = $systemKey === 'mtk' ? 'arp' : 'mtk';
     $otherSys = $SYSTEMS[$otherKey];
-    
+
     // ❌ งานปิดแล้ว
     if (getProperty('ALL_DONE') === 'true') {
         pushLine("🎉 วันนี้ปิดงานเรียบร้อยแล้วครับ 🙌\nขอบคุณทุกคนมาก ๆ เลย\nถ้าต้องแก้ไขเพิ่มเติม ทัก PIC ได้เลยนะครับ 🙂");
         return;
     }
-    
+
     $data = getCampaigns();
     $col = $sys['statusCol'];
     $inputs = array_filter(array_map('trim', explode(',', mb_strtolower($input))));
     $campaigns = array_column($data, 'name');
-    
+
     $exactMatches = [];
     $suggestions = [];
     $notFound = [];
-    
+
     foreach ($inputs as $name) {
         $exact = null;
         foreach ($campaigns as $c) {
@@ -220,7 +239,7 @@ function updateStatus($systemKey, $input) {
             }
         }
     }
-    
+
     // Update exact matches
     $updated = [];
     foreach ($data as &$row) {
@@ -230,7 +249,7 @@ function updateStatus($systemKey, $input) {
         }
     }
     saveCampaigns($data);
-    
+
     // ❌ fuzzy confirm
     if (!empty($suggestions)) {
         setProperty('PENDING_CONFIRM', json_encode([
@@ -238,20 +257,20 @@ function updateStatus($systemKey, $input) {
             'systemKey' => $systemKey,
             'names' => array_column($suggestions, 'suggest')
         ]));
-        $updatedText = !empty($updated) 
+        $updatedText = !empty($updated)
             ? "✅ อัปเดต {$sys['name']} แล้ว:\n" . implode("\n", array_map(fn($n) => "• {$n}", $updated)) . "\n\n"
             : '';
         $suggestText = implode("\n", array_map(fn($s) => "• {$s['input']} → {$s['suggest']}", $suggestions));
         pushLine("{$updatedText}ℹ️ พบชื่อที่อาจจะพิมพ์ผิด:\n{$suggestText}\n\nถ้าถูกต้อง พิมพ์ \"yes\" หรือ \"confirm\" ได้เลยครับ 🙂");
         return;
     }
-    
+
     if (!empty($notFound)) {
         $notFoundText = implode("\n", array_map(fn($n) => "• {$n}", $notFound));
         pushLine("🤔 หาแคมเปญนี้ไม่เจอครับ:\n{$notFoundText}");
         return;
     }
-    
+
     // ✅ update success
     if (count(getPending($systemKey)) !== 0) {
         $mtkP = getProgress('mtk');
@@ -259,47 +278,50 @@ function updateStatus($systemKey, $input) {
         $updatedList = implode("\n", array_map(fn($n) => "• {$n}", $updated));
         pushLine("✅ อัปเดต {$sys['name']} แล้ว:\n{$updatedList}\n\n📊 ภาพรวมตอนนี้:\n\n" . buildStatusBlockBoth());
     }
-    
+
     // ✅ DONE CHECK
     if (count(getPending($systemKey)) === 0) {
         setProperty($sys['doneFlag'], 'true');
-        $today = (int)date('w'); // 5 = Friday
-        
+        $today = (int) date('w'); // 5 = Friday
+
         // 🟡 FRIDAY → ARP only
         if ($today === 5 && $systemKey === 'arp') {
             pushLine("✅ Asean Weekly Report (AW) เรียบร้อยแล้วครับ\nUQ Buddy สรุปสถานะให้เรียบร้อย\nขอบคุณทุกคนมากครับ 🙂\n\n" . buildStatusText('arp'));
             return;
         }
-        
+
         // 🔵 วันอื่น
         if (getProperty($otherSys['doneFlag']) !== 'true') {
             $p = getProgress($otherKey);
             pushLine("🎉 เก่งมากครับ {$sys['name']} เสร็จแล้ว\n\n➡️ ขั้นตอนถัดไป: {$otherSys['name']}\nUQ Buddy จะคอยดูให้ครับ 👕\nอัปเดตเมื่อพร้อมได้เลยนะครับ\n\nตอนนี้ความคืบหน้าอยู่ที่ ({$p['done']}/{$p['total']})\n" . buildStatusText($otherKey));
         }
     }
-    
+
     // 🎉 ครบทั้ง MTK + ARP
-    if (getProperty($SYSTEMS['mtk']['doneFlag']) === 'true' &&
+    if (
+        getProperty($SYSTEMS['mtk']['doneFlag']) === 'true' &&
         getProperty($SYSTEMS['arp']['doneFlag']) === 'true' &&
-        !getProperty('ALL_DONE')) {
+        !getProperty('ALL_DONE')
+    ) {
         pushLine("🎉 วันนี้เก่งกันมากครับทุกคน!\n\nMedia Tracking (MK) และ\nAsean Weekly Report (AW)\nเรียบร้อยครบแล้ว 🙌\n\nUQ Buddy ขอพักก่อนนะครับ\nเจอกันใหม่สัปดาห์หน้า 👕🙂");
         setProperty('ALL_DONE', 'true');
     }
 }
 
 /********************** REMOVE STATUS **********************/
-function removeStatus($systemKey, $input) {
+function removeStatus($systemKey, $input)
+{
     global $SYSTEMS;
     $sys = $SYSTEMS[$systemKey];
     $col = $sys['statusCol'];
-    
+
     $data = getCampaigns();
     $inputs = array_filter(array_map('trim', explode(',', mb_strtolower($input))));
     $campaigns = array_column($data, 'name');
-    
+
     $exactMatches = [];
     $notFound = [];
-    
+
     foreach ($inputs as $name) {
         $found = false;
         foreach ($campaigns as $c) {
@@ -309,15 +331,16 @@ function removeStatus($systemKey, $input) {
                 break;
             }
         }
-        if (!$found) $notFound[] = $name;
+        if (!$found)
+            $notFound[] = $name;
     }
-    
+
     if (empty($exactMatches)) {
         $notFoundText = implode("\n", array_map(fn($n) => "• {$n}", $notFound));
         pushLine("🤔 ไม่พบแคมเปญที่ต้องการถอนสถานะ:\n{$notFoundText}");
         return;
     }
-    
+
     $reverted = [];
     foreach ($data as &$row) {
         if (in_array($row['name'], $exactMatches) && $row[$col] === 'Done') {
@@ -326,33 +349,45 @@ function removeStatus($systemKey, $input) {
         }
     }
     saveCampaigns($data);
-    
+
     if (empty($reverted)) {
         pushLine("ℹ️ แคมเปญที่เลือกยังอยู่ในสถานะ Pending อยู่แล้วครับ 🙂");
         return;
     }
-    
+
     // 🔓 ปลด flags
     deleteProperty($sys['doneFlag']);
     deleteProperty('ALL_DONE');
-    
+
     $revertedText = implode("\n", array_map(fn($n) => "• {$n} : 🟢 Done → 🟠 Pending", $reverted));
     pushLine("🔄 ถอนสถานะ {$sys['name']} เรียบร้อยแล้ว:\n{$revertedText}\n\n📊 สถานะปัจจุบัน:\n" . buildStatusText($systemKey));
 }
 
 /********************** REPORT **********************/
-function reportAllStatus() {
+function reportAllStatus()
+{
     pushLine("สถานะงานล่าสุดครับ 👇\n\n" . buildStatusBlockBoth());
 }
 
 /********************** RESET **********************/
-function resetWeeklyFlags() {
-    $keysToDelete = ['MTK_DONE', 'ARP_DONE', 'ALL_DONE', 'PENDING_CONFIRM', 'REMIND_OPEN', 
-                     'REMIND_DEADLINE', 'LAST_REMIND_HOUR', 'REMIND_ARP_FRI', 'BREAK_TODAY', 'REMIND_ARP_WED'];
+function resetWeeklyFlags()
+{
+    $keysToDelete = [
+        'MTK_DONE',
+        'ARP_DONE',
+        'ALL_DONE',
+        'PENDING_CONFIRM',
+        'REMIND_OPEN',
+        'REMIND_DEADLINE',
+        'LAST_REMIND_HOUR',
+        'REMIND_ARP_FRI',
+        'BREAK_TODAY',
+        'REMIND_ARP_WED'
+    ];
     foreach ($keysToDelete as $key) {
         deleteProperty($key);
     }
-    
+
     // Reset sheet status
     $data = getCampaigns();
     foreach ($data as &$row) {
@@ -360,7 +395,7 @@ function resetWeeklyFlags() {
         $row['arp_status'] = 'Pending';
     }
     saveCampaigns($data);
-    
+
     pushLine("🔄 รีเซ็ตระบบให้เรียบร้อย ✨\nพบกันทุกวันศุกร์และวันจันทร์นะครับ 🙂");
 }
 
@@ -409,12 +444,12 @@ if (isset($event['source']['userId'])) {
 // ⏱ REPORT = STATUS (กันรัว)
 if (preg_match('/^(report\s*=\s*status|status\s*=\s*report)$/', $text)) {
     $now = time() * 1000;
-    $last = (int)(getProperty('LAST_REPORT_STATUS') ?: 0);
+    $last = (int) (getProperty('LAST_REPORT_STATUS') ?: 0);
     if ($now - $last < 10000) {
         echo 'ok';
         exit;
     }
-    setProperty('LAST_REPORT_STATUS', (string)$now);
+    setProperty('LAST_REPORT_STATUS', (string) $now);
     reportAllStatus();
     echo 'ok';
     exit;
@@ -444,7 +479,7 @@ if (preg_match('/^report\s*=\s*resume$/', $text)) {
 // REPORT = MODE
 if (preg_match('/^report\s*=\s*mode$/', $text)) {
     $isBreak = getProperty('BREAK_TODAY') === 'true';
-    pushLine($isBreak 
+    pushLine($isBreak
         ? "🛑 โหมดการทำงานปัจจุบัน: พักรอบ (Break)\nวันนี้ UQ Buddy จะไม่ส่งการแจ้งเตือนใด ๆ"
         : "🟢 โหมดการทำงานปัจจุบัน: ปกติ\nUQ Buddy จะส่งการแจ้งเตือนตามรอบปกติครับ 🙂");
     echo 'ok';
@@ -494,7 +529,7 @@ if ($text === 'yes' || $text === 'confirm') {
     }
     $data = json_decode($pending, true);
     deleteProperty('PENDING_CONFIRM');
-    
+
     if ($data['type'] === 'BREAK') {
         setProperty('BREAK_TODAY', 'true');
         pushLine("🛑 หยุดการแจ้งเตือนในวันนี้แล้ว\nUQ Buddy จะกลับมาดูแลตามปกติในรอบถัดไปนะครับ 🙂");

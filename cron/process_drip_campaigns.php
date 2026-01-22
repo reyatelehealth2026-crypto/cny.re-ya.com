@@ -1,7 +1,7 @@
 <?php
 /**
  * Cron Job: Process Drip Campaigns
- * รันทุก 5 นาที: */5 * * * * php /path/to/cron/process_drip_campaigns.php
+ * รันทุก 5 นาที: * / 5 * * * * php /path/to/cron/process_drip_campaigns.php
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -23,10 +23,10 @@ foreach ($accounts as $account) {
     try {
         $line = $lineManager->getLineAPI($account['id']);
         $crm = new CRMManager($db, $account['id']);
-        
+
         $sent = $crm->processDripCampaigns($line);
         $totalSent += $sent;
-        
+
         if ($sent > 0) {
             echo "[{$account['name']}] Sent {$sent} drip messages\n";
         }

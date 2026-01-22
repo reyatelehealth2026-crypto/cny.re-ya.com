@@ -17,7 +17,7 @@
  *   php cron/sync_worker.php --mode=batch      # ทำ 1 batch แล้วหยุด
  * 
  * Cron Example (ทุก 5 นาที):
- *   */5 * * * * cd /path/to/project && php cron/sync_worker.php --mode=batch --batch-size=20
+ *   * / 5 * * * * cd /path/to/project && php cron/sync_worker.php --mode=batch --batch-size=20
  */
 
 if (php_sapi_name() !== 'cli') {
@@ -40,8 +40,8 @@ require_once __DIR__ . '/../classes/SyncWorker.php';
 // Parse arguments
 $options = getopt('', ['batch-size:', 'max-jobs:', 'mode:']);
 
-$batchSize = isset($options['batch-size']) ? (int)$options['batch-size'] : 10;
-$maxJobs = isset($options['max-jobs']) ? (int)$options['max-jobs'] : 0;
+$batchSize = isset($options['batch-size']) ? (int) $options['batch-size'] : 10;
+$maxJobs = isset($options['max-jobs']) ? (int) $options['max-jobs'] : 0;
 $mode = isset($options['mode']) ? $options['mode'] : 'continuous';
 
 echo "╔══════════════════════════════════════════════════════════╗\n";
@@ -56,35 +56,39 @@ echo "   Max Jobs: " . ($maxJobs > 0 ? $maxJobs : 'unlimited') . "\n\n";
 try {
     $db = Database::getInstance()->getConnection();
     $cnyApi = new CnyPharmacyAPI($db);
-    
+
     // Test API
     echo "🔌 Testing API connection...\n";
     $testResult = $cnyApi->testConnection();
-    
+
     if (!$testResult['success']) {
         throw new Exception("API connection failed: " . $testResult['message']);
     }
-    
+
     echo "✓ API connection successful\n\n";
-    
+
     // Create worker
     $worker = new SyncWorker($db, $cnyApi);
-    
+
+    // Setup signal handlers
     // Setup signal handlers
     if (function_exists('pcntl_signal')) {
-        pcntl_signal(SIGTERM, function() use ($worker) {
+        $sigterm = defined('SIGTERM') ? SIGTERM : 15;
+        $sigint = defined('SIGINT') ? SIGINT : 2;
+
+        pcntl_signal($sigterm, function () use ($worker) {
             echo "\n⚠ Received SIGTERM, stopping...\n";
             $worker->stop();
         });
-        
-        pcntl_signal(SIGINT, function() use ($worker) {
+
+        pcntl_signal($sigint, function () use ($worker) {
             echo "\n⚠ Received SIGINT (Ctrl+C), stopping...\n";
             $worker->stop();
         });
     }
-    
+
     echo "🚀 Starting worker...\n\n";
-    
+
     if ($mode === 'batch') {
         $stats = $worker->processBatch($batchSize);
     } elseif ($mode === 'continuous') {
@@ -92,27 +96,27 @@ try {
     } else {
         throw new Exception("Invalid mode: {$mode}");
     }
-    
+
     echo "\n";
     echo "╔══════════════════════════════════════════════════════════╗\n";
     echo "║                    SYNC COMPLETED                        ║\n";
     echo "╚══════════════════════════════════════════════════════════╝\n\n";
-    
+
     echo "📊 Statistics:\n";
     echo "   Processed: {$stats['processed']}\n";
     echo "   Created: {$stats['created']}\n";
     echo "   Updated: {$stats['updated']}\n";
     echo "   Skipped: {$stats['skipped']}\n";
     echo "   Failed: {$stats['failed']}\n";
-    
+
     if (isset($stats['duration_seconds'])) {
         echo "   Duration: {$stats['duration_seconds']} seconds\n";
         echo "   Speed: {$stats['jobs_per_second']} jobs/sec\n";
     }
-    
+
     echo "\n✓ Worker finished\n";
     exit(0);
-    
+
 } catch (Exception $e) {
     echo "\n❌ ERROR: " . $e->getMessage() . "\n";
     exit(1);

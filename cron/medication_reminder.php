@@ -4,7 +4,7 @@
  * แจ้งเตือนผู้ใช้ให้ทานยาตามเวลาที่ตั้งไว้
  * 
  * Run: php cron/medication_reminder.php
- * Schedule: Every 15 minutes (*/15 * * * *)
+ * Schedule: Every 15 minutes (* / 15 * * * *)
  */
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
@@ -52,31 +52,31 @@ $skipped = 0;
 foreach ($reminders as $reminder) {
     // Parse reminder times
     $reminderTimes = json_decode($reminder['reminder_times'], true) ?: [];
-    
+
     // Check if current time matches any reminder time
     $shouldNotify = false;
     $matchedTime = '';
-    
+
     foreach ($reminderTimes as $time) {
         // Parse time (format: HH:MM)
         $timeParts = explode(':', $time);
-        $reminderHour = (int)$timeParts[0];
-        $reminderMinute = isset($timeParts[1]) ? (int)$timeParts[1] : 0;
-        
+        $reminderHour = (int) $timeParts[0];
+        $reminderMinute = isset($timeParts[1]) ? (int) $timeParts[1] : 0;
+
         // Round to nearest 15 minutes
         $reminderMinuteRounded = floor($reminderMinute / 15) * 15;
-        
+
         if ($reminderHour == $currentHour && $reminderMinuteRounded == $currentMinute) {
             $shouldNotify = true;
             $matchedTime = $time;
             break;
         }
     }
-    
+
     if (!$shouldNotify) {
         continue;
     }
-    
+
     // Check if already notified today for this time
     $stmt = $db->prepare("
         SELECT id FROM medication_reminder_logs 
@@ -89,24 +89,24 @@ foreach ($reminders as $reminder) {
         $skipped++;
         continue;
     }
-    
+
     echo "Processing: {$reminder['medication_name']}\n";
     echo "  User: {$reminder['display_name']} ({$reminder['line_user_id']})\n";
     echo "  Time: {$matchedTime}\n";
     echo "  Dosage: {$reminder['dosage']}\n";
-    
+
     // Create Flex Message
     $flexMessage = createMedicationReminderFlex($reminder, $matchedTime);
-    
+
     // Send via LINE API
     try {
         $line = new LineAPI($reminder['channel_access_token']);
         $result = $line->pushMessage($reminder['line_user_id'], [$flexMessage]);
-        
+
         if ($result) {
             // Log the notification
             logReminderSent($db, $reminder['id'], $matchedTime, 'sent');
-            
+
             echo "  SUCCESS: Notification sent\n\n";
             $notified++;
         } else {
@@ -130,11 +130,12 @@ echo "Done!\n";
 /**
  * Create medication reminder Flex Message
  */
-function createMedicationReminderFlex($reminder, $time) {
+function createMedicationReminderFlex($reminder, $time)
+{
     $medicationName = $reminder['medication_name'];
     $dosage = $reminder['dosage'] ?: '';
     $notes = $reminder['notes'] ?: '';
-    
+
     // Determine icon based on frequency
     $frequency = $reminder['frequency'] ?? 'daily';
     $frequencyText = [
@@ -145,7 +146,7 @@ function createMedicationReminderFlex($reminder, $time) {
         'weekly' => 'สัปดาห์ละครั้ง',
         'as_needed' => 'เมื่อจำเป็น'
     ][$frequency] ?? $frequency;
-    
+
     $bodyContents = [
         [
             'type' => 'text',
@@ -194,7 +195,7 @@ function createMedicationReminderFlex($reminder, $time) {
             ]
         ]
     ];
-    
+
     // Add notes if present
     if ($notes) {
         $bodyContents[] = [
@@ -209,7 +210,7 @@ function createMedicationReminderFlex($reminder, $time) {
             ]
         ];
     }
-    
+
     $bubble = [
         'type' => 'bubble',
         'size' => 'kilo',
@@ -273,7 +274,7 @@ function createMedicationReminderFlex($reminder, $time) {
             ]
         ]
     ];
-    
+
     return [
         'type' => 'flex',
         'altText' => "💊 ถึงเวลาทานยา: {$medicationName}",
@@ -284,7 +285,8 @@ function createMedicationReminderFlex($reminder, $time) {
 /**
  * Log reminder sent
  */
-function logReminderSent($db, $reminderId, $time, $status, $error = null) {
+function logReminderSent($db, $reminderId, $time, $status, $error = null)
+{
     // Ensure log table exists
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS medication_reminder_logs (
@@ -297,8 +299,9 @@ function logReminderSent($db, $reminderId, $time, $status, $error = null) {
             INDEX idx_reminder (reminder_id),
             INDEX idx_date (sent_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    } catch (Exception $e) {}
-    
+    } catch (Exception $e) {
+    }
+
     try {
         $stmt = $db->prepare("INSERT INTO medication_reminder_logs 
             (reminder_id, reminder_time, status, error_message) VALUES (?, ?, ?, ?)");

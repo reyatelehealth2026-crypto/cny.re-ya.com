@@ -39,9 +39,7 @@ require_once 'classes/FlexTemplates.php';
 if (file_exists(__DIR__ . '/classes/BusinessBot.php')) {
     require_once 'classes/BusinessBot.php';
 }
-if (file_exists(__DIR__ . '/classes/ShopBot.php')) {
-    require_once 'classes/ShopBot.php';
-}
+
 if (file_exists(__DIR__ . '/classes/CRMManager.php')) {
     require_once 'classes/CRMManager.php';
 }

@@ -209,6 +209,7 @@ class LineAPI
 
     /**
      * Broadcast message to all followers
+     * @return array
      */
     public function broadcastMessage($messages)
     {
