@@ -551,7 +551,7 @@ CREATE TABLE IF NOT EXISTS `auto_tag_rules` (
   `line_account_id` int(11) DEFAULT NULL,
   `tag_id` int(11) NOT NULL,
   `rule_name` varchar(100) NOT NULL,
-  `trigger_type` enum('follow','message','purchase','inactivity','birthday','order_count','total_spent','custom') NOT NULL,
+  `trigger_type` varchar(50) NOT NULL,
   `conditions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`conditions`)),
   `is_active` tinyint(1) DEFAULT 1,
   `priority` int(11) DEFAULT 0,

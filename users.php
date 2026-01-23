@@ -386,7 +386,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="">ทั้งหมด</option>
                         <?php foreach ($allTags as $tag): ?>
                             <option value="<?= $tag['id'] ?>" <?= $tagFilter == $tag['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($tag['name']) ?></option>
+                                <?= htmlspecialchars($tag['name']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -595,7 +596,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-    let currentUserId = null;
+    var currentUserId = null;
 
     function openTagModal(userId, userName) {
         currentUserId = userId;
@@ -705,14 +706,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const checkboxes = document.querySelectorAll('.user-checkbox:checked');
         const count = checkboxes.length;
         document.getElementById('selectedCount').textContent = count;
-        
+
         const bulkBar = document.getElementById('bulkActionsBar');
         if (count > 0) {
             bulkBar.classList.remove('hidden');
         } else {
             bulkBar.classList.add('hidden');
         }
-        
+
         // Update select all checkbox
         const allCheckboxes = document.querySelectorAll('.user-checkbox');
         const selectAll = document.getElementById('selectAll');
@@ -736,15 +737,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             alert('กรุณาเลือก Tag');
             return;
         }
-        
+
         const userIds = getSelectedUserIds();
         if (userIds.length === 0) {
             alert('กรุณาเลือกผู้ใช้');
             return;
         }
-        
+
         if (!confirm(`ต้องการเพิ่ม Tag ให้ ${userIds.length} คน ใช่หรือไม่?`)) return;
-        
+
         try {
             const response = await fetch('api/ajax_handler.php', {
                 method: 'POST',
@@ -755,7 +756,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     tag_id: tagId
                 })
             });
-            
+
             const result = await response.json();
             if (result.success) {
                 alert(`เพิ่ม Tag สำเร็จ ${result.count || userIds.length} คน`);
@@ -774,15 +775,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             alert('กรุณาเลือก Tag');
             return;
         }
-        
+
         const userIds = getSelectedUserIds();
         if (userIds.length === 0) {
             alert('กรุณาเลือกผู้ใช้');
             return;
         }
-        
+
         if (!confirm(`ต้องการลบ Tag จาก ${userIds.length} คน ใช่หรือไม่?`)) return;
-        
+
         try {
             const response = await fetch('api/ajax_handler.php', {
                 method: 'POST',
@@ -793,7 +794,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     tag_id: tagId
                 })
             });
-            
+
             const result = await response.json();
             if (result.success) {
                 alert(`ลบ Tag สำเร็จ ${result.count || userIds.length} คน`);
