@@ -174,6 +174,16 @@ try {
         $shopName = $s['shop_name'];
 } catch (Exception $e) {
 }
+
+// Get LIFF health profile data (from customer_health_profiles table)
+$liffHealthProfile = null;
+try {
+    require_once 'classes/CustomerHealthEngineService.php';
+    $healthEngine = new CustomerHealthEngineService($db, $currentBotId ?? 1);
+    $liffHealthProfile = $healthEngine->getHealthProfile($userId);
+} catch (Exception $e) {
+    error_log("Error loading LIFF health profile: " . $e->getMessage());
+}
 ?>
 
 <div class="mb-6 flex items-center justify-between">
@@ -423,22 +433,45 @@ try {
 
         <!-- Health Info Section -->
         <?php
-        $hasHealthInfo = !empty($user['weight']) || !empty($user['height']) || !empty($user['medical_conditions']) || !empty($user['drug_allergies']);
+        // Check if we have LIFF health profile data
+        $hasLiffHealth = !empty($liffHealthProfile) && (
+            !empty($liffHealthProfile['allergies']) || 
+            !empty($liffHealthProfile['medications']) || 
+            !empty($liffHealthProfile['conditions']) ||
+            !empty($liffHealthProfile['weight']) ||
+            !empty($liffHealthProfile['height'])
+        );
+        
+        // Fallback to users table data if no LIFF data
+        $hasUserHealth = !empty($user['weight']) || !empty($user['height']) || !empty($user['medical_conditions']) || !empty($user['drug_allergies']);
+        $hasHealthInfo = $hasLiffHealth || $hasUserHealth;
+        
+        // Use LIFF data if available, otherwise fall back to users table
+        $displayWeight = $liffHealthProfile['weight'] ?? $user['weight'] ?? null;
+        $displayHeight = $liffHealthProfile['height'] ?? $user['height'] ?? null;
+        $displayBloodType = $liffHealthProfile['bloodType'] ?? $user['blood_type'] ?? null;
         ?>
         <div class="bg-white rounded-xl shadow p-6">
-            <h3 class="font-semibold mb-4">💊 ข้อมูลสุขภาพ</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-semibold">💊 ข้อมูลสุขภาพ (จาก LIFF)</h3>
+                <?php if ($hasLiffHealth): ?>
+                    <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                        <i class="fas fa-check-circle mr-1"></i>อัพเดทจาก LIFF
+                    </span>
+                <?php endif; ?>
+            </div>
 
             <?php if ($hasHealthInfo): ?>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                     <div class="p-4 bg-blue-50 rounded-xl text-center">
                         <p class="text-2xl font-bold text-blue-600">
-                            <?= $user['weight'] ? number_format($user['weight'], 1) : '-' ?>
+                            <?= $displayWeight ? number_format($displayWeight, 1) : '-' ?>
                         </p>
                         <p class="text-xs text-gray-500">น้ำหนัก (กก.)</p>
                     </div>
                     <div class="p-4 bg-green-50 rounded-xl text-center">
                         <p class="text-2xl font-bold text-green-600">
-                            <?= $user['height'] ? number_format($user['height'], 1) : '-' ?>
+                            <?= $displayHeight ? number_format($displayHeight, 1) : '-' ?>
                         </p>
                         <p class="text-xs text-gray-500">ส่วนสูง (ซม.)</p>
                     </div>
@@ -446,9 +479,9 @@ try {
                         <?php
                         $bmi = '-';
                         $bmiClass = 'text-gray-600';
-                        if (!empty($user['weight']) && !empty($user['height']) && $user['height'] > 0) {
-                            $heightM = $user['height'] / 100;
-                            $bmiVal = $user['weight'] / ($heightM * $heightM);
+                        if (!empty($displayWeight) && !empty($displayHeight) && $displayHeight > 0) {
+                            $heightM = $displayHeight / 100;
+                            $bmiVal = $displayWeight / ($heightM * $heightM);
                             $bmi = number_format($bmiVal, 1);
                             if ($bmiVal < 18.5)
                                 $bmiClass = 'text-blue-600';
@@ -481,20 +514,83 @@ try {
                         <p class="text-2xl"><?= $genderIcon ?></p>
                         <p class="text-xs text-gray-500"><?= $genderText ?></p>
                     </div>
+                    <div class="p-4 bg-red-50 rounded-xl text-center">
+                        <p class="text-2xl font-bold text-red-600"><?= $displayBloodType ?: '-' ?></p>
+                        <p class="text-xs text-gray-500">กรุ๊ปเลือด</p>
+                    </div>
                 </div>
 
-                <?php if (!empty($user['medical_conditions'])): ?>
+                <!-- Conditions from LIFF -->
+                <?php 
+                $conditions = !empty($liffHealthProfile['conditions']) ? $liffHealthProfile['conditions'] : [];
+                if (empty($conditions) && !empty($user['medical_conditions'])) {
+                    $conditions = array_filter(array_map('trim', preg_split('/[,\n]+/', $user['medical_conditions'])));
+                }
+                if (!empty($conditions)): 
+                ?>
                     <div class="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                        <p class="text-sm font-medium text-orange-700 mb-1"><i class="fas fa-heartbeat mr-1"></i>โรคประจำตัว</p>
-                        <p class="text-gray-700"><?= nl2br(htmlspecialchars($user['medical_conditions'])) ?></p>
+                        <p class="text-sm font-medium text-orange-700 mb-2"><i class="fas fa-heartbeat mr-1"></i>โรคประจำตัว</p>
+                        <div class="flex flex-wrap gap-2">
+                            <?php foreach ($conditions as $condition): ?>
+                                <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                                    <?= htmlspecialchars($condition) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
 
-                <?php if (!empty($user['drug_allergies'])): ?>
-                    <div class="p-4 bg-red-50 border border-red-200 rounded-xl">
-                        <p class="text-sm font-medium text-red-700 mb-1"><i
-                                class="fas fa-exclamation-triangle mr-1"></i>ยาที่แพ้</p>
+                <!-- Allergies from LIFF -->
+                <?php 
+                $allergies = $liffHealthProfile['allergies'] ?? [];
+                if (!empty($allergies)): 
+                ?>
+                    <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <p class="text-sm font-medium text-red-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>ยาที่แพ้</p>
+                        <div class="space-y-2">
+                            <?php foreach ($allergies as $allergy): ?>
+                                <div class="flex items-center justify-between bg-red-100 px-3 py-2 rounded-lg">
+                                    <span class="text-red-800 font-medium"><?= htmlspecialchars($allergy['name']) ?></span>
+                                    <?php if (!empty($allergy['severity']) && $allergy['severity'] !== 'unknown'): ?>
+                                        <span class="px-2 py-0.5 bg-red-200 text-red-700 text-xs rounded">
+                                            <?= htmlspecialchars($allergy['severity']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php elseif (!empty($user['drug_allergies'])): ?>
+                    <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <p class="text-sm font-medium text-red-700 mb-1"><i class="fas fa-exclamation-triangle mr-1"></i>ยาที่แพ้</p>
                         <p class="text-gray-700"><?= nl2br(htmlspecialchars($user['drug_allergies'])) ?></p>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Medications from LIFF -->
+                <?php 
+                $medications = $liffHealthProfile['medications'] ?? [];
+                if (!empty($medications)): 
+                ?>
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                        <p class="text-sm font-medium text-blue-700 mb-2"><i class="fas fa-pills mr-1"></i>ยาที่ใช้อยู่</p>
+                        <div class="space-y-2">
+                            <?php foreach ($medications as $med): ?>
+                                <div class="flex items-center justify-between bg-blue-100 px-3 py-2 rounded-lg">
+                                    <div>
+                                        <span class="text-blue-800 font-medium"><?= htmlspecialchars($med['name']) ?></span>
+                                        <?php if (!empty($med['dosage'])): ?>
+                                            <span class="text-blue-600 text-sm ml-2"><?= htmlspecialchars($med['dosage']) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if (!empty($med['frequency'])): ?>
+                                        <span class="px-2 py-0.5 bg-blue-200 text-blue-700 text-xs rounded">
+                                            <?= htmlspecialchars($med['frequency']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
 
@@ -502,6 +598,7 @@ try {
                 <div class="text-center py-8 text-gray-400">
                     <i class="fas fa-notes-medical text-4xl mb-3"></i>
                     <p>ยังไม่มีข้อมูลสุขภาพ</p>
+                    <p class="text-sm mt-2">ลูกค้าสามารถกรอกข้อมูลสุขภาพผ่าน LIFF ได้</p>
                 </div>
             <?php endif; ?>
         </div>
