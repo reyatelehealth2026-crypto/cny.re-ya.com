@@ -170,7 +170,7 @@ try {
             $stmt = $db->prepare("SELECT * FROM user_tags WHERE id = ?");
             $stmt->execute([$tagId]);
             $tag = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             // Log activity
             require_once __DIR__ . '/../classes/ActivityLogger.php';
             $activityLogger = ActivityLogger::getInstance($db);
@@ -180,7 +180,7 @@ try {
                 'user_id' => $userId, // The user being tagged
                 'extra_data' => ['tag_name' => $tag['name'] ?? '']
             ]);
-            
+
             echo json_encode(['success' => true, 'tag' => $tag, 'message' => 'เพิ่ม Tag สำเร็จ']);
             break;
 
@@ -352,9 +352,8 @@ try {
                     }
                 }
             }
-                }
-            }
-            
+
+
             // Log activity
             require_once __DIR__ . '/../classes/ActivityLogger.php';
             $activityLogger = ActivityLogger::getInstance($db);
@@ -368,7 +367,7 @@ try {
                     'tracking' => $tracking
                 ]
             ]);
-            
+
             echo json_encode(['success' => true, 'message' => 'อัพเดทสถานะสำเร็จ', 'status' => $newStatus]);
             break;
 
@@ -399,9 +398,8 @@ try {
                     }
                 }
             }
-                }
-            }
-            
+
+
             // Log activity
             require_once __DIR__ . '/../classes/ActivityLogger.php';
             $activityLogger = ActivityLogger::getInstance($db);
@@ -411,7 +409,7 @@ try {
                 'user_id' => $order['user_id'] ?? null,
                 'extra_data' => ['order_id' => $orderId, 'order_number' => $order['order_number']]
             ]);
-            
+
             echo json_encode(['success' => true, 'message' => 'ยืนยันการชำระเงินสำเร็จ']);
             break;
 
@@ -422,7 +420,7 @@ try {
                 throw new Exception('Missing required fields');
             $stmt = $db->prepare("UPDATE payment_slips SET status = 'rejected' WHERE id = ? AND transaction_id = ?");
             $stmt->execute([$slipId, $orderId]);
-            
+
             // Log activity
             require_once __DIR__ . '/../classes/ActivityLogger.php';
             $activityLogger = ActivityLogger::getInstance($db);
@@ -431,7 +429,7 @@ try {
                 'entity_id' => $slipId,
                 'extra_data' => ['order_id' => $orderId]
             ]);
-            
+
             echo json_encode(['success' => true, 'message' => 'ปฏิเสธหลักฐานการชำระเงินแล้ว']);
             break;
 

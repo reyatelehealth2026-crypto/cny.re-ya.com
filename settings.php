@@ -46,7 +46,7 @@ if ($activeTab === 'line') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
-    
+
     try {
         if ($action === 'test_line_connection') {
             require_once 'classes/LineAPI.php';
@@ -68,7 +68,7 @@ $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    
+
     // LINE Account actions
     if ($action === 'create_line') {
         require_once 'classes/LineAccountManager.php';
@@ -129,12 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messageType = $_POST['message_type'] ?? 'text';
             $textContent = $_POST['text_content'] ?? '';
             $flexContent = $_POST['flex_content'] ?? '';
-            
+
             // Check if settings exist for this bot
             $stmt = $db->prepare("SELECT id FROM welcome_settings WHERE line_account_id = ? OR (line_account_id IS NULL AND ? IS NULL)");
             $stmt->execute([$currentBotId, $currentBotId]);
             $exists = $stmt->fetch();
-            
+
             if ($exists) {
                 $stmt = $db->prepare("UPDATE welcome_settings SET is_enabled = ?, message_type = ?, text_content = ?, flex_content = ? WHERE id = ?");
                 $stmt->execute([$isEnabled, $messageType, $textContent, $flexContent, $exists['id']]);
@@ -143,13 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$currentBotId, $isEnabled, $messageType, $textContent, $flexContent]);
             }
             $success = 'บันทึกการตั้งค่าข้อความต้อนรับสำเร็จ!';
-            
+
             // Log activity
             $activityLogger->logData(ActivityLogger::ACTION_UPDATE, 'ตั้งค่าข้อความต้อนรับ', [
                 'entity_type' => 'welcome_settings',
                 'new_value' => ['enabled' => $isEnabled, 'type' => $messageType]
             ]);
-            
+
         } catch (Exception $e) {
             $error = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
         }
@@ -174,8 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array('notify_payment', $cols)) {
                 $db->exec("ALTER TABLE telegram_settings ADD COLUMN notify_payment TINYINT(1) DEFAULT 1");
             }
-        } catch (Exception $e) {}
-        
+        } catch (Exception $e) {
+        }
+
         $stmt = $db->prepare("UPDATE telegram_settings SET 
             is_enabled = ?, notify_new_follower = ?, notify_new_message = ?, 
             notify_unfollow = ?, notify_new_order = ?, notify_payment = ? WHERE id = 1");
@@ -187,21 +188,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             isset($_POST['notify_new_order']) ? 1 : 0,
             isset($_POST['notify_payment']) ? 1 : 0
         ]);
-        ]);
+
         $success = 'บันทึกการตั้งค่าการแจ้งเตือนสำเร็จ!';
-        
+
         // Log activity
         $activityLogger->logData(ActivityLogger::ACTION_UPDATE, 'ตั้งค่าการแจ้งเตือน (Telegram)', [
             'entity_type' => 'telegram_settings'
         ]);
-        
+
         $activeTab = 'telegram';
     } elseif ($action === 'test_telegram') {
         $stmt = $db->query("SELECT bot_token, chat_id FROM telegram_settings WHERE id = 1");
         $tokenSettings = $stmt->fetch(PDO::FETCH_ASSOC);
         $botToken = $tokenSettings['bot_token'] ?? '';
         $chatId = $tokenSettings['chat_id'] ?? '';
-        
+
         if (empty($botToken) || empty($chatId)) {
             $error = 'กรุณาตั้งค่า Bot Token และ Chat ID ก่อน';
         } else {
@@ -218,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response = curl_exec($ch);
             curl_close($ch);
             $result = json_decode($response, true) ?? ['ok' => false];
-            
+
             if ($result['ok'] ?? false) {
                 $success = 'ส่งข้อความทดสอบสำเร็จ!';
             } else {
@@ -227,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $activeTab = 'telegram';
     }
-    
+
     // Get Telegram Chat ID
     elseif ($action === 'get_telegram_chat_id') {
         $botToken = trim($_POST['bot_token'] ?? '');
@@ -244,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response = curl_exec($ch);
             curl_close($ch);
             $result = json_decode($response, true);
-            
+
             if (($result['ok'] ?? false) && !empty($result['result'])) {
                 $lastUpdate = end($result['result']);
                 $chatId = $lastUpdate['message']['chat']['id'] ?? null;
@@ -262,13 +263,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $activeTab = 'telegram';
     }
-    
+
     // Set Telegram Webhook
     elseif ($action === 'set_telegram_webhook') {
         $stmt = $db->query("SELECT bot_token FROM telegram_settings WHERE id = 1");
         $tokenSettings = $stmt->fetch(PDO::FETCH_ASSOC);
         $botToken = $tokenSettings['bot_token'] ?? '';
-        
+
         if (empty($botToken)) {
             $error = 'กรุณาตั้งค่า Bot Token ก่อน';
         } else {
@@ -285,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response = curl_exec($ch);
             curl_close($ch);
             $result = json_decode($response, true);
-            
+
             if ($result['ok'] ?? false) {
                 $success = "ตั้งค่า Webhook สำเร็จ: {$webhookUrl}";
             } else {
@@ -300,14 +301,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $data = [
                 $_POST['smtp_host'] ?? '',
-                (int)($_POST['smtp_port'] ?? 587),
+                (int) ($_POST['smtp_port'] ?? 587),
                 $_POST['smtp_user'] ?? '',
                 $_POST['smtp_pass'] ?? '',
                 $_POST['smtp_secure'] ?? 'tls',
                 $_POST['from_email'] ?? '',
                 $_POST['from_name'] ?? 'Notification'
             ];
-            
+
             $stmt = $db->prepare("INSERT INTO email_settings (id, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, from_email, from_name)
                 VALUES (1, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE 
@@ -341,10 +342,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($action === 'save_notifications') {
         try {
             $currentBotId = $_SESSION['current_bot_id'] ?? null;
-            $accountId = (int)($currentBotId ?: 0);
+            $accountId = (int) ($currentBotId ?: 0);
             $emailAddresses = trim($_POST['email_addresses'] ?? '');
             $notifyAdminUsers = isset($_POST['notify_admin_users']) ? implode(',', $_POST['notify_admin_users']) : '';
-            
+
             $data = [
                 $accountId,
                 isset($_POST['line_notify_enabled']) ? 1 : 0,
@@ -361,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 isset($_POST['telegram_enabled']) ? 1 : 0,
                 $notifyAdminUsers
             ];
-            
+
             $sql = "INSERT INTO notification_settings 
                 (line_account_id, line_notify_enabled, line_notify_new_order, line_notify_payment, 
                  line_notify_urgent, line_notify_appointment, line_notify_low_stock,
@@ -382,17 +383,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 email_notify_low_stock = VALUES(email_notify_low_stock),
                 telegram_enabled = VALUES(telegram_enabled),
                 notify_admin_users = VALUES(notify_admin_users)";
-            
+
             $stmt = $db->prepare($sql);
             $stmt->execute($data);
             $stmt->execute($data);
             $success = 'บันทึกการตั้งค่าการแจ้งเตือนสำเร็จ';
-            
+
             // Log activity
             $activityLogger->logData(ActivityLogger::ACTION_UPDATE, 'ตั้งค่าการแจ้งเตือน (System)', [
                 'entity_type' => 'notification_settings'
             ]);
-            
+
         } catch (Exception $e) {
             $error = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
         }
@@ -405,17 +406,17 @@ echo getTabsStyles();
 ?>
 
 <?php if ($success): ?>
-<div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-3">
-    <i class="fas fa-check-circle text-xl"></i>
-    <span><?= htmlspecialchars($success) ?></span>
-</div>
+    <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-3">
+        <i class="fas fa-check-circle text-xl"></i>
+        <span><?= htmlspecialchars($success) ?></span>
+    </div>
 <?php endif; ?>
 
 <?php if ($error): ?>
-<div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3">
-    <i class="fas fa-exclamation-circle text-xl"></i>
-    <span><?= htmlspecialchars($error) ?></span>
-</div>
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3">
+        <i class="fas fa-exclamation-circle text-xl"></i>
+        <span><?= htmlspecialchars($error) ?></span>
+    </div>
 <?php endif; ?>
 
 <!-- Tab Navigation -->
