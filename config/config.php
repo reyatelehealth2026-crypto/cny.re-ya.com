@@ -43,7 +43,7 @@ if (!defined('APP_URL'))
 if (!defined('BASE_URL'))
     define('BASE_URL', 'https://cny.re-ya.com/'); // แก้เป็น URL ใหม่
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '2026.01.23.01'); // Version with modal fix
+    define('APP_VERSION', '2026.01.23.02'); // Version with video call fix
 if (!defined('TIMEZONE'))
     define('TIMEZONE', 'Asia/Bangkok');
 // LINE API (ตั้งค่าผ่านหน้า Admin)
