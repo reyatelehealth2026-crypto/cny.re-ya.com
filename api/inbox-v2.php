@@ -3130,44 +3130,154 @@ try {
                             $fileName = $msg['fileName'] ?? 'File';
                             $fileUrl = $msg['originalContentUrl'];
 
+                            // Mocking file details (since we only have name/url)
+                            $fileSize = "Unknown Size"; // In real app, we should pass this
+                            $fileType = strtoupper(pathinfo($fileName, PATHINFO_EXTENSION)) . " File";
+                            $expiryDate = date('d M Y H:i', strtotime('+7 days')); // Line files expire usually
+
+                            // 1:1 Hero Icon (Generic PDF/File Icon)
+                            $iconUrl = "https://cdn-icons-png.flaticon.com/512/337/337946.png"; // PDF Icon style
+
                             $lineMessages[] = [
                                 'type' => 'flex',
                                 'altText' => "Sent a file: {$fileName}",
                                 'contents' => [
                                     'type' => 'bubble',
-                                    'size' => 'kilo',
+                                    'hero' => [
+                                        'type' => 'image',
+                                        'url' => $iconUrl,
+                                        'size' => 'full',
+                                        'aspectRatio' => '20:13',
+                                        'aspectMode' => 'cover',
+                                        'action' => [
+                                            'type' => 'uri',
+                                            'uri' => $fileUrl
+                                        ]
+                                    ],
                                     'body' => [
                                         'type' => 'box',
-                                        'layout' => 'horizontal',
+                                        'layout' => 'vertical',
                                         'contents' => [
-                                            [
-                                                'type' => 'text',
-                                                'text' => '📄',
-                                                'size' => 'xxl',
-                                                'flex' => 0
-                                            ],
+                                            // Line 1: Filename (Header)
                                             [
                                                 'type' => 'text',
                                                 'text' => $fileName,
                                                 'weight' => 'bold',
-                                                'size' => 'sm',
-                                                'color' => '#111111',
-                                                'flex' => 1,
-                                                'wrap' => true,
+                                                'size' => 'md',
+                                                'wrap' => true
+                                            ],
+                                            // Line 2: File Type
+                                            [
+                                                'type' => 'box',
+                                                'layout' => 'baseline',
                                                 'margin' => 'md',
-                                                'gravity' => 'center',
+                                                'contents' => [
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => 'Type',
+                                                        'size' => 'xs',
+                                                        'color' => '#aaaaaa',
+                                                        'flex' => 2
+                                                    ],
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => $fileType,
+                                                        'size' => 'xs',
+                                                        'color' => '#666666',
+                                                        'flex' => 5,
+                                                        'wrap' => true
+                                                    ]
+                                                ]
+                                            ],
+                                            // Line 3: Size
+                                            [
+                                                'type' => 'box',
+                                                'layout' => 'baseline',
+                                                'spacing' => 'sm',
+                                                'contents' => [
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => 'Size',
+                                                        'size' => 'xs',
+                                                        'color' => '#aaaaaa',
+                                                        'flex' => 2
+                                                    ],
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => $fileSize,
+                                                        'size' => 'xs',
+                                                        'color' => '#666666',
+                                                        'flex' => 5,
+                                                        'wrap' => true
+                                                    ]
+                                                ]
+                                            ],
+                                            // Line 4: Expiry
+                                            [
+                                                'type' => 'box',
+                                                'layout' => 'baseline',
+                                                'spacing' => 'sm',
+                                                'contents' => [
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => 'Expires',
+                                                        'size' => 'xs',
+                                                        'color' => '#aaaaaa',
+                                                        'flex' => 2
+                                                    ],
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => $expiryDate,
+                                                        'size' => 'xs',
+                                                        'color' => '#666666',
+                                                        'flex' => 5,
+                                                        'wrap' => true
+                                                    ]
+                                                ]
+                                            ],
+                                            // Line 5: Status
+                                            [
+                                                'type' => 'box',
+                                                'layout' => 'baseline',
+                                                'spacing' => 'sm',
+                                                'contents' => [
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => 'Status',
+                                                        'size' => 'xs',
+                                                        'color' => '#aaaaaa',
+                                                        'flex' => 2
+                                                    ],
+                                                    [
+                                                        'type' => 'text',
+                                                        'text' => 'Ready to Download',
+                                                        'size' => 'xs',
+                                                        'color' => '#1DB446',
+                                                        'flex' => 5,
+                                                        'wrap' => true
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ],
+                                    'footer' => [
+                                        'type' => 'box',
+                                        'layout' => 'vertical',
+                                        'spacing' => 'sm',
+                                        'contents' => [
+                                            [
+                                                'type' => 'button',
+                                                'style' => 'primary',
+                                                'color' => '#1DB446',
+                                                'height' => 'sm',
                                                 'action' => [
                                                     'type' => 'uri',
-                                                    'label' => 'Open File',
+                                                    'label' => 'Download File/Open',
                                                     'uri' => $fileUrl
                                                 ]
                                             ]
                                         ],
-                                        'action' => [
-                                            'type' => 'uri',
-                                            'label' => 'Open File',
-                                            'uri' => $fileUrl
-                                        ]
+                                        'flex' => 0
                                     ]
                                 ]
                             ];
