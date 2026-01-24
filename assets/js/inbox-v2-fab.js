@@ -1530,7 +1530,7 @@ const BatchComposer = {
         btn.disabled = validCount === 0;
     },
 
-    showTemplateDropdown(index) {
+    async showTemplateDropdown(index) {
         const dropdown = document.getElementById(`batchTemplateDropdown${index}`);
         if (!dropdown) return;
 
@@ -1542,6 +1542,15 @@ const BatchComposer = {
 
         // Close other dropdowns
         document.querySelectorAll('.batch-template-dropdown').forEach(d => d.classList.remove('show'));
+
+        // Load templates if needed
+        if (!window.HUDMode?.templatesLoaded) {
+            dropdown.innerHTML = '<div class="batch-template-option"><div class="batch-template-option-name"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</div></div>';
+            dropdown.classList.add('show');
+            if (window.HUDMode) {
+                await window.HUDMode.loadTemplates();
+            }
+        }
 
         // Load templates
         const templates = window.HUDMode?.templates || [];
