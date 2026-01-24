@@ -3313,6 +3313,9 @@ try {
                     sendError('No valid messages to send');
                 }
 
+                // Debug: Log payload to find validation error
+                error_log("LINE Payload: " . json_encode($lineMessages, JSON_UNESCAPED_UNICODE));
+
                 // Send batch via pushMessage (supports array of messages)
                 $result = $lineAPI->pushMessage($lineUserId, $lineMessages);
 
