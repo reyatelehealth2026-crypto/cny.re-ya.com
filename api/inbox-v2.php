@@ -1420,24 +1420,6 @@ try {
             ]);
             break;
 
-        // ============================================
-        // GET /templates - Get chat templates
-        // Requirements: 3.1
-        // ============================================
-        case 'get_templates':
-        case 'templates':
-            if ($method !== 'GET') {
-                sendError('Method not allowed', 405);
-            }
-
-            $inboxService = new InboxService($db, $lineAccountId);
-            $templates = $inboxService->getTemplates();
-
-            sendResponse([
-                'success' => true,
-                'data' => $templates
-            ]);
-            break;
 
         // ============================================
         // GET /context-widgets - Get context-aware widgets
@@ -2111,6 +2093,7 @@ try {
         // GET /get_templates - Get all templates
         // ============================================
         case 'get_templates':
+        case 'templates':
             if ($method !== 'GET') {
                 sendError('Method not allowed', 405);
             }
