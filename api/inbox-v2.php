@@ -3159,7 +3159,7 @@ try {
                                         'url' => $iconUrl,
                                         'size' => 'full',
                                         'aspectRatio' => '20:13',
-                                        'aspectMode' => 'cover',
+                                        'aspectMode' => 'fit',
                                         'action' => [
                                             'type' => 'uri',
                                             'uri' => $fileUrl
