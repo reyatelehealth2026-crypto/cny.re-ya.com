@@ -2986,7 +2986,7 @@ try {
                 sendError('Method not allowed', 405);
             }
 
-            $userId = (int) ($_GET['user_id'] ?? 0);
+            $userId = (int) ($_GET['user_id'] ?? $_GET['user'] ?? 0);
             $limit = min((int) ($_GET['limit'] ?? 50), 100);
             $offset = (int) ($_GET['offset'] ?? 0);
 

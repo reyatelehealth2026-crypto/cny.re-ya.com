@@ -146,7 +146,7 @@ try {
          * Get new messages for specific user since timestamp
          */
         case 'get_new_messages':
-            $userId = (int) ($_GET['user_id'] ?? 0);
+            $userId = (int) ($_GET['user_id'] ?? $_GET['user'] ?? 0);
             $since = $_GET['since'] ?? date('Y-m-d H:i:s', strtotime('-30 seconds'));
 
             if (!$userId) {
