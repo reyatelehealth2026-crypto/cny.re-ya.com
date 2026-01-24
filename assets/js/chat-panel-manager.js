@@ -752,7 +752,8 @@ class ChatPanelManager {
      * @private
      */
     async postMessage(content, type = 'text') {
-        const url = `${this.apiEndpoint}?action=sendMessage`;
+        // Use inbox-v2.php handler for sending messages (same as uploadImage)
+        const url = `inbox-v2.php?action=send_message`;
 
         const response = await fetch(url, {
             method: 'POST',
