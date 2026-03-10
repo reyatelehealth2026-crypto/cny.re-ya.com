@@ -3581,17 +3581,27 @@ async function bsaConfirmAttach(){
         return;
     }
     const btn=document.getElementById('bsaConfirmBtn');
-    btn.disabled=true;btn.innerHTML='<i class="bi bi-hourglass-split"></i> \u0e01\u0e33\u0e25\u0e31\u0e07\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01...';
+    btn.disabled=true;btn.innerHTML='<i class="bi bi-hourglass-split"></i> กำลังบันทึก...';
     try{
         const amount=parseFloat(document.getElementById('bsaAmountInput').value)||null;
         const transferDate=document.getElementById('bsaDateInput').value||null;
         if(_bsaSelectedSlipId){
-            // Match existing slip to BDO
-            const r=await fetch('api/slip-match-orders.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                action:'match_bdo',slip_id:_bsaSelectedSlipId,bdo_id:_bsaBdoData.bdo_id,amount:amount
-            })});
-            const j=await r.json();
-            if(!j.success) throw new Error(j.error||'\u0e08\u0e31\u0e1a\u0e04\u0e39\u0e48\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08');
+            const slip = getBsaSelectedSlip();
+            if(!slip) throw new Error('ไม่พบข้อมูลสลิปที่เลือก');
+            const slipInboxId = slip.slip_inbox_id || slip.odoo_slip_id || slip.id || slip.slip_id;
+            if(!slipInboxId) throw new Error('สลิปนี้ยังไม่มีรหัสสำหรับจับคู่');
+            const j = await whApiCall({
+                action:'slip_match_bdo',
+                slip_inbox_id: slipInboxId,
+                line_user_id: slip.line_user_id || '',
+                matches: [{
+                    bdo_id: _bsaBdoData.bdo_id,
+                    amount: amount != null ? amount : parseFloat(_bsaBdoData.amount_total || _bsaBdoData.amount_net_to_pay || 0)
+                }],
+                note:'Attach slip from BDO modal',
+                local_slip_id: slip.id || slip.slip_id
+            });
+            if(!j.success) throw new Error(j.error||'จับคู่ไม่สำเร็จ');
         } else if(_bsaFileBase64){
             // Upload new file + attach to BDO
             const r=await fetch('api/odoo-slip-upload.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -3604,36 +3614,42 @@ async function bsaConfirmAttach(){
                 skip_line_notify:true
             })});
             const j=await r.json();
-            if(!j.success) throw new Error(j.error||'\u0e2d\u0e31\u0e1e\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08');
+            if(!j.success) throw new Error(j.error||'อัปโหลดสลิปไม่สำเร็จ');
         } else {
-            throw new Error('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2a\u0e25\u0e34\u0e1b\u0e2b\u0e23\u0e37\u0e2d\u0e2d\u0e31\u0e1e\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b');
+            throw new Error('ไม่มีข้อมูลสลิปหรือไฟล์สำหรับแนบ');
         }
         closeBdoSlipAttach();
-        alert('\u2705 \u0e41\u0e19\u0e1a\u0e2a\u0e25\u0e34\u0e1b\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27');
+        alert('✅ แนบสลิปเรียบร้อยแล้ว');
         // Refresh slips & customer detail if open
         if(typeof loadSlips==='function') loadSlips();
     }catch(e){
-        alert('\u274c '+e.message);
-        btn.disabled=false;btn.innerHTML='<i class="bi bi-check2-circle"></i> \u0e41\u0e19\u0e1a\u0e2a\u0e25\u0e34\u0e1b';
+        alert('❌ '+e.message);
+        btn.disabled=false;btn.innerHTML='<i class="bi bi-check2-circle"></i> แนบสลิป';
     }
 }
 
 // ===== UNMATCH BDO SLIP =====
 async function unmatchBdoSlip(slipId, bdoId){
-    if(!confirm('\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01\u0e01\u0e32\u0e23\u0e08\u0e31\u0e1a\u0e04\u0e39\u0e48\u0e2a\u0e25\u0e34\u0e1b\u0e01\u0e31\u0e1a BDO \u0e19\u0e35\u0e49 \u0e43\u0e0a\u0e48\u0e44\u0e2b\u0e21?'))return;
+    if(!confirm('ยกเลิกการจับคู่สลิปกับ BDO นี้ ใช่ไหม?'))return;
     try{
-        const r=await fetch('api/slip-match-orders.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-            action:'unmatch',slip_id:slipId,bdo_id:bdoId
-        })});
-        const j=await r.json();
+        const slip = (_bsaSlips || []).find(function(item){ return (item.id || item.slip_id) == slipId; })
+            || (_matchSlips || []).find(function(item){ return (item.id || item.slip_id) == slipId || (item.odoo_slip_id || item.slip_inbox_id) == slipId; });
+        const j=await whApiCall({
+            action:'slip_unmatch',
+            slip_inbox_id:(slip && (slip.slip_inbox_id || slip.odoo_slip_id || slip.id || slip.slip_id)) || slipId,
+            line_user_id:(slip && slip.line_user_id) || '',
+            reason:'ยกเลิกจาก BDO dashboard',
+            local_slip_id:(slip && (slip.id || slip.slip_id)) || slipId,
+            bdo_id:bdoId
+        });
         if(j.success){
-            alert('\u2705 \u0e22\u0e01\u0e40\u0e25\u0e34\u0e01\u0e01\u0e32\u0e23\u0e08\u0e31\u0e1a\u0e04\u0e39\u0e48\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27');
+            alert('✅ ยกเลิกการจับคู่เรียบร้อยแล้ว');
             if(typeof loadSlips==='function') loadSlips();
         }else{
-            alert('\u274c '+(j.error||'\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14'));
+            alert('❌ '+(j.error||'เกิดข้อผิดพลาด'));
         }
     }catch(e){
-        alert('\u274c Network error: '+e.message);
+        alert('❌ Network error: '+e.message);
     }
 }
 
