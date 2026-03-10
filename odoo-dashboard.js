@@ -2660,27 +2660,12 @@ function renderMatchingCustomerGrid(){
 }
 
 function openMatchingForCustomer(ref, name, partnerId, salespersonName){
-    _matchActiveCustomer = { ref: ref, name: name, partnerId: partnerId || '', salespersonName: salespersonName || '' };
-
-    const gridZone   = document.getElementById('matchCustomerGridZone');
-    const detailZone = document.getElementById('matchCustomerDetailZone');
-    if(gridZone)   gridZone.style.display   = 'none';
-    if(detailZone) detailZone.style.display = '';
-
-    const headerEl = document.getElementById('matchCustomerDetailHeader');
-    if(headerEl){
-        headerEl.innerHTML = '<div class="content-card" style="padding:0.65rem 1rem;">'
-            + '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">'
-            + '<button onclick="closeMatchingCustomer()" style="background:var(--gray-100);color:var(--gray-700);border:none;border-radius:8px;padding:6px 14px;font-size:0.82rem;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;"><i class="bi bi-arrow-left"></i> กลับ</button>'
-            + '<div style="font-weight:600;font-size:0.95rem;color:var(--gray-800);">'
-            + '<span style="color:var(--gray-500);font-weight:400;">ลูกค้า:</span> '
-            + escapeHtml(ref) + (name && name !== '-' ? ' — ' + escapeHtml(name) : '')
-            + '</div>'
-            + (salespersonName ? '<span style="font-size:0.78rem;color:var(--gray-500);"><i class="bi bi-person-badge"></i> ' + escapeHtml(salespersonName) + '</span>' : '')
-            + '</div></div>';
-    }
-
-    loadMatchingDashboard();
+    const url = 'odoo-customer-detail.php'
+        + '?ref='        + encodeURIComponent(ref || '')
+        + '&partner_id=' + encodeURIComponent(partnerId || '')
+        + '&name='       + encodeURIComponent(name || '')
+        + '&tab=matching';
+    window.location.href = url;
 }
 
 function closeMatchingCustomer(){

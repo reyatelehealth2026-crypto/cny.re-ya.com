@@ -9,6 +9,7 @@ const _params=new URLSearchParams(window.location.search);
 const P_REF=_params.get('ref')||'';
 const P_PID=_params.get('partner_id')||'';
 const P_NAME=_params.get('name')||'';
+const P_TAB=_params.get('tab')||'';
 
 // State
 let _allOrders=[], _allInvoices=[], _allSlips=[], _allBdos=[];
@@ -118,6 +119,7 @@ function switchTab(name){
     // Lazy load
     if(name==='timeline'&&!_timelineLoaded)loadTimeline();
     if(name==='activity'&&!_activityLoaded)loadActivity();
+    if(name==='matching') renderMatchingTab();
 }
 
 // ===== INIT =====
@@ -125,6 +127,7 @@ let _timelineLoaded=false,_activityLoaded=false;
 
 document.addEventListener('DOMContentLoaded',function(){
     document.getElementById('topTitle').textContent=P_NAME||'รายละเอียดลูกค้า';
+    if(P_TAB) switchTab(P_TAB);
     loadAll();
 });
 
@@ -202,6 +205,22 @@ async function loadAll(){
     document.getElementById('tabCountInvoices').textContent='('+_allInvoices.length+')';
     document.getElementById('tabCountBdos').textContent='('+_allBdos.length+')';
     document.getElementById('tabCountSlips').textContent='('+_allSlips.length+')';
+
+    // Matching tab count
+    const _pendingSlipsForBadge=_allSlips.filter(function(s){return s.status==='pending'||s.status==='new';});
+    const _pendingBdosForBadge=_allBdos.filter(function(b){const st=String(b.payment_status||b.state||'').toLowerCase();return st!=='done'&&st!=='cancelled'&&st!=='cancel'&&st!=='paid'&&st!=='fully_paid';});
+    const _mtcEl=document.getElementById('tabCountMatching');
+    if(_mtcEl){
+        if(_pendingSlipsForBadge.length>0||_pendingBdosForBadge.length>0){
+            _mtcEl.textContent='🟡 สลิปรอ '+_pendingSlipsForBadge.length+' / BDO รอ '+_pendingBdosForBadge.length;
+        } else {
+            _mtcEl.textContent='';
+        }
+    }
+
+    // If matching tab is active, re-render with fresh data
+    const matchPanel=document.getElementById('panel-matching');
+    if(matchPanel&&matchPanel.classList.contains('active')) renderMatchingTab();
 }
 
 // ===== RENDER: Profile Card =====
@@ -452,6 +471,107 @@ function renderSlips(slips){
         h+='</tr>';
     });
     h+='</tbody></table></div>';
+    c.innerHTML=h;
+}
+
+// ===== RENDER: Matching Tab =====
+function renderMatchingTab(){
+    const c=document.getElementById('matchingContent');
+    if(!c)return;
+
+    // If data not loaded yet, show loading
+    if(!_allSlips.length&&!_allBdos.length){
+        c.innerHTML='<div class="loading" style="padding:2rem;"><i class="bi bi-arrow-repeat spin"></i> กำลังโหลดข้อมูล...</div>';
+        return;
+    }
+
+    const pendingSlips=_allSlips.filter(function(s){return s.status==='pending'||s.status==='new'||(!s.status&&s.id);});
+    const pendingBdos=_allBdos.filter(function(b){
+        const st=String(b.payment_status||b.state||'').toLowerCase();
+        return st!=='done'&&st!=='cancelled'&&st!=='cancel'&&st!=='paid'&&st!=='fully_paid';
+    });
+
+    let h='<div style="padding:0.5rem 0;">';
+
+    // Summary bar
+    h+='<div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;padding:0.75rem 1rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;">';
+    h+='<i class="bi bi-link-45deg" style="font-size:1.3rem;color:#d97706;"></i>';
+    h+='<div style="font-weight:600;font-size:0.95rem;color:#92400e;">จับคู่สลิป ↔ BDO สำหรับ '+(P_REF?escapeHtml(P_REF):'')+(P_NAME?' — '+escapeHtml(P_NAME):'')+'</div>';
+    h+='<div style="margin-left:auto;display:flex;gap:0.75rem;align-items:center;">';
+    h+='<span style="background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:50px;font-size:0.78rem;font-weight:600;"><i class="bi bi-clock-fill" style="font-size:0.65rem;"></i> สลิปรอ '+pendingSlips.length+'</span>';
+    h+='<span style="background:#ede9fe;color:#7c3aed;padding:3px 10px;border-radius:50px;font-size:0.78rem;font-weight:600;"><i class="bi bi-file-earmark-check" style="font-size:0.65rem;"></i> BDO รอ '+pendingBdos.length+'</span>';
+    h+='<button onclick="loadAll()" style="background:var(--gray-100);color:var(--gray-700);border:none;border-radius:8px;padding:5px 12px;font-size:0.78rem;cursor:pointer;font-family:inherit;"><i class="bi bi-arrow-repeat"></i> รีเฟรช</button>';
+    h+='</div></div>';
+
+    // Split view
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">';
+
+    // LEFT: Pending slips
+    h+='<div class="card" style="max-height:60vh;overflow-y:auto;">';
+    h+='<div class="card-title"><i class="bi bi-receipt" style="color:#16a34a;"></i> สลิปยังไม่จับคู่ ('+pendingSlips.length+')</div>';
+    if(!pendingSlips.length){
+        h+='<div style="text-align:center;padding:2rem;color:var(--gray-400);"><i class="bi bi-receipt" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>ไม่มีสลิปรอจับคู่</div>';
+    } else {
+        pendingSlips.forEach(function(s){
+            const amt=s.amount!=null?'฿'+Number(s.amount).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2}):'-';
+            const dt=s.transfer_date?new Date(s.transfer_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}):'-';
+            const thumb=s.image_full_url
+                ?'<img src="'+escapeHtml(s.image_full_url)+'" onclick="openSlipPreview(\''+escapeHtml(s.image_full_url)+'\')" style="width:52px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:1.5px solid #bbf7d0;flex-shrink:0;" onerror="this.style.display=\'none\'">'
+                :'<div style="width:52px;height:64px;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-image" style="color:var(--gray-400);"></i></div>';
+            h+='<div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--gray-100);">';
+            h+=thumb;
+            h+='<div style="flex:1;">';
+            h+='<div style="font-weight:700;font-size:1rem;color:#16a34a;">'+amt+'</div>';
+            h+='<div style="font-size:0.78rem;color:var(--gray-500);">วันที่โอน: '+dt+'</div>';
+            h+='<div style="margin-top:3px;"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:50px;font-size:0.7rem;">รอจับคู่</span></div>';
+            h+='</div></div>';
+        });
+    }
+    h+='</div>';
+
+    // RIGHT: Pending BDOs
+    h+='<div class="card" style="max-height:60vh;overflow-y:auto;">';
+    h+='<div class="card-title"><i class="bi bi-file-earmark-check" style="color:#7c3aed;"></i> BDO ยังไม่จับคู่ ('+pendingBdos.length+')</div>';
+    if(!pendingBdos.length){
+        h+='<div style="text-align:center;padding:2rem;color:var(--gray-400);"><i class="bi bi-file-earmark-check" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>ไม่มี BDO รอจับคู่</div>';
+    } else {
+        pendingBdos.forEach(function(b, idx){
+            const bName=escapeHtml(b.bdo_name||('BDO-'+b.bdo_id)||'-');
+            const oName=escapeHtml(b.order_name||'-');
+            const amt=b.amount_total!=null?'฿'+Number(b.amount_total).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2}):'-';
+            const dt=b.bdo_date?new Date(b.bdo_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}):'-';
+            const st=String(b.payment_status||b.state||'').toLowerCase();
+            let stBg='#fef3c7';let stClr='#d97706';let stLbl='รอชำระ';
+            if(st==='partial'||st==='partially_paid'){stBg='#ffedd5';stClr='#ea580c';stLbl='ชำระบางส่วน';}
+            else if(st==='slip_uploaded'||st==='uploaded'){stBg='#dbeafe';stClr='#1d4ed8';stLbl='แนบสลิปแล้ว';}
+            else if(st==='matched'||st==='reconciled'){stBg='#dcfce7';stClr='#16a34a';stLbl='จับคู่แล้ว';}
+            else if(st==='confirmed'){stBg='#e0f2fe';stClr='#0369a1';stLbl='ยืนยัน';}
+
+            h+='<div style="padding:0.65rem 0;border-bottom:1px solid var(--gray-100);">';
+            h+='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">';
+            h+='<div>';
+            h+='<div style="font-weight:700;font-size:0.92rem;color:var(--gray-800);">'+bName+'</div>';
+            h+='<div style="font-size:0.78rem;color:var(--gray-500);">'+oName+' · '+dt+'</div>';
+            h+='<div style="margin-top:4px;display:flex;align-items:center;gap:6px;">';
+            h+='<span style="font-weight:700;font-size:1rem;color:#7c3aed;">'+amt+'</span>';
+            h+='<span style="background:'+stBg+';color:'+stClr+';padding:2px 8px;border-radius:50px;font-size:0.7rem;font-weight:600;">'+stLbl+'</span>';
+            h+='</div>';
+            h+='</div>';
+            h+='<button onclick="openBdoSlipAttach(window._matchingBdos['+idx+'], window._pendingSlipsForMatch||[])" '
+               +'style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:0.78rem;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">'
+               +'<i class="bi bi-paperclip"></i> แนบสลิป</button>';
+            h+='</div></div>';
+        });
+    }
+    h+='</div>';
+
+    h+='</div>'; // split grid
+    h+='</div>';
+
+    // Store data globally for onclick access
+    window._pendingSlipsForMatch = pendingSlips;
+    window._matchingBdos = pendingBdos;
+
     c.innerHTML=h;
 }
 

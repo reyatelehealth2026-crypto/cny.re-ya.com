@@ -140,6 +140,7 @@
         <button class="tab-btn" onclick="switchTab('invoices')"><i class="bi bi-file-text"></i> ใบแจ้งหนี้ <span id="tabCountInvoices"></span></button>
         <button class="tab-btn" onclick="switchTab('bdos')"><i class="bi bi-truck"></i> BDO <span id="tabCountBdos"></span></button>
         <button class="tab-btn" onclick="switchTab('slips')"><i class="bi bi-receipt"></i> สลิป <span id="tabCountSlips"></span></button>
+        <button class="tab-btn" id="tabBtnMatching" onclick="switchTab('matching')" style="color:#d97706;font-weight:600;"><i class="bi bi-link-45deg"></i> จับคู่สลิป ↔ BDO <span id="tabCountMatching" style="font-size:0.75rem;"></span></button>
         <button class="tab-btn" onclick="switchTab('profile')"><i class="bi bi-person-vcard"></i> โปรไฟล์ Odoo</button>
         <button class="tab-btn" onclick="switchTab('timeline')"><i class="bi bi-clock-history"></i> Timeline</button>
         <button class="tab-btn" onclick="switchTab('activity')"><i class="bi bi-journal-text"></i> Activity Log</button>
@@ -157,6 +158,9 @@
     </div>
     <div class="tab-panel" id="panel-slips">
         <div class="card"><div id="slipsContent"><div class="loading"><i class="bi bi-arrow-repeat spin"></i> กำลังโหลด...</div></div></div>
+    </div>
+    <div class="tab-panel" id="panel-matching">
+        <div id="matchingContent"><div class="loading"><i class="bi bi-arrow-repeat spin"></i> กำลังโหลด...</div></div>
     </div>
     <div class="tab-panel" id="panel-profile">
         <div class="card"><div id="profileContent"><div class="loading"><i class="bi bi-arrow-repeat spin"></i> กำลังโหลด...</div></div></div>
