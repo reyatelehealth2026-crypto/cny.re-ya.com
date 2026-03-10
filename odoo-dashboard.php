@@ -781,115 +781,144 @@
 
         <!-- ═══════════════════════ Matching Section (Slip ↔ BDO) ═══════════════════════ -->
         <div id="section-matching" class="section-panel">
-            <!-- KPI Cards -->
-            <div class="kpi-grid" id="matchingKPI">
-                <div class="kpi-card" style="border-left:4px solid #d97706;">
-                    <div class="kpi-label">รอจับคู่</div>
-                    <div class="kpi-value" id="matchKpiPending" style="color:#d97706;">-</div>
-                    <div class="kpi-sub">สลิป + BDO ที่ยังไม่จับคู่</div>
-                </div>
-                <div class="kpi-card" style="border-left:4px solid var(--primary);">
-                    <div class="kpi-label">แนะนำจับคู่</div>
-                    <div class="kpi-value" id="matchKpiSuggested" style="color:var(--primary);">-</div>
-                    <div class="kpi-sub">ระบบแนะนำอัตโนมัติ</div>
-                </div>
-                <div class="kpi-card" style="border-left:4px solid #16a34a;">
-                    <div class="kpi-label">สำเร็จวันนี้</div>
-                    <div class="kpi-value" id="matchKpiSuccess" style="color:#16a34a;">-</div>
-                    <div class="kpi-sub">จับคู่เรียบร้อยแล้ว</div>
-                </div>
-                <div class="kpi-card" style="border-left:4px solid #dc2626;">
-                    <div class="kpi-label">มีปัญหา</div>
-                    <div class="kpi-value" id="matchKpiProblem" style="color:#dc2626;">-</div>
-                    <div class="kpi-sub">ยอดไม่ตรง / ต้องตรวจสอบ</div>
-                </div>
-            </div>
 
-            <!-- Toolbar -->
-            <div class="content-card" style="margin-bottom:0.75rem;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                    <div class="content-title mb-0"><i class="bi bi-link-45deg"></i> จับคู่สลิป ↔ BDO</div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-                        <select class="form-control" id="matchFilterMode" onchange="loadMatchingDashboard()" style="max-width:180px;font-size:0.82rem;padding:4px 8px;">
-                            <option value="pending">เฉพาะรอจับคู่</option>
-                            <option value="all">ทั้งหมด</option>
-                            <option value="matched">จับคู่แล้ว</option>
-                        </select>
-                        <input type="text" class="form-control" id="matchSearchInput" placeholder="ค้นหาลูกค้า / BDO..." style="max-width:200px;font-size:0.82rem;padding:4px 8px;" onkeyup="if(event.key==='Enter')loadMatchingDashboard()">
-                        <button class="chip" onclick="loadMatchingDashboard()" style="font-size:0.8rem;"><i class="bi bi-arrow-repeat"></i> รีเฟรช</button>
-                        <button class="btn-primary" id="matchBatchConfirmBtn" onclick="batchConfirmMatches()" disabled style="background:linear-gradient(135deg,#16a34a,#059669);font-size:0.82rem;"><i class="bi bi-check2-all"></i> ยืนยันที่แนะนำทั้งหมด</button>
+            <!-- ══ ZONE A: Customer Grid (shown on entry) ══ -->
+            <div id="matchCustomerGridZone">
+                <!-- Grid Toolbar -->
+                <div class="content-card" style="margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                        <div class="content-title mb-0"><i class="bi bi-people"></i> เลือกลูกค้าเพื่อจับคู่</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                            <select class="form-control" id="matchSalespersonFilter" onchange="renderMatchingCustomerGrid()" style="max-width:200px;font-size:0.82rem;padding:4px 8px;">
+                                <option value="">พนักงานขาย: ทั้งหมด</option>
+                            </select>
+                            <input type="text" class="form-control" id="matchCustomerSearch" placeholder="ค้นหารหัส / ชื่อลูกค้า..." style="max-width:200px;font-size:0.82rem;padding:4px 8px;" oninput="renderMatchingCustomerGrid()">
+                            <button class="chip" onclick="loadMatchingCustomerGrid()" style="font-size:0.8rem;"><i class="bi bi-arrow-repeat"></i> รีเฟรช</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Zone 1: Suggested Pairs -->
-            <div class="content-card" id="matchSuggestedSection" style="margin-bottom:0.75rem;">
-                <div class="content-title" style="margin-bottom:0.5rem;">
-                    <i class="bi bi-stars" style="color:#7c3aed;"></i> แนะนำจับคู่อัตโนมัติ
-                    <span id="matchSuggestedCount" style="font-size:0.8rem;color:var(--gray-500);margin-left:6px;"></span>
-                    <div style="margin-left:auto;font-size:0.75rem;color:var(--gray-400);">เลือกคู่ด้านล่างแล้วกด ยืนยัน หรือจับคู่เองด้วยช่องล่าง</div>
-                </div>
-                <div id="matchSuggestedList">
+                <!-- Customer Cards Grid -->
+                <div id="matchCustomerGrid">
                     <div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด...</div></div>
                 </div>
             </div>
 
-            <!-- Zone 2+3: Unmatched items (compact 2-col) -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="matchingSplitView">
-                <!-- Left: Unmatched Slips -->
-                <div class="content-card" style="max-height:45vh;overflow-y:auto;">
-                    <div class="content-title" style="font-size:0.85rem;padding-bottom:0.4rem;">
-                        <i class="bi bi-image"></i> สลิปยังไม่จับคู่
-                        <span id="matchSlipCount" style="font-size:0.78rem;color:var(--gray-500);margin-left:auto;"></span>
-                    </div>
-                    <div id="matchSlipList"></div>
-                </div>
-                <!-- Right: Unmatched BDOs -->
-                <div class="content-card" style="max-height:45vh;overflow-y:auto;">
-                    <div class="content-title" style="font-size:0.85rem;padding-bottom:0.4rem;">
-                        <i class="bi bi-file-earmark-check"></i> BDO ยังไม่จับคู่
-                        <span id="matchBdoCount" style="font-size:0.78rem;color:var(--gray-500);margin-left:auto;"></span>
-                    </div>
-                    <div id="matchBdoList"></div>
-                </div>
-            </div>
+            <!-- ══ ZONE B: Customer-scoped Matching (hidden until customer selected) ══ -->
+            <div id="matchCustomerDetailZone" style="display:none;">
+                <!-- Back Header -->
+                <div id="matchCustomerDetailHeader" style="margin-bottom:0.75rem;"></div>
 
-            <!-- Match Summary Bar -->
-            <div class="content-card" id="matchSummaryBar" style="margin-top:1rem;display:none;">
-                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:200px;">
-                        <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
-                            <div>
-                                <div style="font-size:0.72rem;color:var(--gray-500);">สลิปที่เลือก</div>
-                                <div style="font-weight:700;font-size:1.1rem;" id="matchSumSlipAmt">-</div>
-                            </div>
-                            <div style="font-size:1.2rem;color:var(--gray-400);">↔</div>
-                            <div>
-                                <div style="font-size:0.72rem;color:var(--gray-500);">BDO ที่เลือก</div>
-                                <div style="font-weight:700;font-size:1.1rem;" id="matchSumBdoAmt">-</div>
-                            </div>
-                            <div id="matchSumDiff" style="font-weight:600;font-size:0.9rem;"></div>
+                <!-- KPI Cards -->
+                <div class="kpi-grid" id="matchingKPI">
+                    <div class="kpi-card" style="border-left:4px solid #d97706;">
+                        <div class="kpi-label">รอจับคู่</div>
+                        <div class="kpi-value" id="matchKpiPending" style="color:#d97706;">-</div>
+                        <div class="kpi-sub">สลิป + BDO ที่ยังไม่จับคู่</div>
+                    </div>
+                    <div class="kpi-card" style="border-left:4px solid var(--primary);">
+                        <div class="kpi-label">แนะนำจับคู่</div>
+                        <div class="kpi-value" id="matchKpiSuggested" style="color:var(--primary);">-</div>
+                        <div class="kpi-sub">ระบบแนะนำอัตโนมัติ</div>
+                    </div>
+                    <div class="kpi-card" style="border-left:4px solid #16a34a;">
+                        <div class="kpi-label">สำเร็จวันนี้</div>
+                        <div class="kpi-value" id="matchKpiSuccess" style="color:#16a34a;">-</div>
+                        <div class="kpi-sub">จับคู่เรียบร้อยแล้ว</div>
+                    </div>
+                    <div class="kpi-card" style="border-left:4px solid #dc2626;">
+                        <div class="kpi-label">มีปัญหา</div>
+                        <div class="kpi-value" id="matchKpiProblem" style="color:#dc2626;">-</div>
+                        <div class="kpi-sub">ยอดไม่ตรง / ต้องตรวจสอบ</div>
+                    </div>
+                </div>
+
+                <!-- Detail Toolbar -->
+                <div class="content-card" style="margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                        <div class="content-title mb-0"><i class="bi bi-link-45deg"></i> จับคู่สลิป ↔ BDO</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                            <select class="form-control" id="matchFilterMode" onchange="loadMatchingDashboard()" style="max-width:180px;font-size:0.82rem;padding:4px 8px;">
+                                <option value="pending">เฉพาะรอจับคู่</option>
+                                <option value="all">ทั้งหมด</option>
+                                <option value="matched">จับคู่แล้ว</option>
+                            </select>
+                            <input type="text" class="form-control" id="matchSearchInput" placeholder="ค้นหา BDO..." style="max-width:200px;font-size:0.82rem;padding:4px 8px;" onkeyup="if(event.key==='Enter')loadMatchingDashboard()">
+                            <button class="chip" onclick="loadMatchingDashboard()" style="font-size:0.8rem;"><i class="bi bi-arrow-repeat"></i> รีเฟรช</button>
+                            <button class="btn-primary" id="matchBatchConfirmBtn" onclick="batchConfirmMatches()" disabled style="background:linear-gradient(135deg,#16a34a,#059669);font-size:0.82rem;"><i class="bi bi-check2-all"></i> ยืนยันที่แนะนำทั้งหมด</button>
                         </div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:0.5rem;">
-                        <input type="text" class="form-control" id="matchNote" placeholder="หมายเหตุ (ถ้ามี)..." style="max-width:200px;font-size:0.82rem;padding:4px 8px;">
-                        <button class="btn-primary" id="matchConfirmBtn" onclick="confirmManualMatch()" disabled style="background:linear-gradient(135deg,#16a34a,#059669);"><i class="bi bi-check2-circle"></i> ยืนยันจับคู่</button>
-                        <button class="chip" onclick="clearMatchSelection()"><i class="bi bi-x-circle"></i> ยกเลิก</button>
+                </div>
+
+                <!-- Zone 1: Suggested Pairs -->
+                <div class="content-card" id="matchSuggestedSection" style="margin-bottom:0.75rem;">
+                    <div class="content-title" style="margin-bottom:0.5rem;">
+                        <i class="bi bi-stars" style="color:#7c3aed;"></i> แนะนำจับคู่อัตโนมัติ
+                        <span id="matchSuggestedCount" style="font-size:0.8rem;color:var(--gray-500);margin-left:6px;"></span>
+                        <div style="margin-left:auto;font-size:0.75rem;color:var(--gray-400);">เลือกคู่ด้านล่างแล้วกด ยืนยัน หรือจับคู่เองด้วยช่องล่าง</div>
+                    </div>
+                    <div id="matchSuggestedList">
+                        <div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด...</div></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Matched Today List -->
-            <div class="content-card" style="margin-top:1rem;">
-                <div class="content-title">
-                    <i class="bi bi-check-circle"></i> จับคู่สำเร็จล่าสุด
-                    <span id="matchedTodayCount" style="font-size:0.8rem;color:var(--gray-500);margin-left:auto;"></span>
+                <!-- Zone 2+3: Unmatched items (compact 2-col) -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="matchingSplitView">
+                    <!-- Left: Unmatched Slips -->
+                    <div class="content-card" style="max-height:45vh;overflow-y:auto;">
+                        <div class="content-title" style="font-size:0.85rem;padding-bottom:0.4rem;">
+                            <i class="bi bi-image"></i> สลิปยังไม่จับคู่
+                            <span id="matchSlipCount" style="font-size:0.78rem;color:var(--gray-500);margin-left:auto;"></span>
+                        </div>
+                        <div id="matchSlipList"></div>
+                    </div>
+                    <!-- Right: Unmatched BDOs -->
+                    <div class="content-card" style="max-height:45vh;overflow-y:auto;">
+                        <div class="content-title" style="font-size:0.85rem;padding-bottom:0.4rem;">
+                            <i class="bi bi-file-earmark-check"></i> BDO ยังไม่จับคู่
+                            <span id="matchBdoCount" style="font-size:0.78rem;color:var(--gray-500);margin-left:auto;"></span>
+                        </div>
+                        <div id="matchBdoList"></div>
+                    </div>
                 </div>
-                <div id="matchedTodayList">
-                    <div style="text-align:center;padding:1.5rem;color:var(--gray-400);font-size:0.85rem;">โหลดข้อมูลเพื่อดูรายการ</div>
+
+                <!-- Match Summary Bar -->
+                <div class="content-card" id="matchSummaryBar" style="margin-top:1rem;display:none;">
+                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                            <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                                <div>
+                                    <div style="font-size:0.72rem;color:var(--gray-500);">สลิปที่เลือก</div>
+                                    <div style="font-weight:700;font-size:1.1rem;" id="matchSumSlipAmt">-</div>
+                                </div>
+                                <div style="font-size:1.2rem;color:var(--gray-400);">↔</div>
+                                <div>
+                                    <div style="font-size:0.72rem;color:var(--gray-500);">BDO ที่เลือก</div>
+                                    <div style="font-weight:700;font-size:1.1rem;" id="matchSumBdoAmt">-</div>
+                                </div>
+                                <div id="matchSumDiff" style="font-weight:600;font-size:0.9rem;"></div>
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <input type="text" class="form-control" id="matchNote" placeholder="หมายเหตุ (ถ้ามี)..." style="max-width:200px;font-size:0.82rem;padding:4px 8px;">
+                            <button class="btn-primary" id="matchConfirmBtn" onclick="confirmManualMatch()" disabled style="background:linear-gradient(135deg,#16a34a,#059669);"><i class="bi bi-check2-circle"></i> ยืนยันจับคู่</button>
+                            <button class="chip" onclick="clearMatchSelection()"><i class="bi bi-x-circle"></i> ยกเลิก</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
+
+                <!-- Matched Today List -->
+                <div class="content-card" style="margin-top:1rem;">
+                    <div class="content-title">
+                        <i class="bi bi-check-circle"></i> จับคู่สำเร็จล่าสุด
+                        <span id="matchedTodayCount" style="font-size:0.8rem;color:var(--gray-500);margin-left:auto;"></span>
+                    </div>
+                    <div id="matchedTodayList">
+                        <div style="text-align:center;padding:1.5rem;color:var(--gray-400);font-size:0.85rem;">โหลดข้อมูลเพื่อดูรายการ</div>
+                    </div>
+                </div>
+            </div><!-- /#matchCustomerDetailZone -->
+
+        </div><!-- /#section-matching -->
 
         <!-- ═══════════════════════ System Health Section ═══════════════════════ -->
         <div id="section-health" class="section-panel">

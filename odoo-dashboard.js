@@ -63,7 +63,7 @@ function showSection(id){
     else if(id==='daily-summary'){if(dailySummaryData.length===0)loadDailySummary();}
     else if(id==='health'){loadSystemHealth();}
     else if(id==='slips'){if(!document.getElementById('slipList').querySelector('table'))loadSlips();}
-    else if(id==='matching'){loadMatchingDashboard();}
+    else if(id==='matching'){loadMatchingCustomerGrid();}
 }
 
 async function whApiCall(data){
@@ -2518,6 +2518,178 @@ async function loadTodayOverview(){
 let _matchSlips = [], _matchBdos = [], _matchSuggestions = [];
 let _matchSelectedSlips = new Set(), _matchSelectedBdos = new Set();
 let _matchMatchedToday = [];
+let _matchActiveCustomer = null; // null=grid, {ref,name,partnerId,salespersonId,salespersonName}=detail
+let _matchAllCustomers   = [];
+let _matchSlipCountByRef = {};
+let _matchBdoCountByRef  = {};
+
+// ===== CUSTOMER GRID =====
+
+async function loadMatchingCustomerGrid(){
+    const gridEl = document.getElementById('matchCustomerGrid');
+    if(gridEl) gridEl.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด...</div></div>';
+
+    const [custRes, slipRes, bdoRes] = await Promise.all([
+        whApiCall({action:'customer_list', limit:300, offset:0}),
+        fetch('api/slips-list.php?status=pending&limit=500&offset=0').then(r=>r.json()).catch(()=>({success:false})),
+        whApiCall({action:'odoo_bdos', limit:300, offset:0})
+    ]);
+
+    _matchAllCustomers = (custRes && custRes.success && custRes.data && custRes.data.customers) ? custRes.data.customers : [];
+
+    // Build pending slip count by customer_ref
+    _matchSlipCountByRef = {};
+    const pendingSlips = (slipRes && slipRes.success && slipRes.data && slipRes.data.slips) ? slipRes.data.slips : [];
+    pendingSlips.forEach(function(s){
+        const ref = normalizeMatchCustomerRef(getSlipCustomerRef(s));
+        if(ref) _matchSlipCountByRef[ref] = (_matchSlipCountByRef[ref] || 0) + 1;
+    });
+
+    // Build pending BDO count by customer_ref
+    _matchBdoCountByRef = {};
+    const allBdos = (bdoRes && bdoRes.success && bdoRes.data && bdoRes.data.bdos) ? bdoRes.data.bdos : [];
+    allBdos.forEach(function(b){
+        const ps = normalizeBdoPaymentStatus(b);
+        if(ps.key === 'pending' || ps.key === 'partial'){
+            const ref = normalizeMatchCustomerRef(getBdoCustomerRef(b));
+            if(ref) _matchBdoCountByRef[ref] = (_matchBdoCountByRef[ref] || 0) + 1;
+        }
+    });
+
+    // Populate salesperson filter
+    const spSel = document.getElementById('matchSalespersonFilter');
+    if(spSel && spSel.options.length <= 1){
+        const spSet = {};
+        _matchAllCustomers.forEach(function(c){
+            const sid = c.salesperson_id;
+            const snm = c.salesperson_name;
+            if(sid && snm && !spSet[sid]){ spSet[sid] = snm; }
+        });
+        Object.keys(spSet).forEach(function(sid){
+            const opt = document.createElement('option');
+            opt.value = sid;
+            opt.textContent = spSet[sid];
+            spSel.appendChild(opt);
+        });
+    }
+
+    renderMatchingCustomerGrid();
+}
+
+function renderMatchingCustomerGrid(){
+    const gridEl = document.getElementById('matchCustomerGrid');
+    if(!gridEl) return;
+
+    const spFilter = document.getElementById('matchSalespersonFilter')?.value || '';
+    const search = (document.getElementById('matchCustomerSearch')?.value || '').toLowerCase().trim();
+
+    let customers = _matchAllCustomers.slice();
+
+    if(spFilter){
+        customers = customers.filter(function(c){ return String(c.salesperson_id || '') === spFilter; });
+    }
+    if(search){
+        customers = customers.filter(function(c){
+            const ref = String(c.customer_ref || c.ref || '').toLowerCase();
+            const nm  = String(c.customer_name || c.name || '').toLowerCase();
+            return ref.includes(search) || nm.includes(search);
+        });
+    }
+
+    // Sort: customers with pending slips first
+    customers.sort(function(a, b){
+        const aRef = normalizeMatchCustomerRef(a.customer_ref || a.ref || '');
+        const bRef = normalizeMatchCustomerRef(b.customer_ref || b.ref || '');
+        const aHas = (_matchSlipCountByRef[aRef] || 0) > 0 ? 0 : 1;
+        const bHas = (_matchSlipCountByRef[bRef] || 0) > 0 ? 0 : 1;
+        return aHas - bHas;
+    });
+
+    if(!customers.length){
+        gridEl.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--gray-400);"><i class="bi bi-people" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>ไม่พบลูกค้า</div>';
+        return;
+    }
+
+    let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem;">';
+    customers.forEach(function(cu){
+        const ref    = normalizeMatchCustomerRef(cu.customer_ref || cu.ref || '');
+        const name   = cu.customer_name || cu.name || '-';
+        const pid    = String(cu.partner_id || cu.customer_id || cu.odoo_id || '');
+        const spName = cu.salesperson_name || '';
+        const slipCnt = _matchSlipCountByRef[ref] || 0;
+        const bdoCnt  = _matchBdoCountByRef[ref]  || 0;
+        const hasPending = slipCnt > 0;
+
+        const cardBg     = hasPending ? '#fffbeb' : '#ffffff';
+        const cardBorder = hasPending ? '#fde68a' : 'var(--gray-200)';
+        const cardShadow = hasPending ? '0 2px 8px rgba(251,191,36,0.18)' : '0 1px 3px rgba(0,0,0,0.06)';
+
+        const slipBadge = hasPending
+            ? '<span style="background:#fef3c7;color:#d97706;padding:2px 8px;border-radius:50px;font-size:0.72rem;font-weight:600;"><i class="bi bi-clock-fill" style="font-size:0.65rem;"></i> สลิปรอจับคู่ ' + slipCnt + '</span>'
+            : '';
+        const bdoBadge = bdoCnt > 0
+            ? '<span style="background:#ede9fe;color:#7c3aed;padding:2px 8px;border-radius:50px;font-size:0.72rem;font-weight:500;">BDO รอ ' + bdoCnt + '</span>'
+            : '<span style="font-size:0.72rem;color:var(--gray-300);">BDO รอ 0</span>';
+
+        const encRef = encodeURIComponent(ref);
+        const encName = encodeURIComponent(name);
+        const encPid = encodeURIComponent(pid);
+        const encSp = encodeURIComponent(spName);
+
+        html += '<div onclick="openMatchingForCustomer(decodeURIComponent(\'' + encRef + '\'),decodeURIComponent(\'' + encName + '\'),\'' + escapeHtml(pid) + '\',decodeURIComponent(\'' + encSp + '\'))" '
+            + 'style="background:' + cardBg + ';border:1.5px solid ' + cardBorder + ';border-radius:14px;padding:0.9rem 1rem;cursor:pointer;box-shadow:' + cardShadow + ';transition:box-shadow 0.15s,border-color 0.15s;" '
+            + 'onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\'' + (hasPending ? '#f59e0b' : '#94a3b8') + '\'" '
+            + 'onmouseout="this.style.boxShadow=\'' + cardShadow + '\';this.style.borderColor=\'' + cardBorder + '\'">';
+        html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.4rem;margin-bottom:0.45rem;">';
+        html += '<div style="font-weight:700;font-size:0.95rem;color:var(--gray-800);">' + escapeHtml(ref || '-') + '</div>';
+        if(hasPending) html += '<i class="bi bi-exclamation-circle-fill" style="color:#f59e0b;font-size:0.95rem;flex-shrink:0;"></i>';
+        html += '</div>';
+        html += '<div style="font-size:0.82rem;color:var(--gray-600);margin-bottom:0.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</div>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:0.5rem;">' + slipBadge + bdoBadge + '</div>';
+        if(spName){
+            html += '<div style="font-size:0.7rem;color:var(--gray-400);"><i class="bi bi-person-badge" style="font-size:0.65rem;"></i> ' + escapeHtml(spName) + '</div>';
+        }
+        html += '<div style="margin-top:0.55rem;text-align:right;">';
+        html += '<span style="font-size:0.75rem;color:' + (hasPending ? '#d97706' : 'var(--gray-400)') + ';font-weight:500;">เปิดจับคู่ <i class="bi bi-arrow-right-short"></i></span>';
+        html += '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    gridEl.innerHTML = html;
+}
+
+function openMatchingForCustomer(ref, name, partnerId, salespersonName){
+    _matchActiveCustomer = { ref: ref, name: name, partnerId: partnerId || '', salespersonName: salespersonName || '' };
+
+    const gridZone   = document.getElementById('matchCustomerGridZone');
+    const detailZone = document.getElementById('matchCustomerDetailZone');
+    if(gridZone)   gridZone.style.display   = 'none';
+    if(detailZone) detailZone.style.display = '';
+
+    const headerEl = document.getElementById('matchCustomerDetailHeader');
+    if(headerEl){
+        headerEl.innerHTML = '<div class="content-card" style="padding:0.65rem 1rem;">'
+            + '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">'
+            + '<button onclick="closeMatchingCustomer()" style="background:var(--gray-100);color:var(--gray-700);border:none;border-radius:8px;padding:6px 14px;font-size:0.82rem;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;"><i class="bi bi-arrow-left"></i> กลับ</button>'
+            + '<div style="font-weight:600;font-size:0.95rem;color:var(--gray-800);">'
+            + '<span style="color:var(--gray-500);font-weight:400;">ลูกค้า:</span> '
+            + escapeHtml(ref) + (name && name !== '-' ? ' — ' + escapeHtml(name) : '')
+            + '</div>'
+            + (salespersonName ? '<span style="font-size:0.78rem;color:var(--gray-500);"><i class="bi bi-person-badge"></i> ' + escapeHtml(salespersonName) + '</span>' : '')
+            + '</div></div>';
+    }
+
+    loadMatchingDashboard();
+}
+
+function closeMatchingCustomer(){
+    _matchActiveCustomer = null;
+    const gridZone   = document.getElementById('matchCustomerGridZone');
+    const detailZone = document.getElementById('matchCustomerDetailZone');
+    if(detailZone) detailZone.style.display = 'none';
+    if(gridZone)   gridZone.style.display   = '';
+}
 
 async function loadMatchingDashboard(){
     const slipEl = document.getElementById('matchSlipList');
@@ -2530,10 +2702,23 @@ async function loadMatchingDashboard(){
     const filterMode = document.getElementById('matchFilterMode')?.value || 'pending';
     const search = document.getElementById('matchSearchInput')?.value || '';
 
+    // Scope to active customer if set
+    const custRef = _matchActiveCustomer ? _matchActiveCustomer.ref : '';
+    const custPid = _matchActiveCustomer ? _matchActiveCustomer.partnerId : '';
+
     const slipStatus = filterMode === 'matched' ? 'matched' : (filterMode === 'pending' ? 'pending' : '');
+    let slipUrl = 'api/slips-list.php?limit=200&offset=0';
+    if(slipStatus) slipUrl += '&status=' + slipStatus;
+    if(search)     slipUrl += '&search=' + encodeURIComponent(search);
+    if(custRef)    slipUrl += '&customer_ref=' + encodeURIComponent(custRef);
+
+    const bdoParams = {action:'odoo_bdos', limit:200, offset:0, search: search};
+    if(custRef) bdoParams.customer_ref = custRef;
+    if(custPid) bdoParams.partner_id   = custPid;
+
     const [slipRes, bdoRes] = await Promise.all([
-        fetch('api/slips-list.php?limit=200&offset=0' + (slipStatus ? '&status=' + slipStatus : '') + (search ? '&search=' + encodeURIComponent(search) : '')).then(r=>r.json()).catch(()=>({success:false})),
-        whApiCall({action:'odoo_bdos', limit:200, offset:0, search: search})
+        fetch(slipUrl).then(r=>r.json()).catch(()=>({success:false})),
+        whApiCall(bdoParams)
     ]);
 
     _matchSlips = (slipRes && slipRes.success && slipRes.data) ? (slipRes.data.slips || []) : [];
