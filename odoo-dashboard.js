@@ -1,6 +1,8 @@
 const WH_API_CANDIDATES=['api/odoo-webhooks-dashboard.php','/api/odoo-webhooks-dashboard.php','../api/odoo-webhooks-dashboard.php','../../api/odoo-webhooks-dashboard.php'];
 let WH_API_ACTIVE=WH_API_CANDIDATES[0];
 
+ const ODOO_PROD_BASE = 'https://cny.cnyrxapp.com';
+
 const EVENT_LABELS={'sale.order.created':'สร้างออเดอร์','sale.order.confirmed':'ยืนยันออเดอร์','sale.order.done':'ออเดอร์สำเร็จ','sale.order.cancelled':'ยกเลิกออเดอร์','delivery.validated':'เริ่มจัดเตรียม','delivery.in_transit':'กำลังจัดส่ง','delivery.done':'ส่งเสร็จแล้ว','delivery.cancelled':'ยกเลิกการส่ง','delivery.back_order':'ส่งบางส่วน','invoice.created':'สร้างใบแจ้งหนี้','invoice.posted':'ออกใบแจ้งหนี้','invoice.paid':'ชำระเงินแล้ว','invoice.cancelled':'ยกเลิกใบแจ้งหนี้','invoice.overdue':'เกินกำหนดชำระ','payment.received':'รับชำระเงิน','payment.confirmed':'ยืนยันชำระเงิน','order.validated':'ยืนยันออเดอร์','order.picker_assigned':'มอบหมาย Picker','order.picking':'กำลังจัดสินค้า','order.picked':'จัดสินค้าเสร็จ','order.packing':'กำลังแพ็ค','order.packed':'แพ็คเสร็จ','order.reserved':'จองสินค้าแล้ว','order.awaiting_payment':'รอชำระเงิน','order.paid':'ชำระเงินแล้ว','order.to_delivery':'เตรียมจัดส่ง','order.in_delivery':'กำลังจัดส่ง','order.delivered':'จัดส่งสำเร็จ','order.cancelled':'ยกเลิกออเดอร์'};
 const SKIP_REASON_LABELS={'disabled':'ปิดการแจ้งเตือน','no_line_user':'ไม่มี LINE','duplicate':'ซ้ำ','preference':'ตั้งค่าไม่รับ','no_preference':'ไม่พบการตั้งค่า','throttle':'จำกัดความถี่','invalid':'ข้อมูลไม่ถูกต้อง'};
 const EVENT_ICONS={'sale.order.confirmed':'🛒','sale.order.cancelled':'❌','sale.order.done':'✅','sale.order.created':'📝','delivery.validated':'📦','delivery.cancelled':'❌','delivery.back_order':'🔄','delivery.in_transit':'🚚','delivery.done':'✅','invoice.posted':'🧾','invoice.paid':'💰','invoice.cancelled':'❌','invoice.overdue':'⚠️','invoice.created':'📄','payment.received':'💳','payment.confirmed':'💳','order.validated':'✅','order.picker_assigned':'👤','order.picking':'📦','order.picked':'✅','order.packing':'📦','order.packed':'✅','order.reserved':'🔒','order.awaiting_payment':'💰','order.paid':'💳','order.to_delivery':'🚚','order.in_delivery':'🚚','order.delivered':'✅','order.cancelled':'❌'};
@@ -2718,7 +2720,7 @@ function _renderMatchBdoCard(bdo){
         + '<div style="font-weight:700;font-size:0.95rem;color:#d97706;">' + amount + '</div>'
         + '<div style="font-size:0.8rem;color:var(--gray-800);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(customer.name) + '</div>'
         + '<div style="font-size:0.72rem;color:var(--gray-500);font-weight:500;">' + escapeHtml(customer.ref) + '</div>'
-        + '<div style="font-size:0.68rem;color:var(--gray-400);">' + escapeHtml(b.order_name||'-') + ' · ' + bdoDate + '</div>'
+        + '<div style="font-size:0.68rem;color:var(--gray-400);">' + escapeHtml(bdo.order_name||'-') + ' · ' + bdoDate + '</div>'
         + '</div>'
         + '</div>';
 }
@@ -2998,7 +3000,7 @@ function renderMatchSuggestions(suggestions){
         html += '<div style="font-weight:700;font-size:0.95rem;color:#d97706;">' + bdoAmt + '</div>';
         html += '<div style="font-size:0.78rem;color:var(--gray-700);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(bdoCust.name) + '</div>';
         html += '<div style="font-size:0.72rem;color:var(--gray-500);font-weight:500;">' + escapeHtml(bdoCust.ref) + '</div>';
-        html += '<div style="font-size:0.68rem;color:var(--gray-400);">' + escapeHtml(b.order_name||'-') + ' · ' + bdoDt + '</div>';
+        html += '<div style="font-size:0.68rem;color:var(--gray-400);">' + escapeHtml(bdo.order_name||'-') + ' · ' + bdoDt + '</div>';
         html += '</div>';
         html += '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">';
         html += '<button onclick="confirmSuggestion(' + sid + ',' + bid + ',this)" style="background:linear-gradient(135deg,#16a34a,#059669);color:white;border:none;border-radius:8px;padding:5px 12px;font-size:0.78rem;cursor:pointer;font-family:inherit;white-space:nowrap;"><i class="bi bi-check2-circle"></i> ยืนยัน</button>';
