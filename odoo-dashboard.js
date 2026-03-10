@@ -1502,6 +1502,9 @@ function renderStageTimeline(events){
 
 async function loadOrdersGrouped(){
     const c=document.getElementById('webhookList');
+    const cacheKey=_dashCacheKey('orders-grouped', JSON.stringify({o:grpCurrentOffset,q:document.getElementById('grpSearchInput')?.value||'',d:document.getElementById('grpDateInput')?.value||''}));
+    const cached=_cacheGet(cacheKey);
+    if(cached && _dashRenderFromCache('webhookList', cached.html, {cachedAt:cached.cachedAt, refreshFn:'_cacheClear(\'dash:orders-grouped\');loadOrdersGrouped()'})) return;
     c.innerHTML='<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลดออเดอร์...</div></div>';
     const searchVal=document.getElementById('grpSearchInput')?.value||'';
     const dateVal=document.getElementById('grpDateInput')?.value||'';
@@ -1542,6 +1545,7 @@ async function loadOrdersGrouped(){
         html+='</div>';
     });
     c.innerHTML=html;
+    _dashCacheSaveHtml(cacheKey,'webhookList','_cacheClear(\'dash:orders-grouped\');loadOrdersGrouped()');
     // Pagination
     const pag=document.getElementById('webhookPagination');
     if(pag){if(total>grpPageSize){const tp=Math.ceil(total/grpPageSize),cp=Math.floor(grpCurrentOffset/grpPageSize)+1;pag.style.cssText='display:flex !important;justify-content:center;gap:0.5rem;margin-top:1rem;';let ph=cp>1?'<button class="chip" onclick="grpGoPage('+(cp-2)+')"><i class="bi bi-chevron-left"></i></button>':'';ph+='<span style="padding:0.5rem 1rem;font-size:0.85rem;">หน้า '+cp+' / '+tp+'</span>';if(cp<tp)ph+='<button class="chip" onclick="grpGoPage('+cp+')"><i class="bi bi-chevron-right"></i></button>';pag.innerHTML=ph;}else pag.style.cssText='display:none !important;';}
@@ -1564,6 +1568,9 @@ function slipOrderInfo(s){
 }
 async function loadSlips(){
     const el=document.getElementById('slipList');
+    const cacheKey=_dashCacheKey('slips', JSON.stringify({o:slipCurrentOffset,q:document.getElementById('slipSearch')?.value||'',s:document.getElementById('slipStatusFilter')?.value||'',d:document.getElementById('slipDateFilter')?.value||''}));
+    const cached=_cacheGet(cacheKey);
+    if(cached && _dashRenderFromCache('slipList', cached.html, {cachedAt:cached.cachedAt, refreshFn:'_cacheClear(\'dash:slips\');loadSlips()'})) return;
     el.innerHTML='<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด...</div></div>';
     const search=document.getElementById('slipSearch')?.value||'';
     const status=document.getElementById('slipStatusFilter')?.value||'';
@@ -1635,6 +1642,7 @@ async function loadSlips(){
         });
         html+='</tbody></table></div>';
         el.innerHTML=html;
+        _dashCacheSaveHtml(cacheKey,'slipList','_cacheClear(\'dash:slips\');loadSlips()');
         // Pagination
         const pag=document.getElementById('slipPagination');
         if(pag){
@@ -1700,6 +1708,9 @@ async function sendOneSlipToOdoo(id,retry){
         // PHP returns id as string, JS passes number — use == not ===
         const result=json.data?.results?.find(x=>x.id==id);
         if(result?.success===true||(json.success&&json.data?.sent>0&&!result)){
+            _cacheClear('dash:slips');
+            _cacheClear('dash:overview');
+            _cacheClear('match_grid');
             const row=document.getElementById('slip-row-'+id);
             if(row){
                 const tdAction=row.querySelector('td[id^="slip-action-"]');
@@ -1730,6 +1741,9 @@ async function unMatchSlip(id){
     try{
         const json=await requestSlipUnmatch(id, reason);
         if(json.success){
+            _cacheClear('dash:slips');
+            _cacheClear('dash:overview');
+            _cacheClear('match_grid');
             loadSlips();
         }else{
             alert('เกิดข้อผิดพลาด: '+(json.error||'ไม่ทราบสาเหตุ'));
@@ -1746,6 +1760,9 @@ async function sendAllSlipsToOdoo(){
         if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-cloud-upload"></i> ส่งทั้งหมดไปยัง Odoo';}
         if(json.success){
             alert('✅ '+json.message);
+            _cacheClear('dash:slips');
+            _cacheClear('dash:overview');
+            _cacheClear('match_grid');
             loadSlips();
         }else{
             alert('❌ เกิดข้อผิดพลาด: '+(json.error||'ไม่ทราบสาเหตุ'));
@@ -2377,6 +2394,21 @@ function restoreAdminMode(){
 let _overviewLoaded=false;
 async function loadTodayOverview(){
     _overviewLoaded=true;
+    const cacheKey=_dashCacheKey('overview','today');
+    const cached=_cacheGet(cacheKey);
+    if(cached){
+        ['kpiOrdersToday','kpiSalesToday','kpiSlipsPending','kpiOverdueCustomers','kpiBdosPending','kpiPaymentsToday'].forEach(function(id){
+            const el=document.getElementById(id);
+            if(el && cached.texts && cached.texts[id]!=null) el.textContent=cached.texts[id];
+        });
+        ['overviewLineNotifs','overviewRecentOrders','overviewPendingSlips','overviewOverdueCustomers'].forEach(function(id){
+            const el=document.getElementById(id);
+            if(el && cached.blocks && cached.blocks[id]!=null) el.innerHTML=cached.blocks[id];
+        });
+        const recent=document.getElementById('overviewRecentOrders');
+        if(recent) _renderSectionCacheNote(recent, cached.cachedAt, '_cacheClear(\'dash:overview\');loadTodayOverview()');
+        return;
+    }
     // Parallel fetch all data for the overview
     const [statsRes, ordersRes, slipsRes, overdueRes, pendingBdoRes, matchedTodayRes] = await Promise.all([
         whApiCall({action:'stats'}),
@@ -2534,6 +2566,24 @@ async function loadTodayOverview(){
         const el=document.getElementById('overviewOverdueCustomers');
         if(el)el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e42\u0e2b\u0e25\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e44\u0e14\u0e49</div>';
     }
+
+    _cacheSet(cacheKey,{
+        cachedAt:Date.now(),
+        texts:{
+            kpiOrdersToday:document.getElementById('kpiOrdersToday')?.textContent||'',
+            kpiSalesToday:document.getElementById('kpiSalesToday')?.textContent||'',
+            kpiSlipsPending:document.getElementById('kpiSlipsPending')?.textContent||'',
+            kpiOverdueCustomers:document.getElementById('kpiOverdueCustomers')?.textContent||'',
+            kpiBdosPending:document.getElementById('kpiBdosPending')?.textContent||'',
+            kpiPaymentsToday:document.getElementById('kpiPaymentsToday')?.textContent||''
+        },
+        blocks:{
+            overviewLineNotifs:document.getElementById('overviewLineNotifs')?.innerHTML||'',
+            overviewRecentOrders:document.getElementById('overviewRecentOrders')?.innerHTML||'',
+            overviewPendingSlips:document.getElementById('overviewPendingSlips')?.innerHTML||'',
+            overviewOverdueCustomers:document.getElementById('overviewOverdueCustomers')?.innerHTML||''
+        }
+    });
 }
 
 // ===== MATCHING DASHBOARD (Slip BDO) =====
