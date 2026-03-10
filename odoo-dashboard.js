@@ -30,6 +30,35 @@ function _cacheClear(prefix){
     }catch(e){}
 }
 
+function _dashCacheKey(section, extra){
+    return 'dash:'+section+(extra?':'+extra:'');
+}
+function _dashRenderFromCache(sectionId, html, meta){
+    const el=document.getElementById(sectionId);
+    if(!el || !html) return false;
+    el.innerHTML=html;
+    if(meta && meta.cachedAt){ _renderSectionCacheNote(el, meta.cachedAt, meta.refreshFn || ''); }
+    return true;
+}
+function _renderSectionCacheNote(container, cachedAt, refreshFn){
+    if(!container || !cachedAt) return;
+    let note=container.parentNode ? container.parentNode.querySelector('[data-cache-note-for="'+container.id+'"]') : null;
+    if(!note){
+        note=document.createElement('div');
+        note.setAttribute('data-cache-note-for', container.id);
+        note.style.cssText='font-size:0.72rem;color:var(--gray-400);text-align:right;padding:2px 4px 0;';
+        if(container.parentNode) container.parentNode.insertBefore(note, container);
+    }
+    const ageS=Math.max(0, Math.round((Date.now()-cachedAt)/1000));
+    note.innerHTML='<i class="bi bi-lightning-charge"></i> จาก cache · '+ageS+'วิที่แล้ว'
+        +(refreshFn ? ' &nbsp;<a href="javascript:void(0)" onclick="'+refreshFn+'" style="color:var(--primary);text-decoration:none;">รีเฟรช</a>' : '');
+}
+function _dashCacheSaveHtml(key, containerId, refreshFn){
+    const el=document.getElementById(containerId);
+    if(!el) return;
+    _cacheSet(key, { html: el.innerHTML, cachedAt: Date.now(), refreshFn: refreshFn || '' });
+}
+
 function webhookEventShortName(t){if(!t)return '-';const p=String(t).split('.');return p.length>1?p.slice(1).join('.'):t;}
 function generateOdooUrl(model,id){if(!model||id==null||id==='')return '';return ODOO_PROD_BASE+'/web#id='+encodeURIComponent(String(id))+'&model='+encodeURIComponent(String(model))+'&view_type=form';}
 function deliveryTypeBadge(deliveryType){const label=deliveryType==='company'?'สายส่ง':(deliveryType==='private'?'ขนส่งเอกชน':'-');const bg=deliveryType==='private'?'#fef3c7':'#e0f2fe';const clr=deliveryType==='private'?'#b45309':'#0369a1';return label==='-'?'<span style="color:var(--gray-300);font-size:0.75rem;">-</span>':'<span style="background:'+bg+';color:'+clr+';padding:2px 8px;border-radius:50px;font-size:0.72rem;font-weight:500;">'+escapeHtml(label)+'</span>';}
