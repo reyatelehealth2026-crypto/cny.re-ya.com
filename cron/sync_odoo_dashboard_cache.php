@@ -89,13 +89,16 @@ try {
         // Build base subquery from webhook log
         $processedAtColumn = resolveWebhookTimeColumn($db);
         $processedAtExpr = $processedAtColumn ?: 'NOW()';
-        
+ 
         // Order key extraction from JSON payload
-        $orderKeyExpr = "COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_name')), ''), CAST(order_id AS CHAR))";
-        
+        $orderNameExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_name'))), '')";
+        $payloadOrderIdExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_id'))), '')";
+        $rowOrderIdExpr = "NULLIF(TRIM(CAST(order_id AS CHAR)), '')";
+        $orderKeyExpr = "NULLIF(TRIM(COALESCE(NULLIF({$orderNameExpr}, 'null'), NULLIF({$payloadOrderIdExpr}, 'null'), NULLIF({$rowOrderIdExpr}, 'null'))), '')";
+ 
         $where = "status = 'success'";
         $params = [];
-        
+ 
         if ($lastSync) {
             $where .= " AND {$processedAtExpr} > ?";
             $params[] = $lastSync;
@@ -208,13 +211,12 @@ try {
         
         // Sync order events
         logMessage('Syncing order events...');
-        
-        $eventsWhere = "event_type LIKE 'sale.order.%' OR event_type LIKE 'order.%' OR event_type LIKE 'delivery.%'";
-        if ($lastSync) {
-            $eventsWhere .= " AND {$processedAtExpr} > '{$lastSync}'";
-        }
-        if ($lineAccountId) {
-            $eventsWhere .= " AND line_account_id = {$lineAccountId}";
+                $eventsWhere = "(event_type LIKE 'sale.order.%' OR event_type LIKE 'order.%' OR event_type LIKE 'delivery.%')";
+         if ($lastSync) {
+             $eventsWhere .= " AND {$processedAtExpr} > '{$lastSync}'";
+         }
+         if ($lineAccountId) {
+             $eventsWhere .= " AND line_account_id = {$lineAccountId}";
         }
         
         $eventsSql = "
@@ -243,15 +245,15 @@ try {
                 ),
                 id,
                 {$processedAtExpr}
-            FROM odoo_webhooks_log
-            WHERE ({$eventsWhere})
-            AND {$orderKeyExpr} IS NOT NULL
-            AND {$orderKeyExpr} != ''
-            ON DUPLICATE KEY UPDATE
-                status = VALUES(status),
-                new_state = VALUES(new_state),
-                processed_at = VALUES(processed_at)
-        ";
+             FROM odoo_webhooks_log
+             WHERE {$eventsWhere}
+             AND {$orderKeyExpr} IS NOT NULL
+             AND {$orderKeyExpr} != ''
+             ON DUPLICATE KEY UPDATE
+                 status = VALUES(status),
+                 new_state = VALUES(new_state),
+                 processed_at = VALUES(processed_at)
+         ";
         
         $eventsResult = $db->exec($eventsSql);
         $stats['events']['inserted'] = $eventsResult > 0 ? $eventsResult : 0;
