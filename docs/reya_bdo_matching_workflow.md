@@ -1,8 +1,9 @@
 # Re-Ya ↔ Odoo: BDO Matching Workflow — Complete Design
 
-**Version:** 1.0 (March 2026)
+**Version:** 1.1 (March 2026)
 **สำหรับ:** Re-Ya Developer + CNY Sales Team
 **เป้าหมาย:** Sales ทำ matching ที่ Re-Ya ที่เดียว → Odoo auto-process + validate
+**สถานะ:** เอกสารนี้อัปเดตให้ตรงกับโค้ดปัจจุบันของ `odoo-dashboard.js`, `api/odoo-webhooks-dashboard.php`, `api/slip-match-orders.php`, และ `api/odoo-dashboard-api.php`
 
 ---
 
@@ -435,7 +436,7 @@ draft (แบบร่าง) → waiting (ยืนยันแล้ว/รอ
 
 > **หมายเหตุ:** Endpoints ใน section นี้ **พร้อมทดสอบบน staging** แล้วที่ `https://stg-erp.cnyrxapp.com`
 > Endpoints พื้นฐานที่ใช้ได้แล้วก่อนหน้านี้: ดู `reya_slip_api_spec.md` Section 1-2 (`/reya/slip/upload`, `/reya/payment/status`)
-> Production host ปัจจุบัน: `https://cny.cnyrxapp.com` และยังคง `https://erp.cnyrxapp.com` เป็น legacy reference
+> Production host ปัจจุบัน: `https://erp.cnyrxapp.com`
 
 ### 6A. `POST /reya/bdo/list` — รายการ BDO ของลูกค้า
 
@@ -482,7 +483,7 @@ draft (แบบร่าง) → waiting (ยืนยันแล้ว/รอ
                         {"id": 5901, "name": "SO2602-05901"}
                     ],
                     "statement_pdf_url": "/reya/bdo/statement-pdf/437",
-                    "odoo_url": "https://cny.cnyrxapp.com/web#id=437&model=cny.bill.invoice.before.delivery&view_type=form"
+                    "odoo_url": "https://erp.cnyrxapp.com/web#id=437&model=cny.bill.invoice.before.delivery&view_type=form"
                 }
             ]
         }
@@ -607,7 +608,7 @@ draft (แบบร่าง) → waiting (ยืนยันแล้ว/รอ
             },
             "slips": [],
             "statement_pdf_url": "/reya/bdo/statement-pdf/437",
-            "odoo_url": "https://cny.cnyrxapp.com/web#id=437&model=cny.bill.invoice.before.delivery&view_type=form"
+            "odoo_url": "https://erp.cnyrxapp.com/web#id=437&model=cny.bill.invoice.before.delivery&view_type=form"
         }
     }
 }
@@ -751,8 +752,7 @@ Re-Ya Dashboard ควรมีลิงก์ไป Odoo form:
 | SO | `{base}/web#id={so_id}&model=sale.order&view_type=form` | `/web#id=5900&model=sale.order&view_type=form` |
 | Slip | `{base}/web#id={slip_id}&model=cny.payment.slip&view_type=form` | `/web#id=113&model=cny.payment.slip&view_type=form` |
 
-**base URL:** `https://cny.cnyrxapp.com` (production) / `https://stg-erp.cnyrxapp.com` (staging)
-**legacy reference:** `https://erp.cnyrxapp.com`
+**base URL:** `https://erp.cnyrxapp.com` (production) / `https://stg-erp.cnyrxapp.com` (staging)
 
 ### 7B. Odoo → Re-Ya (Admin ดูสถานะ matching)
 
@@ -793,36 +793,42 @@ Odoo Validation:
 
 ---
 
-## 9. สรุป สิ่งที่ต้องทำ
+## 9. สถานะปัจจุบัน (As-Built ณ มี.ค. 2026)
 
-### ฝั่ง Odoo (SOMZAA)
+### 9A. Codepaths ที่ใช้งานจริงใน Re-Ya
 
-| # | Task | Priority |
-|---|------|----------|
-| 1 | ทดสอบ endpoint `/reya/bdo/list` บน staging และเตรียม production rollout | High |
-| 2 | ทดสอบ endpoint `/reya/bdo/detail` (พร้อม SO lines, invoices, CNs) | High |
-| 3 | ทดสอบ endpoint `/reya/bdo/statement-pdf/{id}` ทั้งแบบ header และ query param | Medium |
-| 4 | ทดสอบ endpoint `/reya/slip/match-bdo` (Sales จับคู่จาก Re-Ya) | High |
-| 5 | ทดสอบ endpoint `/reya/slip/unmatch` | Medium |
-| 6 | เพิ่ม fields: `reya_matched_by`, `reya_matched_at` ใน slip model | Low |
-| 7 | เพิ่ม Odoo URL ใน BDO/Slip API responses | Low |
+| หน้าจอ/Flow | Re-Ya API ภายใน | ปลายทาง Odoo | หมายเหตุ |
+|---|---|---|---|
+| Load Matching Dashboard | `api/slips-list.php` + `api/odoo-webhooks-dashboard.php?action=odoo_bdos` | อ่านจาก sync tables/LOG fallback | ใช้ข้อมูล local เป็นหลักเพื่อโหลดไว |
+| Confirm Match (manual/batch) | `api/odoo-webhooks-dashboard.php?action=slip_match_bdo` | `POST /reya/slip/match-bdo` | ถ้า Odoo ล่ม มี local fallback update |
+| Unmatch จาก Matching Dashboard | `api/odoo-webhooks-dashboard.php?action=slip_unmatch` | `POST /reya/slip/unmatch` | local reset จะถูกทำเสมอ |
+| Multi-target Match (Order/Invoice/BDO) | `api/slip-match-orders.php?action=match` | `uploadSlip` หรือ `/reya/slip/match-bdo` | BDO targets ใช้ slip_inbox_id เป็นหลัก |
+| Attach Slip ให้ BDO (จาก BDO card) | `api/slip-match-orders.php?action=match_bdo` | ไม่มี (local DB update) | ปรับ `odoo_slip_uploads` + `odoo_bdo_orders` |
+| Statement PDF | `api/odoo-dashboard-api.php?action=statement_pdf&bdo_id=...` | `GET /reya/bdo/statement-pdf/{id}` | stream binary PDF กลับมา |
 
-### ฝั่ง Re-Ya (Developer)
+### 9B. กติกาแนะนำจับคู่ใน UI (จาก `computeSmartMatches()`)
 
-| # | Task | Priority |
-|---|------|----------|
-| 1 | เก็บ bdo_id จาก webhook ใน LINE chat context | High |
-| 2 | ส่ง bdo_id กลับมากับ slip upload | High |
-| 3 | Dashboard: เพิ่ม BDO Detail modal (เรียก `/reya/bdo/detail`) | High |
-| 4 | Dashboard: สร้าง Matching Interface (เลือกสลิป ↔ BDO) | High |
-| 5 | Dashboard: เรียก `/reya/slip/match-bdo` เมื่อ Sales กดยืนยัน | High |
-| 6 | Dashboard: เรียก `/reya/slip/unmatch` เมื่อ Sales กดยกเลิก | Medium |
-| 7 | Dashboard: แสดง delivery_type badge (สายส่ง/ขนส่งเอกชน) | Medium |
-| 8 | Dashboard: แสดง Statement PDF link | Medium |
-| 9 | LINE Bot: แจ้งลูกค้าตาม match_confidence | Medium |
+1. `bdo_id` ตรง และยอดต่างไม่เกิน ±1 บาท → `exact_bdo_id` (auto-confirm)
+2. ยอดตรงกัน ±1 บาท → `exact_amount`
+3. ยอดต่างไม่เกิน 5% + ลูกค้าเดียวกัน (หรือไม่เกิน 2%) → `fuzzy`
+
+### 9C. ข้อจำกัดและ Pitfalls ที่เจอบ่อย
+
+1. `/reya/slip/match-bdo` ต้องมี `slip_inbox_id`; ถ้ายังไม่มี ระบบจะพยายาม upload slip เพื่อสร้างก่อน
+2. Action ผ่าน `api/odoo-webhooks-dashboard.php` อาจตอบ top-level `success=true` แต่มี `data.error`; ฝั่ง client ควรตรวจทั้งสองชั้น
+3. Lookup รายการสำหรับ multi-order ใช้ fallback ตามลำดับ: sync table → Odoo API → webhook log
+4. Table `odoo_bdo_orders` และ `odoo_bdo_context` เป็น optional; ถ้าไม่มี บางฟีเจอร์จะแสดงข้อมูลได้ไม่ครบแต่ยังทำงานต่อได้
+5. ใช้ base production เป็น `https://erp.cnyrxapp.com` (ไม่ใช่ `https://cny.cnyrxapp.com`)
+
+### 9D. Runbook สั้นสำหรับทีม
+
+1. ถ้า Sales หา BDO ไม่เจอในหน้า match: ตรวจ `odoo_bdos` sync และลอง fallback ผ่าน webhook log
+2. ถ้าจับคู่ไม่ขึ้นทั้งที่กดสำเร็จ: ตรวจว่ามี `slip_inbox_id` และ response `data.error` จาก proxy
+3. ถ้าเปิด PDF ไม่ได้: ทดสอบ `api/odoo-dashboard-api.php?action=statement_pdf&bdo_id=<id>` และตรวจ `ODOO_API_KEY`
+4. ถ้า unmatch แล้วสถานะ Odoo ยังไม่กลับ: ตรวจ log ของ `/reya/slip/unmatch` ก่อน เพราะ local reset จะเกิดแม้ Odoo ล้มเหลว
 
 ---
 
 *Document: reya_bdo_matching_workflow.md*
-*Version: 1.0 — 2026-03-06*
+*Version: 1.1 — 2026-03-13*
 *Contact: consdevs | SOMZAA*
