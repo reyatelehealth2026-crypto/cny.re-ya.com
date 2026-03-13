@@ -10,7 +10,7 @@ const WH_API_CANDIDATES=[
 ];
 let WH_API_ACTIVE=WH_API_CANDIDATES[0];
 
- const ODOO_PROD_BASE = 'https://cny.cnyrxapp.com';
+ const ODOO_PROD_BASE = 'https://erp.cnyrxapp.com';
 
 const EVENT_LABELS={'sale.order.created':'สร้างออเดอร์','sale.order.confirmed':'ยืนยันออเดอร์','sale.order.done':'ออเดอร์สำเร็จ','sale.order.cancelled':'ยกเลิกออเดอร์','delivery.validated':'เริ่มจัดเตรียม','delivery.in_transit':'กำลังจัดส่ง','delivery.done':'ส่งเสร็จแล้ว','delivery.cancelled':'ยกเลิกการส่ง','delivery.back_order':'ส่งบางส่วน','invoice.created':'สร้างใบแจ้งหนี้','invoice.posted':'ออกใบแจ้งหนี้','invoice.paid':'ชำระเงินแล้ว','invoice.cancelled':'ยกเลิกใบแจ้งหนี้','invoice.overdue':'เกินกำหนดชำระ','payment.received':'รับชำระเงิน','payment.confirmed':'ยืนยันชำระเงิน','order.validated':'ยืนยันออเดอร์','order.picker_assigned':'มอบหมาย Picker','order.picking':'กำลังจัดสินค้า','order.picked':'จัดสินค้าเสร็จ','order.packing':'กำลังแพ็ค','order.packed':'แพ็คเสร็จ','order.reserved':'จองสินค้าแล้ว','order.awaiting_payment':'รอชำระเงิน','order.paid':'ชำระเงินแล้ว','order.to_delivery':'เตรียมจัดส่ง','order.in_delivery':'กำลังจัดส่ง','order.delivered':'จัดส่งสำเร็จ','order.cancelled':'ยกเลิกออเดอร์'};
 const SKIP_REASON_LABELS={'disabled':'ปิดการแจ้งเตือน','no_line_user':'ไม่มี LINE','duplicate':'ซ้ำ','preference':'ตั้งค่าไม่รับ','no_preference':'ไม่พบการตั้งค่า','throttle':'จำกัดความถี่','invalid':'ข้อมูลไม่ถูกต้อง'};
@@ -1933,8 +1933,9 @@ async function openMultiOrderMatch(slipId){
                 if(item.due) extraInfo='<span style="color:var(--gray-400);font-size:0.72rem;">ครบ '+item.due+'</span>';
                 if(item.type==='bdo' && item.order_name) extraInfo='<span style="color:var(--gray-400);font-size:0.72rem;">'+escapeHtml(item.order_name)+'</span>';
                 const srcBadge=item.source==='webhook_log'?'<span style="font-size:0.65rem;color:#92400e;background:#fef3c7;border-radius:4px;padding:1px 5px;">webhook</span>':'';
+                const itemJsonAttr=escapeHtml(JSON.stringify(item));
                 html+='<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:6px;cursor:pointer;background:white;" id="mm-label-'+key+'">'
-                    +'<input type="checkbox" id="mm-chk-'+key+'" onchange="mmToggleItem(\''+key+'\','+JSON.stringify(item)+')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">'
+                    +'<input type="checkbox" id="mm-chk-'+key+'" data-item="'+itemJsonAttr+'" onchange="mmToggleItem(\''+key+'\',JSON.parse(this.dataset.item||\"{}\"))" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">'
                     +'<div style="flex:1;min-width:0;">'
                         +'<div style="font-weight:500;font-size:0.875rem;display:flex;align-items:center;gap:6px;">'+icon+' <span>'+escapeHtml(item.name)+'</span>'+srcBadge+'</div>'
                         +'<div style="display:flex;gap:8px;align-items:center;margin-top:2px;">'
