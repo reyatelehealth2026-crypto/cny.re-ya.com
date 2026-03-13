@@ -118,12 +118,12 @@ function showSection(id){
     if(id==='overview'){if(typeof loadTodayOverview==='function')loadTodayOverview();}
     else if(id==='webhooks'){loadWebhookStats();if(whViewMode==='grouped'){if(!document.getElementById('webhookList').querySelector('div[style*="border-radius:10px"]'))loadOrdersGrouped();}else{if(!document.getElementById('webhookList').querySelector('table'))loadWebhooks();}}
     else if(id==='webhooks-raw'){loadWebhookStats();if(forceListMode){setWhViewMode('list');}else{if(!document.getElementById('webhookList').querySelector('table'))loadWebhooks();}}
-    else if(id==='customers'){if(!document.getElementById('customerList').querySelector('table'))loadCustomers();}
+    else if(id==='customers'){loadSalespersonDropdown();if(!document.getElementById('customerList').querySelector('table'))loadCustomers();}
     else if(id==='notifications'){if(!document.getElementById('notifList').querySelector('table'))loadNotifications();}
     else if(id==='daily-summary'){if(dailySummaryData.length===0)loadDailySummary();}
     else if(id==='health'){loadSystemHealth();}
     else if(id==='slips'){if(!document.getElementById('slipList').querySelector('table'))loadSlips();}
-    else if(id==='matching'){loadMatchingCustomerGrid();}
+    else if(id==='matching'){loadSalespersonDropdown();loadMatchingCustomerGrid();}
 }
 
 async function whApiCall(data){
@@ -306,20 +306,28 @@ async function showOrderTimeline(orderId,orderName){
 
 // ===== CUSTOMERS =====
 let custCurrentOffset=0;const custPageSize=30;
+let _salespersonDropdownLoaded=false;
+let _salespersonDropdownPromise=null;
 function resetCustomerFilter(){const el=document.getElementById('custSearch');if(el)el.value='';const fi=document.getElementById('custInvoiceFilter');if(fi)fi.value='';const sb=document.getElementById('custSortBy');if(sb)sb.value='';const sp=document.getElementById('custSalesperson');if(sp)sp.value='';custCurrentOffset=0;loadCustomers();}
 async function loadSalespersonDropdown(){
     const sel=document.getElementById('custSalesperson');if(!sel)return;
-    const res=await whApiCall({action:'salesperson_list'});
-    if(!res||!res.success||!res.data||!res.data.salespersons||!res.data.salespersons.length)return;
-    const cur=sel.value;
-    let opts='<option value="">พนักงานขาย: ทั้งหมด</option>';
-    res.data.salespersons.forEach(function(s){
-        const nm=escapeHtml(s.name||s.id||'-');
-        const cnt=s.customer_count?' ('+s.customer_count+')':'';
-        opts+='<option value="'+escapeHtml(String(s.id||''))+'"'+(cur===String(s.id)?' selected':'')+'>'+nm+cnt+'</option>';
-    });
-    sel.innerHTML=opts;
-    if(cur)sel.value=cur;
+    if(_salespersonDropdownLoaded && sel.options.length>1)return;
+    if(_salespersonDropdownPromise)return _salespersonDropdownPromise;
+    _salespersonDropdownPromise=(async function(){
+        const res=await whApiCall({action:'salesperson_list'});
+        if(!res||!res.success||!res.data||!res.data.salespersons||!res.data.salespersons.length)return;
+        const cur=sel.value;
+        let opts='<option value="">พนักงานขาย: ทั้งหมด</option>';
+        res.data.salespersons.forEach(function(s){
+            const nm=escapeHtml(s.name||s.id||'-');
+            const cnt=s.customer_count?' ('+s.customer_count+')':'';
+            opts+='<option value="'+escapeHtml(String(s.id||''))+'"'+(cur===String(s.id)?' selected':'')+'>'+nm+cnt+'</option>';
+        });
+        sel.innerHTML=opts;
+        if(cur)sel.value=cur;
+        _salespersonDropdownLoaded=true;
+    })();
+    try{return await _salespersonDropdownPromise;}finally{_salespersonDropdownPromise=null;}
 }
 function custGoPage(p){custCurrentOffset=p*custPageSize;loadCustomers();}
 function closeCustomerInvoiceModal(){const m=document.getElementById('customerInvoiceModal');if(m)m.classList.remove('active');}
@@ -2508,181 +2516,12 @@ function restoreAdminMode(){
 
 // ===== TODAY OVERVIEW =====
 let _overviewLoaded=false;
-async function loadTodayOverview(){
-    _overviewLoaded=true;
-    const cacheKey=_dashCacheKey('overview','today');
-    const cached=_cacheGet(cacheKey);
-    if(cached){
-        ['kpiOrdersToday','kpiSalesToday','kpiSlipsPending','kpiOverdueCustomers','kpiBdosPending','kpiPaymentsToday'].forEach(function(id){
-            const el=document.getElementById(id);
-            if(el && cached.texts && cached.texts[id]!=null) el.textContent=cached.texts[id];
-        });
-        ['overviewLineNotifs','overviewRecentOrders','overviewPendingSlips','overviewOverdueCustomers'].forEach(function(id){
-            const el=document.getElementById(id);
-            if(el && cached.blocks && cached.blocks[id]!=null) el.innerHTML=cached.blocks[id];
-        });
-        const recent=document.getElementById('overviewRecentOrders');
-        if(recent) _renderSectionCacheNote(recent, cached.cachedAt, '_cacheClear(\'dash:overview\');loadTodayOverview()');
-        return;
-    }
-    // Parallel fetch all data for the overview
-    const [statsRes, ordersRes, slipsRes, overdueRes, pendingBdoRes, matchedTodayRes] = await Promise.all([
-        whApiCall({action:'stats'}),
-        whApiCall({action:'order_grouped_today', limit:5, offset:0}),
-        fetch('api/slips-list.php?status=pending&limit=5&offset=0').then(r=>r.json()).catch(()=>({success:false})),
-        whApiCall({action:'customer_list', invoice_filter:'overdue', limit:5, offset:0, sort_by:'due_desc'}),
-        whApiCall({action:'pending_bdo_orders', limit:20, offset:0}),
-        fetch('api/slips-list.php?status=matched&limit=20&offset=0').then(r=>r.json()).catch(()=>({success:false}))
-    ]);
-
-    // ---- KPI Cards ----
-    const kpiOrders=document.getElementById('kpiOrdersToday');
-    const kpiSales=document.getElementById('kpiSalesToday');
-    const kpiSlips=document.getElementById('kpiSlipsPending');
-    const kpiOverdue=document.getElementById('kpiOverdueCustomers');
-    const kpiBdo=document.getElementById('kpiBdosPending');
-    const kpiPaid=document.getElementById('kpiPaymentsToday');
-
-    if(statsRes&&statsRes.success){
-        const s=statsRes.data;
-        if(kpiOrders)kpiOrders.textContent=Number(s.unique_orders_today||0).toLocaleString();
-        if(kpiSlips&&slipsRes&&slipsRes.success){
-            kpiSlips.textContent=Number(slipsRes.data?.total||0).toLocaleString();
-        }
-        // LINE notifs summary
-        const notifEl=document.getElementById('overviewLineNotifs');
-        if(notifEl){
-            const sent=Number(s.notified_today||0);
-            const rate=s.total>0?((s.success/s.total)*100).toFixed(0):'0';
-            notifEl.innerHTML='<div style="display:flex;gap:0.6rem;flex-wrap:wrap;">'
-                +'<div style="background:#dcfce7;border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:#16a34a;">LINE \u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</div><div style="font-size:1.2rem;font-weight:700;color:#16a34a;">'+sent+'</div></div>'
-                +'<div style="background:#dbeafe;border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:#1d4ed8;">Webhook \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08</div><div style="font-size:1.2rem;font-weight:700;color:#1d4ed8;">'+rate+'%</div></div>'
-                +'<div style="background:'+(s.dead_letter>0?'#fee2e2':'#f0fdf4')+';border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:'+(s.dead_letter>0?'#dc2626':'#16a34a')+';">\u0e2a\u0e16\u0e32\u0e19\u0e30\u0e23\u0e30\u0e1a\u0e1a</div><div style="font-size:1.2rem;font-weight:700;color:'+(s.dead_letter>0?'#dc2626':'#16a34a')+';">'+(s.dead_letter>0?'\u0e21\u0e35\u0e1b\u0e31\u0e0d\u0e2b\u0e32 '+s.dead_letter:'\u0e1b\u0e01\u0e15\u0e34')+'</div></div>'
-                +'</div>';
-        }
-    }
-
-    // ---- Sales today from orders ----
-    if(ordersRes&&ordersRes.success){
-        const orders=ordersRes.data.orders||[];
-        let totalSales=0;
-        orders.forEach(o=>{totalSales+=parseFloat(o.amount_total||0);});
-        // For full day sales, use total from API
-        if(kpiSales){
-            // If we got limited results, show from total orders count context
-            const salesStr=totalSales>0?'\u0e3f'+totalSales.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
-            kpiSales.textContent=salesStr;
-            // Update sub text with order count
-            const kpiSalesSub=kpiSales.parentElement?.querySelector('.kpi-sub');
-            if(kpiSalesSub&&ordersRes.data.total)kpiSalesSub.textContent=ordersRes.data.total+' \u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14';
-        }
-
-        // Render recent orders
-        const el=document.getElementById('overviewRecentOrders');
-        if(el){
-            if(!orders.length){
-                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;"></i>\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49</div>';
-            }else{
-                let html='';
-                orders.forEach(o=>{
-                    const nm=escapeHtml(o.order_name||'-');
-                    const cust=escapeHtml(o.customer_name||'-');
-                    const amt=o.amount_total?'\u0e3f'+Number(o.amount_total).toLocaleString():'';
-                    const stateLabel=o.latest_state_display&&o.latest_state_display!=='null'?o.latest_state_display:(EVENT_LABELS[o.latest_event_type]||'-');
-                    const hasLine=!!(o.customer_line_user_id);
-                    const lineBadge=hasLine?'<span style="background:#06c755;color:white;padding:1px 5px;border-radius:50px;font-size:0.65rem;">LINE</span>':'';
-                    const eOI=encodeURIComponent(o.order_id||''),eON=encodeURIComponent(o.order_name||'');
-                    const pct=Math.max(0,Math.min(100,o.progress||0));
-                    const pClr=pct>=100?'#16a34a':pct>=65?'#0284c7':pct>=25?'#d97706':'#6b7280';
-                    html+='<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">'
-                        +'<div style="flex:1;min-width:0;">'
-                        +'<div style="display:flex;align-items:center;gap:0.35rem;">'
-                        +'<a href="javascript:void(0)" onclick="showOrderTimeline(decodeURIComponent(\''+eOI+'\'),decodeURIComponent(\''+eON+'\'))" style="color:var(--primary);text-decoration:none;font-weight:600;font-size:0.85rem;">'+nm+'</a> '+lineBadge
-                        +'</div>'
-                        +'<div style="font-size:0.75rem;color:var(--gray-500);margin-top:1px;">'+cust+' \u00b7 '+escapeHtml(stateLabel)+'</div>'
-                        +'</div>'
-                        +'<div style="text-align:right;white-space:nowrap;">'
-                        +'<div style="font-weight:600;font-size:0.85rem;">'+amt+'</div>'
-                        +'<div style="width:60px;height:5px;background:var(--gray-200);border-radius:3px;margin-top:3px;"><div style="width:'+pct+'%;height:100%;background:'+pClr+';border-radius:3px;"></div></div>'
-                        +'</div></div>';
-                });
-                el.innerHTML=html;
-            }
-        }
-    }
-
-    // ---- Pending Slips ----
-    if(slipsRes&&slipsRes.success){
-        const slips=slipsRes.data?.slips||[];
-        const total=slipsRes.data?.total||0;
-        if(kpiSlips)kpiSlips.textContent=Number(total).toLocaleString();
-        const el=document.getElementById('overviewPendingSlips');
-        if(el){
-            if(!slips.length){
-                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;color:#16a34a;"></i>\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e25\u0e34\u0e1b\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a</div>';
-            }else{
-                let html='';
-                slips.forEach(s=>{
-                    const amt=s.amount!=null?'\u0e3f'+parseFloat(s.amount).toLocaleString('th-TH',{minimumFractionDigits:0}):'?';
-                    const custName=escapeHtml(s.customer_name||s.line_user_id||'-');
-                    const dt=s.uploaded_at?new Date(s.uploaded_at).toLocaleString('th-TH',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
-                    const thumb=s.image_full_url?'<img src="'+escapeHtml(s.image_full_url)+'" style="width:32px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--gray-200);" onerror="this.style.display=\'none\'">':'<div style="width:32px;height:40px;background:var(--gray-100);border-radius:4px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-image" style="color:var(--gray-400);"></i></div>';
-                    html+='<div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0;border-bottom:1px solid var(--gray-100);">'
-                        +thumb
-                        +'<div style="flex:1;min-width:0;">'
-                        +'<div style="font-size:0.82rem;font-weight:500;">'+custName+'</div>'
-                        +'<div style="font-size:0.7rem;color:var(--gray-400);">'+dt+'</div>'
-                        +'</div>'
-                        +'<div style="font-weight:600;color:#d97706;font-size:0.85rem;">'+amt+'</div>'
-                        +'</div>';
-                });
-                el.innerHTML=html;
-            }
-        }
-    }else{
-        const el=document.getElementById('overviewPendingSlips');
-        if(el)el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e42\u0e2b\u0e25\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e2a\u0e25\u0e34\u0e1b\u0e44\u0e14\u0e49</div>';
-    }
-
-    // ---- Overdue Customers ----
-    if(overdueRes&&overdueRes.success){
-        const customers=overdueRes.data?.customers||[];
-        const total=overdueRes.data?.total||0;
-        if(kpiOverdue)kpiOverdue.textContent=Number(total).toLocaleString();
-        const el=document.getElementById('overviewOverdueCustomers');
-        if(el){
-            if(!customers.length){
-                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;color:#16a34a;"></i>\u0e44\u0e21\u0e48\u0e21\u0e35\u0e25\u0e39\u0e01\u0e04\u0e49\u0e32\u0e04\u0e49\u0e32\u0e07\u0e0a\u0e33\u0e23\u0e30</div>';
-            }else{
-                let html='';
-                customers.forEach(cu=>{
-                    const nm=escapeHtml(cu.customer_name||cu.name||'-');
-                    const ref=escapeHtml(cu.customer_ref||cu.ref||'');
-                    const pid=String(cu.partner_id||cu.customer_id||cu.odoo_id||'');
-                    const rawDue=cu.total_due||cu.overdue_amount||0;
-                    const due=rawDue>0?'\u0e3f'+Number(rawDue).toLocaleString():'';
-                    const hasLine=!!(cu.line_user_id);
-                    const lineDot=hasLine?'<span style="color:#06c755;font-size:0.6rem;" title="LINE \u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e41\u0e25\u0e49\u0e27">\u25cf</span>':'';
-                    const encRef=encodeURIComponent(cu.customer_ref||cu.ref||'');
-                    const encId=encodeURIComponent(pid);
-                    const encNm=encodeURIComponent(cu.customer_name||cu.name||'');
-                    html+='<div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);cursor:pointer;" onclick="showCustomerDetail(decodeURIComponent(\''+encRef+'\'),decodeURIComponent(\''+encId+'\'),decodeURIComponent(\''+encNm+'\'))">'
-                        +'<div style="flex:1;min-width:0;">'
-                        +'<div style="font-size:0.82rem;font-weight:500;">'+nm+' '+lineDot+'</div>'
-                        +'<div style="font-size:0.7rem;color:var(--gray-400);">'+ref+(ref?' \u00b7 ':'')+escapeHtml(pid)+'</div>'
-                        +'</div>'
-                        +'<div style="font-weight:600;color:#dc2626;font-size:0.85rem;">'+due+'</div>'
-                        +'</div>';
-                });
-                el.innerHTML=html;
-            }
-        }
-    }else{
-        if(kpiOverdue)kpiOverdue.textContent='-';
-        const el=document.getElementById('overviewOverdueCustomers');
-        if(el)el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e42\u0e2b\u0e25\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e44\u0e14\u0e49</div>';
-    }
-
+let _overviewSecondaryTimer=null;
+function _isSectionActive(id){
+    const el=document.getElementById('section-'+id);
+    return !!(el&&el.classList.contains('active'));
+}
+function _cacheOverviewState(cacheKey){
     _cacheSet(cacheKey,{
         cachedAt:Date.now(),
         texts:{
@@ -2700,6 +2539,195 @@ async function loadTodayOverview(){
             overviewOverdueCustomers:document.getElementById('overviewOverdueCustomers')?.innerHTML||''
         }
     });
+}
+async function _loadTodayOverviewSecondary(cacheKey){
+    if(!_isSectionActive('overview'))return;
+    const kpiOverdue=document.getElementById('kpiOverdueCustomers');
+    const kpiBdo=document.getElementById('kpiBdosPending');
+    const kpiPaid=document.getElementById('kpiPaymentsToday');
+    const [overdueRes,pendingBdoRes,matchedTodayRes]=await Promise.all([
+        whApiCall({action:'customer_list', invoice_filter:'overdue', limit:5, offset:0, sort_by:'due_desc'}),
+        whApiCall({action:'pending_bdo_orders', limit:20, offset:0}),
+        fetch('api/slips-list.php?status=matched&limit=20&offset=0').then(r=>r.json()).catch(()=>({success:false}))
+    ]);
+    if(pendingBdoRes&&pendingBdoRes.success&&kpiBdo){
+        const bdos=pendingBdoRes.data?.orders||pendingBdoRes.data?.bdos||[];
+        const pendingTotal=bdos.reduce(function(sum,b){return sum+parseFloat(b.amount_total||b.amount_net_to_pay||0);},0);
+        kpiBdo.textContent=Number(bdos.length||0).toLocaleString();
+        const sub=kpiBdo.parentElement?.querySelector('.kpi-sub');
+        if(sub)sub.textContent='฿'+pendingTotal.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0});
+    }
+    if(matchedTodayRes&&matchedTodayRes.success&&kpiPaid){
+        const slips=matchedTodayRes.data?.slips||[];
+        const today=(new Date()).toISOString().slice(0,10);
+        const paidToday=slips.filter(function(s){return String(s.matched_at||s.uploaded_at||'').slice(0,10)===today;}).reduce(function(sum,s){return sum+parseFloat(s.amount||0);},0);
+        kpiPaid.textContent='฿'+paidToday.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0});
+    }
+    if(overdueRes&&overdueRes.success){
+        const customers=overdueRes.data?.customers||[];
+        const total=overdueRes.data?.total||0;
+        if(kpiOverdue)kpiOverdue.textContent=Number(total).toLocaleString();
+        const el=document.getElementById('overviewOverdueCustomers');
+        if(el){
+            if(!customers.length){
+                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;color:#16a34a;"></i>ไม่มีลูกค้าค้างชำระ</div>';
+            }else{
+                let html='';
+                customers.forEach(cu=>{
+                    const nm=escapeHtml(cu.customer_name||cu.name||'-');
+                    const ref=escapeHtml(cu.customer_ref||cu.ref||'');
+                    const pid=String(cu.partner_id||cu.customer_id||cu.odoo_id||'');
+                    const rawDue=cu.total_due||cu.overdue_amount||0;
+                    const due=rawDue>0?'฿'+Number(rawDue).toLocaleString():'';
+                    const hasLine=!!(cu.line_user_id);
+                    const lineDot=hasLine?'<span style="color:#06c755;font-size:0.6rem;" title="LINE เชื่อมแล้ว">●</span>':'';
+                    const encRef=encodeURIComponent(cu.customer_ref||cu.ref||'');
+                    const encId=encodeURIComponent(pid);
+                    const encNm=encodeURIComponent(cu.customer_name||cu.name||'');
+                    html+='<div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);cursor:pointer;" onclick="showCustomerDetail(decodeURIComponent(\''+encRef+'\'),decodeURIComponent(\''+encId+'\'),decodeURIComponent(\''+encNm+'\'))">'
+                        +'<div style="flex:1;min-width:0;">'
+                        +'<div style="font-size:0.82rem;font-weight:500;">'+nm+' '+lineDot+'</div>'
+                        +'<div style="font-size:0.7rem;color:var(--gray-400);">'+ref+(ref?' · ':'')+escapeHtml(pid)+'</div>'
+                        +'</div>'
+                        +'<div style="font-weight:600;color:#dc2626;font-size:0.85rem;">'+due+'</div>'
+                        +'</div>';
+                });
+                el.innerHTML=html;
+            }
+        }
+    }else{
+        if(kpiOverdue)kpiOverdue.textContent='-';
+        const el=document.getElementById('overviewOverdueCustomers');
+        if(el)el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">ไม่สามารถโหลดข้อมูลได้</div>';
+    }
+    _cacheOverviewState(cacheKey);
+}
+async function loadTodayOverview(){
+    _overviewLoaded=true;
+    const cacheKey=_dashCacheKey('overview','today');
+    const cached=_cacheGet(cacheKey);
+    if(cached){
+        ['kpiOrdersToday','kpiSalesToday','kpiSlipsPending','kpiOverdueCustomers','kpiBdosPending','kpiPaymentsToday'].forEach(function(id){
+            const el=document.getElementById(id);
+            if(el && cached.texts && cached.texts[id]!=null) el.textContent=cached.texts[id];
+        });
+        ['overviewLineNotifs','overviewRecentOrders','overviewPendingSlips','overviewOverdueCustomers'].forEach(function(id){
+            const el=document.getElementById(id);
+            if(el && cached.blocks && cached.blocks[id]!=null) el.innerHTML=cached.blocks[id];
+        });
+        const recent=document.getElementById('overviewRecentOrders');
+        if(recent) _renderSectionCacheNote(recent, cached.cachedAt, '_cacheClear(\'dash:overview\');loadTodayOverview()');
+        return;
+    }
+    const [statsRes, ordersRes, slipsRes] = await Promise.all([
+        whApiCall({action:'stats'}),
+        whApiCall({action:'order_grouped_today', limit:5, offset:0}),
+        fetch('api/slips-list.php?status=pending&limit=5&offset=0').then(r=>r.json()).catch(()=>({success:false}))
+    ]);
+
+    const kpiOrders=document.getElementById('kpiOrdersToday');
+    const kpiSales=document.getElementById('kpiSalesToday');
+    const kpiSlips=document.getElementById('kpiSlipsPending');
+    const kpiOverdue=document.getElementById('kpiOverdueCustomers');
+    const kpiBdo=document.getElementById('kpiBdosPending');
+    const kpiPaid=document.getElementById('kpiPaymentsToday');
+
+    if(statsRes&&statsRes.success){
+        const s=statsRes.data;
+        if(kpiOrders)kpiOrders.textContent=Number(s.unique_orders_today||0).toLocaleString();
+        if(kpiSlips&&slipsRes&&slipsRes.success)kpiSlips.textContent=Number(slipsRes.data?.total||0).toLocaleString();
+        const notifEl=document.getElementById('overviewLineNotifs');
+        if(notifEl){
+            const sent=Number(s.notified_today||0);
+            const rate=s.total>0?((s.success/s.total)*100).toFixed(0):'0';
+            notifEl.innerHTML='<div style="display:flex;gap:0.6rem;flex-wrap:wrap;">'
+                +'<div style="background:#dcfce7;border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:#16a34a;">LINE แจ้งเตือนวันนี้</div><div style="font-size:1.2rem;font-weight:700;color:#16a34a;">'+sent+'</div></div>'
+                +'<div style="background:#dbeafe;border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:#1d4ed8;">Webhook สำเร็จ</div><div style="font-size:1.2rem;font-weight:700;color:#1d4ed8;">'+rate+'%</div></div>'
+                +'<div style="background:'+(s.dead_letter>0?'#fee2e2':'#f0fdf4')+';border-radius:8px;padding:0.6rem 0.8rem;flex:1;min-width:100px;"><div style="font-size:0.72rem;color:'+(s.dead_letter>0?'#dc2626':'#16a34a')+';">สถานะระบบ</div><div style="font-size:1.2rem;font-weight:700;color:'+(s.dead_letter>0?'#dc2626':'#16a34a')+';">'+(s.dead_letter>0?'มีปัญหา '+s.dead_letter:'ปกติ')+'</div></div>'
+                +'</div>';
+        }
+    }
+    if(ordersRes&&ordersRes.success){
+        const orders=ordersRes.data.orders||[];
+        let totalSales=0;
+        orders.forEach(o=>{totalSales+=parseFloat(o.amount_total||0);});
+        if(kpiSales){
+            const salesStr=totalSales>0?'฿'+totalSales.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}):'-';
+            kpiSales.textContent=salesStr;
+            const kpiSalesSub=kpiSales.parentElement?.querySelector('.kpi-sub');
+            if(kpiSalesSub&&ordersRes.data.total)kpiSalesSub.textContent=ordersRes.data.total+' ออเดอร์ทั้งหมด';
+        }
+        const el=document.getElementById('overviewRecentOrders');
+        if(el){
+            if(!orders.length){
+                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;"></i>ยังไม่มีออเดอร์วันนี้</div>';
+            }else{
+                let html='';
+                orders.forEach(o=>{
+                    const nm=escapeHtml(o.order_name||'-');
+                    const cust=escapeHtml(o.customer_name||'-');
+                    const amt=o.amount_total?'฿'+Number(o.amount_total).toLocaleString():'';
+                    const stateLabel=o.latest_state_display&&o.latest_state_display!=='null'?o.latest_state_display:(EVENT_LABELS[o.latest_event_type]||'-');
+                    const hasLine=!!(o.customer_line_user_id);
+                    const lineBadge=hasLine?'<span style="background:#06c755;color:white;padding:1px 5px;border-radius:50px;font-size:0.65rem;">LINE</span>':'';
+                    const eOI=encodeURIComponent(o.order_id||''),eON=encodeURIComponent(o.order_name||'');
+                    const pct=Math.max(0,Math.min(100,o.progress||0));
+                    const pClr=pct>=100?'#16a34a':pct>=65?'#0284c7':pct>=25?'#d97706':'#6b7280';
+                    html+='<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">'
+                        +'<div style="flex:1;min-width:0;">'
+                        +'<div style="display:flex;align-items:center;gap:0.35rem;">'
+                        +'<a href="javascript:void(0)" onclick="showOrderTimeline(decodeURIComponent(\''+eOI+'\'),decodeURIComponent(\''+eON+'\'))" style="color:var(--primary);text-decoration:none;font-weight:600;font-size:0.85rem;">'+nm+'</a> '+lineBadge
+                        +'</div>'
+                        +'<div style="font-size:0.75rem;color:var(--gray-500);margin-top:1px;">'+cust+' · '+escapeHtml(stateLabel)+'</div>'
+                        +'</div>'
+                        +'<div style="text-align:right;white-space:nowrap;">'
+                        +'<div style="font-weight:600;font-size:0.85rem;">'+amt+'</div>'
+                        +'<div style="width:60px;height:5px;background:var(--gray-200);border-radius:3px;margin-top:3px;"><div style="width:'+pct+'%;height:100%;background:'+pClr+';border-radius:3px;"></div></div>'
+                        +'</div></div>';
+                });
+                el.innerHTML=html;
+            }
+        }
+    }
+    if(slipsRes&&slipsRes.success){
+        const slips=slipsRes.data?.slips||[];
+        const total=slipsRes.data?.total||0;
+        if(kpiSlips)kpiSlips.textContent=Number(total).toLocaleString();
+        const el=document.getElementById('overviewPendingSlips');
+        if(el){
+            if(!slips.length){
+                el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--gray-400);"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.3rem;color:#16a34a;"></i>ไม่มีสลิปรอตรวจสอบ</div>';
+            }else{
+                let html='';
+                slips.forEach(s=>{
+                    const amt=s.amount!=null?'฿'+parseFloat(s.amount).toLocaleString('th-TH',{minimumFractionDigits:0}):'?';
+                    const custName=escapeHtml(s.customer_name||s.line_user_id||'-');
+                    const dt=s.uploaded_at?new Date(s.uploaded_at).toLocaleString('th-TH',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
+                    const thumb=s.image_full_url?'<img src="'+escapeHtml(s.image_full_url)+'" style="width:32px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--gray-200);" onerror="this.style.display=\'none\'">':'<div style="width:32px;height:40px;background:var(--gray-100);border-radius:4px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-image" style="color:var(--gray-400);"></i></div>';
+                    html+='<div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0;border-bottom:1px solid var(--gray-100);">'
+                        +thumb
+                        +'<div style="flex:1;min-width:0;">'
+                        +'<div style="font-size:0.82rem;font-weight:500;">'+custName+'</div>'
+                        +'<div style="font-size:0.7rem;color:var(--gray-400);">'+dt+'</div>'
+                        +'</div>'
+                        +'<div style="font-weight:600;color:#d97706;font-size:0.85rem;">'+amt+'</div>'
+                        +'</div>';
+                });
+                el.innerHTML=html;
+            }
+        }
+    }else{
+        const el=document.getElementById('overviewPendingSlips');
+        if(el)el.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">ไม่สามารถโหลดข้อมูลสลิปได้</div>';
+    }
+    if(kpiOverdue && !kpiOverdue.textContent)kpiOverdue.textContent='...';
+    if(kpiBdo && !kpiBdo.textContent)kpiBdo.textContent='...';
+    if(kpiPaid && !kpiPaid.textContent)kpiPaid.textContent='...';
+    const overdueEl=document.getElementById('overviewOverdueCustomers');
+    if(overdueEl && !overdueEl.innerHTML.trim())overdueEl.innerHTML='<div style="text-align:center;padding:1rem;color:var(--gray-400);font-size:0.82rem;">กำลังโหลดข้อมูลเพิ่มเติม...</div>';
+    _cacheOverviewState(cacheKey);
+    if(_overviewSecondaryTimer)clearTimeout(_overviewSecondaryTimer);
+    _overviewSecondaryTimer=setTimeout(function(){ _loadTodayOverviewSecondary(cacheKey).catch(function(){}); }, 400);
 }
 
 // ===== MATCHING DASHBOARD (Slip BDO) =====
@@ -3706,7 +3734,6 @@ async function unmatchBdoSlip(slipId, slipInboxId){
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded',()=>{
     restoreAdminMode();
-    if(typeof testConnection==='function')testConnection();
     const params = new URLSearchParams(window.location.search);
     const initialTab = (params.get('tab') || '').trim();
     // Pre-set date filter to today for flat list view
@@ -3718,9 +3745,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(initialTab){
         showSection(initialTab);
     }else{
-        // Load overview as default page
-        loadTodayOverview();
+        // Delay initial overview load slightly so opening the dashboard stays responsive.
+        setTimeout(function(){ if(_isSectionActive('overview')) loadTodayOverview(); }, 250);
     }
     if(document.getElementById('autoSendSettingsContent'))loadAutoSendSettings();
-    loadSalespersonDropdown();
 });
