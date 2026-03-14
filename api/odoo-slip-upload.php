@@ -224,12 +224,20 @@ try {
     $uploadedBy = $input['uploaded_by'] ?? null;
     $inputMessageId = $input['message_id_ref'] ?? null; // message table ID
 
+    // SlipMate verification data (optional — sent when admin verified slip before saving)
+    $slipVerified = isset($input['slip_verified']) ? ($input['slip_verified'] ? 1 : 0) : null;
+    $slipVerifyRef = $input['slip_verify_ref'] ?? null;
+    $slipVerifyAmount = $input['slip_verify_amount'] ?? null;
+    $slipVerifyData = isset($input['slip_verify_data']) ? json_encode($input['slip_verify_data'], JSON_UNESCAPED_UNICODE) : null;
+    $slipVerifiedAt = $slipVerified !== null ? date('Y-m-d H:i:s') : null;
+
     $stmt = $db->prepare("
         INSERT INTO odoo_slip_uploads 
         (line_account_id, line_user_id, odoo_partner_id, bdo_id, invoice_id, order_id, 
          amount, transfer_date, image_path, image_url, uploaded_by, message_id,
+         slip_verified, slip_verify_ref, slip_verify_amount, slip_verify_data, slip_verified_at,
          status, match_reason, uploaded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW())
     ");
     $stmt->execute([
         $lineAccountId,
@@ -244,6 +252,11 @@ try {
         $imageUrl,
         $uploadedBy,
         $inputMessageId,
+        $slipVerified,
+        $slipVerifyRef,
+        $slipVerifyAmount !== null ? (float) $slipVerifyAmount : null,
+        $slipVerifyData,
+        $slipVerifiedAt,
         $status,
     ]);
     $slipDbId = $db->lastInsertId();
