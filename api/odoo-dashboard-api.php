@@ -3889,38 +3889,6 @@ function resolveBdoAmount($db, $bdoId)
 // Functions migrated from odoo-webhooks-dashboard.php (fallback)
 // ============================================================================
 
-function tableExists($db, $table)
-{
-    static $cache = [];
-
-    $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $table);
-    if ($table === '') {
-        return false;
-    }
-
-    if (array_key_exists($table, $cache)) {
-        return $cache[$table];
-    }
-
-    try {
-        $stmt = $db->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$table]);
-        $cache[$table] = (bool) $stmt->fetchColumn();
-    } catch (Exception $e) {
-        $quoted = $db->quote($table);
-        $stmt = $db->query("SHOW TABLES LIKE {$quoted}");
-        $cache[$table] = $stmt ? ($stmt->rowCount() > 0) : false;
-    }
-
-    return $cache[$table];
-}
-
 function getCustomer360($db, $input)
 {
     $lineUserId  = trim((string) ($input['line_user_id'] ?? ''));
