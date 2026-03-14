@@ -31,6 +31,14 @@ register_shutdown_function(function () {
 });
 
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
@@ -46,7 +54,7 @@ try {
     $input = json_decode(file_get_contents('php://input'), true);
 
     // Required parameters
-    $lineUserId = trim((string) ($input['line_user_id'] ?? ''));
+    $lineUserId = $input['line_user_id'] ?? null;
     $messageId = $input['message_id'] ?? null;
     $imageBase64 = $input['image_base64'] ?? null; // Support direct upload
     $imageUrl = $input['image_url'] ?? null; // Support URL download (from Next.js admin)
@@ -61,90 +69,25 @@ try {
     $skipLineNotify = $input['skip_line_notify'] ?? false; // Skip LINE confirmation (admin flow)
 
     // Validate required parameters
+    if (!$lineUserId) {
+        throw new Exception('Missing line_user_id');
+    }
+
     if (!$messageId && !$imageBase64 && !$imageUrl) {
         throw new Exception('Missing message_id, image_base64, or image_url');
     }
 
-    // ========================================================================
-    // Resolve line_user_id / BDO context for dashboard and chat uploads
-    // ========================================================================
-    $isDashboardUpload = $lineUserId === '' || $lineUserId === '_dashboard_upload_';
-    $bdoContext = null;
-
-    if ($bdoId) {
-        try {
-            $ctxStmt = $db->prepare("
-                SELECT line_user_id, bdo_name, amount, delivery_type, statement_pdf_path, state
-                FROM odoo_bdo_context
-                WHERE bdo_id = ?
-                ORDER BY updated_at DESC, id DESC
-                LIMIT 1
-            ");
-            $ctxStmt->execute([(int) $bdoId]);
-            $bdoContext = $ctxStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (Exception $e) {
-            error_log('[odoo-slip-upload] bdo context lookup failed: ' . $e->getMessage());
-        }
-    }
-
-    if ($isDashboardUpload && $bdoContext && !empty($bdoContext['line_user_id'])) {
-        $lineUserId = $bdoContext['line_user_id'];
-    }
-
-    if ($lineUserId === '') {
-        throw new Exception('Missing line_user_id');
-    }
-
-    if (!$bdoId) {
-        try {
-            $ctxStmt = $db->prepare("
-                SELECT bdo_id, bdo_name, amount, delivery_type, statement_pdf_path, state
-                FROM odoo_bdo_context
-                WHERE line_user_id = ?
-                  AND state = 'waiting'
-                ORDER BY updated_at DESC, id DESC
-                LIMIT 1
-            ");
-            $ctxStmt->execute([$lineUserId]);
-            $bdoContext = $ctxStmt->fetch(PDO::FETCH_ASSOC) ?: $bdoContext;
-            if ($bdoContext && !empty($bdoContext['bdo_id'])) {
-                $bdoId = (int) $bdoContext['bdo_id'];
-            }
-        } catch (Exception $e) {
-            error_log('[odoo-slip-upload] latest BDO context lookup failed: ' . $e->getMessage());
-        }
-    }
-
     // Get LINE account info
     if (!$lineAccountId) {
-        $user = null;
-
-        try {
-            $stmt = $db->prepare("
-                SELECT line_account_id
-                FROM odoo_line_users
-                WHERE line_user_id = ?
-                LIMIT 1
-            ");
-            $stmt->execute([$lineUserId]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row && !empty($row['line_account_id'])) {
-                $user = $row;
-            }
-        } catch (Exception $e) {
-            error_log('[odoo-slip-upload] odoo_line_users account lookup failed: ' . $e->getMessage());
-        }
-
-        if (!$user) {
-            $stmt = $db->prepare("
-                SELECT line_account_id 
-                FROM users 
-                WHERE line_user_id = ? 
-                LIMIT 1
-            ");
-            $stmt->execute([$lineUserId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        }
+        // Find LINE account for this user
+        $stmt = $db->prepare("
+            SELECT line_account_id 
+            FROM users 
+            WHERE line_user_id = ? 
+            LIMIT 1
+        ");
+        $stmt->execute([$lineUserId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$user) {
             throw new Exception('User not found');
@@ -274,16 +217,6 @@ try {
         error_log('[odoo-slip-upload] partner lookup failed: ' . $e->getMessage());
     }
 
-    $bdoName = $input['bdo_name'] ?? ($bdoContext['bdo_name'] ?? null);
-    $deliveryType = $input['delivery_type'] ?? ($bdoContext['delivery_type'] ?? null);
-    $bdoAmount = isset($input['bdo_amount']) ? (float) $input['bdo_amount'] : null;
-    if ($bdoAmount === null && isset($bdoContext['amount']) && $bdoContext['amount'] !== '') {
-        $bdoAmount = (float) $bdoContext['amount'];
-    }
-    if ($amount === null && $bdoAmount !== null) {
-        $amount = $bdoAmount;
-    }
-
     // ========================================================================
     // Save record to odoo_slip_uploads table (local — not sent to Odoo yet)
     // ========================================================================
@@ -291,13 +224,20 @@ try {
     $uploadedBy = $input['uploaded_by'] ?? null;
     $inputMessageId = $input['message_id_ref'] ?? null; // message table ID
 
+    // SlipMate verification data (optional — sent when admin verified slip before saving)
+    $slipVerified = isset($input['slip_verified']) ? ($input['slip_verified'] ? 1 : 0) : null;
+    $slipVerifyRef = $input['slip_verify_ref'] ?? null;
+    $slipVerifyAmount = $input['slip_verify_amount'] ?? null;
+    $slipVerifyData = isset($input['slip_verify_data']) ? json_encode($input['slip_verify_data'], JSON_UNESCAPED_UNICODE) : null;
+    $slipVerifiedAt = $slipVerified !== null ? date('Y-m-d H:i:s') : null;
+
     $stmt = $db->prepare("
         INSERT INTO odoo_slip_uploads 
         (line_account_id, line_user_id, odoo_partner_id, bdo_id, invoice_id, order_id, 
          amount, transfer_date, image_path, image_url, uploaded_by, message_id,
-         bdo_name, delivery_type, bdo_amount,
+         slip_verified, slip_verify_ref, slip_verify_amount, slip_verify_data, slip_verified_at,
          status, match_reason, uploaded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW())
     ");
     $stmt->execute([
         $lineAccountId,
@@ -312,9 +252,11 @@ try {
         $imageUrl,
         $uploadedBy,
         $inputMessageId,
-        $bdoName,
-        $deliveryType,
-        $bdoAmount,
+        $slipVerified,
+        $slipVerifyRef,
+        $slipVerifyAmount !== null ? (float) $slipVerifyAmount : null,
+        $slipVerifyData,
+        $slipVerifiedAt,
         $status,
     ]);
     $slipDbId = $db->lastInsertId();
@@ -347,8 +289,6 @@ try {
             'image_path' => $relativeImagePath,
             'status' => $status,
             'line_user_id' => $lineUserId,
-            'bdo_id' => $bdoId ? (int) $bdoId : null,
-            'bdo_name' => $bdoName,
             'amount' => $amount,
             'transfer_date' => $transferDate
         ]
