@@ -205,6 +205,7 @@ Set up in Admin > AI Settings:
 - [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
 - [User Manual](USER_MANUAL.md)
 - [Setup Guide](SETUP_GUIDE_COMPLETE.md)
+- [Odoo Dashboard Performance Runbook](ODOO_DASHBOARD_PERFORMANCE_PLAN.md)
 
 ---
 

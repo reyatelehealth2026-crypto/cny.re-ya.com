@@ -1,43 +1,50 @@
-# Odoo Dashboard / API Performance Plan
+# Odoo Dashboard Performance & Operations Runbook
 
-## What was optimized now
+This document reflects behavior verified from the current implementation in:
+- `api/odoo-dashboard-api.php`
+- `api/odoo-dashboard-local.php`
+- `api/webhook/odoo.php`
+- `classes/OdooAPIClient.php`
+- `cron/sync_odoo_dashboard_cache.php`
+- `database/migration_odoo_dashboard_cache.sql`
+- `odoo-dashboard.php`
+- `odoo-dashboard-local.js`
+- `verify_odoo_local_cache.php`
 
-These changes are already implemented in the current branch:
+## 1. What Is Implemented Now
 
-1. **Odoo API timeout budget is now configurable**
-   - `ODOO_API_TIMEOUT` defaults to 15s instead of 30s.
-   - `ODOO_API_CONNECT_TIMEOUT` defaults to 3s.
-   - `ODOO_API_RETRY_LIMIT` defaults to 1 transient retry.
-   - Read-heavy endpoints now use shorter budgets than upload/PDF flows.
+### Odoo API client resiliency and timeout budgets
+- `ODOO_API_TIMEOUT` default is `15` seconds.
+- `ODOO_API_CONNECT_TIMEOUT` default is `3` seconds.
+- `ODOO_API_RETRY_LIMIT` default is `1` transient retry.
+- Retry is limited to transient cURL failures and HTTP `408/425/429/500/502/503/504`.
+- Endpoint-specific budgets are enforced in `OdooAPIClient::resolveTimeoutForEndpoint()`:
+  - `/reya/health` capped to 5s.
+  - Upload/PDF paths (for example `/reya/slip/upload`, `/reya/bdo/statement-pdf`) allowed up to 25s.
+  - Read-heavy dashboard endpoints capped to 12s.
 
-2. **Odoo API client is less noisy and more resilient**
-   - Retries only on transient cURL / HTTP failures.
-   - Production no longer logs full successful API payloads by default.
-   - Table existence checks and rate-limit counters are cached per request.
+### Dashboard API soft-fail behavior
+- `api/odoo-dashboard-api.php` uses file-based response caching for hot actions.
+- On action failure, the API attempts stale cache fallback via `dashboardApiCacheGetStale()`.
+- Stale window is controlled by `ODOO_DASHBOARD_STALE_TTL` (default `300` seconds).
+- This reduces visible failures during short upstream/database incidents.
 
-3. **Dashboard API now fails soft**
-   - Hot actions have broader cache coverage.
-   - If a live request fails, the API can serve a recent stale cache instead of hard-failing.
-   - This reduces visible timeout/error spikes during temporary Odoo or DB slowness.
+### Local dashboard read model (safe auto-enable)
+- `odoo-dashboard.php` loads `odoo-dashboard-local.js` after `odoo-dashboard.js`.
+- `odoo-dashboard-local.js` checks `api/odoo-dashboard-local.php?action=health`.
+- Local mode is enabled only when local tables are available and contain data.
+- If local calls fail, UI falls back to original webhook/dashboard API functions.
 
-4. **Local dashboard mode is wired in safely**
-   - `odoo-dashboard.php` now loads `odoo-dashboard-local.js`.
-   - Local mode only activates when cache tables exist and contain data.
-   - If local mode fails, the page falls back to the current dashboard API.
+### Webhook debug logs are opt-in
+- Signature/process debug logs are controlled by env flags:
+  - `ODOO_API_DEBUG_LOG`
+  - `ODOO_WEBHOOK_DEBUG_LOG`
+  - `ODOO_WEBHOOK_SIGNATURE_DEBUG`
+- Default behavior reduces production log noise and I/O.
 
-5. **Local dashboard path had blocking bugs fixed**
-   - Broken SQL `CASE` expressions were corrected.
-   - Customer detail override now maps parameters correctly.
-   - Customer pagination in local mode now updates the real offset.
-   - Local health endpoint now reports `local_enabled` / `has_data`.
+## 2. Runtime Interfaces
 
-6. **Webhook debug logging is now opt-in**
-   - Signature and processing debug logs are gated by env flags.
-   - Default behavior reduces log I/O and avoids flooding production logs.
-
-## Recommended environment flags
-
-Set only when needed:
+### Environment flags (effective defaults)
 
 ```bash
 ODOO_API_TIMEOUT=15
@@ -49,67 +56,162 @@ ODOO_WEBHOOK_DEBUG_LOG=false
 ODOO_WEBHOOK_SIGNATURE_DEBUG=false
 ```
 
-## Best next step for maximum impact
+### Public API: `api/odoo-dashboard-api.php`
 
-If the goal is **minimum error + minimum timeout + fastest dashboard**, the next architecture should be:
+Reads/writes are selected via `action` in GET or POST payload.
 
-### 1) Fast-ack webhook
-- Accept webhook
-- Validate signature and idempotency
-- Persist raw event
-- Return `200` immediately
-- Process sync / notification / enrichment asynchronously
+Frequently used read actions include:
+- `health`
+- `stats`
+- `customer_list`
+- `invoice_list`
+- `order_list`
+- `overview_today`
+- `customer_full_detail`
+- `overview_combined`
 
-### 2) Local read model for dashboard
-- Dashboard should read from:
-  - `odoo_orders_summary`
-  - `odoo_customers_cache`
-  - `odoo_invoices_cache`
-  - `odoo_slips_cache`
-  - `odoo_order_events`
-- Avoid JSON-heavy reads from `odoo_webhooks_log` on normal page loads.
+Operational actions include:
+- `dlq_list`
+- `dlq_stats`
+- `dlq_retry`
+- `order_status_override`
+- `order_note_add`
+- `slip_match_bdo`
+- `slip_unmatch`
 
-### 3) Async notification delivery
-- Move LINE push calls out of the webhook request.
-- Use `odoo_notification_queue` + worker/cron.
-- Keep webhook request under the 5s budget even during LINE API slowness.
+Example:
 
-### 4) Remove duplicate APIs
-- Keep one production dashboard API.
-- Keep one webhook entrypoint.
-- Archive or remove legacy duplicates after parity is confirmed.
+```bash
+curl -sS "https://<host>/api/odoo-dashboard-api.php?action=health"
+```
 
-### 5) Add health + freshness checks
-- Last successful cache sync age
-- Queue backlog depth
-- DLQ count
-- Odoo upstream latency percentile
-- Dashboard cache hit rate / stale-hit rate
+### Public API: `api/odoo-dashboard-local.php`
 
-## Suggested rebuild rollout
+Implemented actions:
+- `health`
+- `overview_kpi`
+- `orders_list`
+- `orders_today`
+- `customers_list`
+- `customer_detail`
+- `invoices_list`
+- `invoices_overdue`
+- `slips_list`
+- `slips_pending`
+- `order_timeline`
+- `search_global`
+- `cache_status`
 
-### Phase 1 - Stabilize
-- Done in this branch: timeout alignment, stale cache, safer local mode, reduced log noise.
+Example:
 
-### Phase 2 - Activate local read model
-- Create/verify migration for local cache tables.
-- Run `cron/sync_odoo_dashboard_cache.php` every 5 minutes.
-- Confirm `verify_odoo_local_cache.php` passes.
-- Switch overview/customers first, then invoices/slips/timeline.
+```bash
+curl -sS -X POST "https://<host>/api/odoo-dashboard-local.php" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"overview_kpi"}'
+```
 
-### Phase 3 - Move webhook work async
-- Keep raw event storage synchronous.
-- Push notification + projection jobs to worker queue.
-- Add retry / DLQ metrics to dashboard.
+### Manual sync trigger (web endpoint)
+- `trigger_odoo_sync.php?token=sync123`
+- Add `&full=1` for full sync.
+- This executes `php cron/sync_odoo_dashboard_cache.php <full|incremental>`.
 
-### Phase 4 - Retire heavy fallback paths
-- Reduce direct Odoo reads from admin dashboard.
-- Use live Odoo only for drill-down actions that truly need it.
+## 3. Data Flow Architecture
 
-## Practical success criteria
+1. Odoo sends webhook to `api/webhook/odoo.php`.
+2. `OdooWebhookHandler` stores/logs events in `odoo_webhooks_log` and processes business logic.
+3. `cron/sync_odoo_dashboard_cache.php` projects webhook data into local read tables:
+   - `odoo_orders_summary`
+   - `odoo_customers_cache`
+   - `odoo_invoices_cache`
+   - `odoo_slips_cache`
+   - `odoo_order_events`
+4. Dashboard UI attempts local reads first (when local mode is enabled).
+5. If local mode is unavailable, dashboard uses `api/odoo-dashboard-api.php` with cache/stale fallback.
 
-- Dashboard first paint with cached/local data: **< 1.5s**
-- Hot list APIs from local tables: **< 500ms**
-- Webhook response time p95: **< 2s**
-- Odoo timeout-related user errors: **reduced by at least 50%**
-- Customer detail/API fallback still works when local cache is cold
+## 4. Setup and Rollout Checklist
+
+1. Apply schema:
+
+```bash
+mysql -u <user> -p <db_name> < database/migration_odoo_dashboard_cache.sql
+```
+
+2. Initial backfill:
+
+```bash
+php cron/sync_odoo_dashboard_cache.php full
+```
+
+3. Verify system:
+
+```bash
+php verify_odoo_local_cache.php
+```
+
+4. Schedule incremental sync every 5 minutes:
+
+```bash
+*/5 * * * * php /path/to/project/cron/sync_odoo_dashboard_cache.php
+```
+
+5. Confirm local health:
+
+```bash
+curl -sS "https://<host>/api/odoo-dashboard-local.php?action=health"
+```
+
+Expected: `local_enabled: true` and `has_data: true`.
+
+## 5. Troubleshooting Guide
+
+### Local mode not activating
+Symptoms:
+- Dashboard keeps using legacy/webhook API path.
+
+Checks:
+- `api/odoo-dashboard-local.php?action=health` should return `success=true`, `local_enabled=true`, `has_data=true`.
+- Run `php verify_odoo_local_cache.php`.
+- Ensure `odoo-dashboard-local.js` is loaded after `odoo-dashboard.js` in `odoo-dashboard.php`.
+
+### Local tables exist but are empty
+Symptoms:
+- `health` returns `local_enabled=false`, `has_data=false`.
+
+Actions:
+- Run `php cron/sync_odoo_dashboard_cache.php full`.
+- Check `odoo_sync_log` for latest job status and error.
+- Confirm `odoo_webhooks_log` has successful source records.
+
+### Dashboard requests time out or fail intermittently
+Symptoms:
+- API errors spike but then recover.
+
+Checks:
+- Inspect responses for `meta.cache = "stale"` from `api/odoo-dashboard-api.php`.
+- Review `ODOO_DASHBOARD_STALE_TTL` value.
+- Review Odoo upstream latency and recent webhook/database incidents.
+
+### Excessive Odoo/webhook logging
+Symptoms:
+- Log files grow rapidly with debug data.
+
+Actions:
+- Ensure debug flags are disabled in production:
+  - `ODOO_API_DEBUG_LOG=false`
+  - `ODOO_WEBHOOK_DEBUG_LOG=false`
+  - `ODOO_WEBHOOK_SIGNATURE_DEBUG=false`
+
+## 6. Constraints and Pitfalls
+
+- Local mode is data-gated, not only table-gated: at least one local table must contain rows.
+- Most local reads are filtered by active `line_account_id` from session/request; cross-account testing should set context explicitly.
+- `trigger_odoo_sync.php` uses a static query token (`sync123`) and should be protected/replaced before public exposure.
+- Dashboard API file cache is stored under temp directory (`sys_get_temp_dir()/cny_odoo_dashboard_cache`), so OS temp cleanup can flush warm cache.
+- In `api/odoo-dashboard-local.php`, the top comment mentions `refresh_cache`, but there is no implemented `refresh_cache` action in the switch block.
+
+## 7. Recommended Next Improvements
+
+1. Replace static sync trigger token with env-configured secret and restrict by IP/auth.
+2. Add dashboard-level visibility for stale-hit rate and local-mode enablement status.
+3. Standardize cache helper implementation (currently duplicated logic exists across dashboard API files).
+4. Move webhook non-critical downstream work to explicit async queue paths to reduce webhook critical path time.
