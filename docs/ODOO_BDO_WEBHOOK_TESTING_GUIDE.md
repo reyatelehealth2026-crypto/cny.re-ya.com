@@ -1,351 +1,191 @@
 # Odoo BDO Webhook Testing Guide
 
-Quick guide for testing the BDO webhook handler.
+Updated guide for validating the current BDO/slip flow and local dashboard cache.
 
 ---
 
-## Quick Start
+## 1. Scope
 
-### Run Complete Test Suite
+This guide covers these codepaths:
+
+- `api/webhook/odoo.php` (webhook ingress + signature + idempotency)
+- `classes/OdooWebhookHandler.php` (event routing, BDO context lifecycle)
+- `classes/BdoContextManager.php` (open/close BDO context + statement PDF)
+- `api/bdo-inbox-api.php` (read/write facade for matching)
+- `cron/sync_odoo_dashboard_cache.php` + `api/odoo-dashboard-local.php` (local cache pipeline)
+
+---
+
+## 2. Prerequisites
+
+1. DB schema migration done:
 
 ```bash
-cd re-ya
-php test-bdo-webhook-complete.php
+php install/migration_bdo_matching.php
+php install/migration_bdo_context_v2.php
+php install/migration_slip_verification.php
 ```
 
-### View Results
-
-Open in browser:
-```
-re-ya/test-bdo-webhook-preview.html
-```
+2. Odoo webhook secret and API key configured in runtime config.
+3. `odoo_webhooks_log` table has writable access.
 
 ---
 
-## Test Files
-
-| File | Purpose |
-|------|---------|
-| `test-bdo-webhook-complete.php` | Complete test suite (Task 12.3) |
-| `test-bdo-handler.php` | Handler unit test (Task 12.1) |
-| `test-bdo-flex-complete.php` | Flex message test (Task 12.2) |
-| `test-qr-generation.php` | QR code generation test (Task 11.2) |
-
----
-
-## What Gets Tested
-
-### 1. Mock BDO Event (12.3.1)
-
-- ✅ Webhook payload structure
-- ✅ Required fields validation
-- ✅ Signature generation
-- ✅ Timestamp validation
-- ✅ Event routing
-
-### 2. QR Code Display (12.3.2)
-
-- ✅ QR code generation from EMVCo
-- ✅ File creation and storage
-- ✅ Image format validation
-- ✅ QR code in Flex message
-- ✅ Amount display
-- ✅ Bank account info
-
-### 3. Button Functionality (12.3.3)
-
-- ✅ Invoice PDF button
-- ✅ Slip upload button
-- ✅ URI validation
-- ✅ LIFF integration
-- ✅ Button labels
-
----
-
-## Expected Output
-
-```
-=== Complete BDO Webhook Test ===
-Task 12.3: Test BDO webhook
-================================
-
-Test 12.3.1: Mock BDO Confirmed Event
---------------------------------------
-✓ Mock webhook payload created
-  Event: bdo.confirmed
-  BDO Ref: BDO-2026-TEST-001
-  Order Ref: SO-2026-TEST-001
-  Amount: ฿15,750.50
-
-✓ Webhook headers generated
-✓ Signature verification PASSED
-
-Test 12.3.2: Verify QR Code Display
-------------------------------------
-✓ QR Code generated successfully
-  ✓ File exists: 2500 bytes
-  ✓ Valid PNG image: 300x300px
-  ✓ QR Code image found in body
-  ✓ Amount displayed: ฿15,750.50
-  ✓ Bank account info found
-
-Test 12.3.3: Verify Button Functionality
------------------------------------------
-✓ Found 2 buttons
-
-Button 1:
-  Label: 📄 ดูใบแจ้งหนี้
-  ✓ Invoice PDF button
-  ✓ Links to invoice PDF
-
-Button 2:
-  Label: 📤 อัพโหลดสลิป
-  ✓ Slip upload button
-  ✓ Opens LIFF app
-
-=== Test Summary ===
-✓ Task 12.3.1: Mock BDO confirmed event - PASSED
-✓ Task 12.3.2: QR Code display verification - PASSED
-✓ Task 12.3.3: Button functionality verification - PASSED
-
-All tests completed successfully! ✅
-```
-
----
-
-## Generated Files
-
-After running tests, you'll find:
-
-```
-re-ya/
-├── uploads/qr/
-│   └── qr_BDO-2026-TEST-001_{timestamp}.png
-├── test-bdo-webhook-flex.json
-├── test-bdo-webhook-payload.json
-└── test-bdo-webhook-preview.html
-```
-
----
-
-## Testing with LINE Simulator
-
-### Step 1: Get Flex JSON
+## 3. Quick Health Checks
 
 ```bash
-cat re-ya/test-bdo-webhook-flex.json
+curl -s "https://<host>/api/webhook/odoo.php"        # expected 405 (GET not allowed)
+curl -s "https://<host>/api/odoo-webhooks-dashboard.php?action=health"
+curl -s "https://<host>/api/bdo-inbox-api.php?action=health"
+curl -s "https://<host>/api/odoo-dashboard-local.php?action=health"
 ```
 
-### Step 2: Open Simulator
+Expected:
 
-Visit: https://developers.line.biz/flex-simulator/
-
-### Step 3: Upload JSON
-
-1. Click "Import"
-2. Paste JSON from `test-bdo-webhook-flex.json`
-3. Click "View"
-
-### Step 4: Verify Display
-
-- ✅ Header shows "💳 แจ้งชำระเงิน"
-- ✅ QR code displays
-- ✅ Amount shows ฿15,750.50
-- ✅ Bank info visible
-- ✅ Two buttons at bottom
+- webhook endpoint rejects non-POST
+- other endpoints return `{"success":true,...}` and `status=ok`
 
 ---
 
-## Testing QR Code Scanning
+## 4. Webhook Contract Validation
 
-### Step 1: Open QR Image
+### 4.1 Required Headers
 
-```
-re-ya/uploads/qr/qr_BDO-2026-TEST-001_{timestamp}.png
-```
+`api/webhook/odoo.php` requires:
 
-### Step 2: Scan with Banking App
+- `X-Odoo-Signature`
+- `X-Odoo-Timestamp`
+- `X-Odoo-Delivery-Id`
+- `X-Odoo-Event` (or `event` in payload)
 
-Use any Thai mobile banking app:
-- Bangkok Bank
-- Kasikorn Bank (K PLUS)
-- SCB Easy
-- Krungthai NEXT
+Missing required headers should return 4xx and be logged with stable `error_code`.
 
-### Step 3: Verify Payment Details
+### 4.2 Idempotency
 
-- ✅ Amount: ฿15,750.50
-- ✅ Merchant: บริษัท ซีเอ็นวาย จำกัด
-- ✅ Reference: BDO-2026-TEST-001
+Send the same payload twice with same `X-Odoo-Delivery-Id`.
+
+Expected second response:
+
+- HTTP 200
+- `status = duplicate`
+- no duplicate state mutation
 
 ---
 
-## Integration Testing
+## 5. BDO Context Lifecycle Tests
 
-### Prerequisites
+### 5.1 `bdo.confirmed` opens context
 
-1. Database tables created:
-   ```sql
-   odoo_line_users
-   odoo_webhooks_log
-   ```
+1. Send valid `bdo.confirmed` webhook payload.
+2. Verify row in `odoo_bdo_context` by `(line_user_id, bdo_id)`.
+3. Verify fields populated when available:
 
-2. Test user linked:
-   ```sql
-   INSERT INTO odoo_line_users 
-   (line_user_id, odoo_partner_id, linked_via, line_notification_enabled)
-   VALUES ('U1234567890abcdef', 100, 'phone', 1);
-   ```
+- `state = waiting`
+- `qr_payload`
+- `statement_pdf_path`
+- `financial_summary_json`
+- `selected_invoices_json`
+- `selected_credit_notes_json`
 
-3. LINE channel configured:
-   ```php
-   define('LINE_CHANNEL_ACCESS_TOKEN', 'your_token');
-   ```
+### 5.2 `bdo.done` / `bdo.cancelled` closes context
 
-### Send Test Webhook
+1. Send `bdo.done` or `bdo.cancelled` for same `bdo_id`.
+2. Verify context row state is updated to `done` / `cancel`.
+
+---
+
+## 6. BDO Inbox API Write Path Tests
+
+All write actions are Odoo-first and must not perform local-only success.
+
+### 6.1 Match
 
 ```bash
-curl -X POST https://cny.re-ya.com/api/webhook/odoo.php \
+curl -X POST "https://<host>/api/bdo-inbox-api.php" \
   -H "Content-Type: application/json" \
-  -H "X-Odoo-Signature: sha256=..." \
-  -H "X-Odoo-Timestamp: 1234567890" \
-  -H "X-Odoo-Delivery-Id: test-123" \
-  -H "X-Odoo-Event: bdo.confirmed" \
-  -d @test-bdo-webhook-payload.json
+  -H "X-Internal-Secret: <internal_secret_if_enabled>" \
+  -d '{
+    "action":"slip_match_bdo",
+    "line_user_id":"Uxxxxxxxx",
+    "slip_inbox_id":113,
+    "matches":[{"bdo_id":437,"amount":15950.00}],
+    "note":"test match"
+  }'
 ```
 
-### Verify Response
+Expected:
 
-```json
-{
-  "success": true,
-  "received_at": "2026-02-03T10:30:00+07:00",
-  "delivery_id": "test-123",
-  "event": "bdo.confirmed",
-  "sent_to": ["customer"]
-}
-```
+- success only when Odoo confirms
+- local `odoo_slip_uploads` updated after success (status `matched`)
+
+### 6.2 Unmatch block states
+
+Call `slip_unmatch` with slip already in `posted`/`done`.
+
+Expected:
+
+- rejected by validation
+- no local reset to `new`
+
+### 6.3 Upload ambiguity handling
+
+Call `slip_upload` without `bdo_id` when customer has multiple open contexts.
+
+Expected:
+
+- `success=false`
+- `error` explains ambiguity
+- `ambiguous_bdos` array returned for UI selection
 
 ---
 
-## Troubleshooting
+## 7. Local Dashboard Cache Runbook
 
-### QR Code Not Generated
+### 7.1 Full bootstrap
 
-**Problem:** QR code file not created
-
-**Solution:**
 ```bash
-# Check directory permissions
-chmod 755 re-ya/uploads/qr/
-
-# Check GD library
-php -m | grep gd
+php cron/sync_odoo_dashboard_cache.php full
+php verify_odoo_local_cache.php
 ```
 
-### Signature Verification Failed
+### 7.2 Incremental cron
 
-**Problem:** Invalid webhook signature
-
-**Solution:**
-```php
-// Check webhook secret
-echo ODOO_WEBHOOK_SECRET;
-
-// Verify signature generation
-$data = $timestamp . '.' . $payload;
-$signature = 'sha256=' . hash_hmac('sha256', $data, ODOO_WEBHOOK_SECRET);
-```
-
-### Flex Message Not Displaying
-
-**Problem:** Flex message structure invalid
-
-**Solution:**
 ```bash
-# Validate JSON
-cat test-bdo-webhook-flex.json | jq .
-
-# Check in LINE Simulator
-# https://developers.line.biz/flex-simulator/
+*/5 * * * * php /path/to/project/cron/sync_odoo_dashboard_cache.php incremental
 ```
 
-### Buttons Not Working
+### 7.3 Optional manual web trigger
 
-**Problem:** Button URIs invalid
-
-**Solution:**
-```php
-// Check LIFF ID
-echo LIFF_ID;
-
-// Verify invoice URL
-echo $data['invoice']['pdf_url'];
+```text
+/trigger_odoo_sync.php?token=sync123&full=1
 ```
 
----
-
-## Performance Benchmarks
-
-| Operation | Expected Time |
-|-----------|---------------|
-| QR generation | < 100ms |
-| Flex creation | < 50ms |
-| Signature verify | < 10ms |
-| Total webhook | < 500ms |
-| LINE API call | < 2000ms |
+Security note: token is hardcoded in source. Restrict by network/ACL before use.
 
 ---
 
-## Success Criteria
+## 8. Troubleshooting
 
-### All Tests Pass
+### 8.1 `Unauthorized` on `bdo-inbox-api`
 
-- [x] Mock event created
-- [x] Signature verified
-- [x] QR code generated
-- [x] QR code in Flex
-- [x] Amount displayed
-- [x] Bank info shown
-- [x] Invoice button works
-- [x] Upload button works
+- `INTERNAL_API_SECRET` is configured but `X-Internal-Secret` missing/mismatch.
 
-### Integration Works
+### 8.2 Cache tables empty
 
-- [ ] Webhook received from Odoo
-- [ ] LINE message sent
-- [ ] QR code scannable
-- [ ] Buttons clickable
-- [ ] Slip upload opens
+1. Check `odoo_webhooks_log` has successful events.
+2. Run full sync once.
+3. Check latest job in `odoo_sync_log`.
+
+### 8.3 Missing migration SQL file reference
+
+Some scripts mention `database/migration_odoo_dashboard_cache.sql`, but this file is not present in this repository snapshot. Keep deployment artifacts aligned before provisioning new environments.
 
 ---
 
-## Next Steps
+## 9. Success Criteria
 
-1. **Complete Task 12.3** ✅
-   - All sub-tasks verified
-   - Tests documented
-   - Ready for integration
-
-2. **Move to Task 13.1**
-   - Implement slip upload API
-   - Handle image download
-   - Call Odoo API
-
-3. **Integration Testing**
-   - Test with Odoo staging
-   - Verify end-to-end flow
-   - Monitor webhook logs
-
----
-
-## Related Tasks
-
-- ✅ Task 11.1: QR library installation
-- ✅ Task 11.2: QR generation implementation
-- ✅ Task 11.3: QR generation testing
-- ✅ Task 12.1: BDO handler implementation
-- ✅ Task 12.2: BDO Flex template
-- ✅ Task 12.3: BDO webhook testing
-- ⏭️ Task 13.1: Slip upload API
-
+- webhook signature + idempotency checks pass
+- BDO context opens/closes correctly from webhook events
+- `slip_match_bdo` / `slip_unmatch` follow Odoo-first behavior
+- ambiguous slip uploads return actionable `ambiguous_bdos`
+- local cache sync jobs succeed and dashboard local API returns data

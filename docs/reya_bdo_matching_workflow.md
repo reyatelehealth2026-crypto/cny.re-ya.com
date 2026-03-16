@@ -823,6 +823,105 @@ Odoo Validation:
 
 ---
 
-*Document: reya_bdo_matching_workflow.md*
-*Version: 1.0 — 2026-03-06*
+## 10. Implementation Reality Check (Current Codepaths)
+
+ส่วนนี้สรุปจาก source code ปัจจุบัน เพื่อให้เอกสารตรงกับ behavior ที่รันจริง
+
+| Area | Codepath | Behavior (current) |
+|---|---|---|
+| Webhook ingress | `api/webhook/odoo.php` | รับเฉพาะ `POST`, บังคับ `X-Odoo-Signature`, `X-Odoo-Timestamp`, `X-Odoo-Delivery-Id`, ตรวจ signature + duplicate ก่อน process |
+| BDO context open | `classes/OdooWebhookHandler.php` (`handleBdoConfirmed`) | เรียก `BdoContextManager->openContext()` ทันทีเมื่อ `bdo.confirmed` |
+| BDO context close | `classes/OdooWebhookHandler.php` (`handleBdoDone`, `handleBdoCancelled`) | ปิด context ด้วย state `done` / `cancel` เพื่อกัน stale attach |
+| Context storage | `classes/BdoContextManager.php` | เก็บตามคีย์ `(line_user_id, bdo_id)`, รองรับหลาย BDO ต่อ 1 ลูกค้า, เก็บ `financial_summary_json`, `selected_invoices_json`, `selected_credit_notes_json`, และไฟล์ statement PDF |
+| Slip/BDO contract | `classes/BdoSlipContract.php` | กำหนด canonical constants: slip status, confidence, delivery type, endpoint และ validation กลาง |
+| Inbox facade API | `api/bdo-inbox-api.php` | read actions ใช้ local cache, write actions (`slip_match_bdo`, `slip_unmatch`, `slip_upload`) เป็น Odoo-first ไม่มี local-only fallback |
+| Canonical slip ID | `api/customer-slips.php`, `api/bdo-inbox-api.php` | ใช้ลำดับ `slip_inbox_id` -> `odoo_slip_id` -> local `id` |
+| Legacy local ingest | `api/odoo-slip-upload.php` | endpoint นี้บันทึกไฟล์/แถวลง `odoo_slip_uploads` เป็นหลัก (local queue), ไม่ใช่ facade เดียวกับ `bdo-inbox-api.php` |
+
+---
+
+## 11. Operations Runbook (BDO + Local Dashboard Cache)
+
+### 11.1 Migration / Schema Prep
+
+รันบน server ครั้งแรก หรือหลัง deploy branch นี้:
+
+```bash
+php install/migration_bdo_matching.php
+php install/migration_bdo_context_v2.php
+php install/migration_slip_verification.php
+```
+
+### 11.2 Cache Sync Job
+
+```bash
+# full rebuild
+php cron/sync_odoo_dashboard_cache.php full
+
+# incremental (ใช้ใน cron)
+php cron/sync_odoo_dashboard_cache.php incremental
+```
+
+แนะนำ cron:
+
+```bash
+*/5 * * * * php /path/to/project/cron/sync_odoo_dashboard_cache.php incremental
+```
+
+### 11.3 Verify Health
+
+```bash
+php verify_odoo_local_cache.php
+curl -s "https://<host>/api/odoo-dashboard-local.php?action=health"
+curl -s "https://<host>/api/bdo-inbox-api.php?action=health"
+```
+
+### 11.4 Optional Web Trigger
+
+มี endpoint `trigger_odoo_sync.php` สำหรับ trigger ผ่าน browser/query string:
+
+```text
+/trigger_odoo_sync.php?token=sync123&full=1
+```
+
+ข้อควรระวัง: token เป็นค่า fixed string ใน source (`sync123`) ควรจำกัดเข้าถึงด้วย network/ACL หรือเปลี่ยนกลไกก่อนใช้ production
+
+---
+
+## 12. Troubleshooting & Common Pitfalls
+
+### 12.1 Slip upload ตอบกลับ `ambiguous_bdos`
+
+สาเหตุ: ลูกค้ามีหลาย BDO สถานะ `waiting` และ request ไม่ส่ง `bdo_id`  
+ทางแก้: ให้ UI เลือก BDO ก่อน แล้วส่ง `bdo_id` กลับมาพร้อม `slip_upload`
+
+### 12.2 ยกเลิกจับคู่ไม่ได้ (posted/done)
+
+ถ้า slip อยู่สถานะ `posted` หรือ `done` ระบบจะ block `unmatch` ตาม contract  
+ให้ส่งต่อ flow ฝั่งบัญชีแทนการ unmatch จาก dashboard
+
+### 12.3 Match/Unmatch fail แม้ local DB ปกติ
+
+`bdo-inbox-api` ทำ Odoo-first สำหรับ write actions  
+ถ้า Odoo ปฏิเสธ จะได้ `error_type=odoo_rejected` และ local state จะไม่ถูกเขียนทับ
+
+### 12.4 Dashboard local cache ว่าง
+
+เช็กตามลำดับ:
+1. ตาราง local cache มีครบหรือไม่ (`verify_odoo_local_cache.php`)
+2. มีข้อมูลใน `odoo_webhooks_log` สถานะ `success` หรือไม่
+3. sync job ล่าสุดใน `odoo_sync_log` สำเร็จหรือไม่
+4. cron รันจริงทุก 5 นาทีหรือไม่
+
+---
+
+## 13. Knowledge Gaps (ต้องเคลียร์ก่อน rollout เต็ม)
+
+1. `config/bdo_feature_flags.php` มี flag rollout ครบ แต่ใน codepath ปัจจุบันยังไม่พบการเรียกใช้ไฟล์นี้โดยตรง  
+2. หลายสคริปต์อ้างถึง `database/migration_odoo_dashboard_cache.sql` แต่ไฟล์ดังกล่าวไม่พบใน repo นี้ (ต้องเตรียม/restore migration ให้ชัดก่อน deploy เครื่องใหม่)
+
+---
+
+*Document: reya_bdo_matching_workflow.md*  
+*Version: 1.1 — 2026-03-16*  
 *Contact: consdevs | SOMZAA*
