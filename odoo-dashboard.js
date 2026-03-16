@@ -102,6 +102,8 @@ function normalizeBdoPaymentStatus(bdo){
 const _sectionLoadedAt = {};    // sectionId → timestamp
 const _SECTION_STALE_MS = 300000; // 5 minutes before re-fetching
 const _whInFlight = new Map();
+const _whFailureState = new Map();
+const _WH_API_COOLDOWN_BASE_MS = 15000;
 function _sectionNeedsLoad(id){
     const loadedAt = _sectionLoadedAt[id];
     if(!loadedAt) return true;
@@ -127,6 +129,189 @@ function _whCanDeduplicate(action){
     ]).has(String(action||''));
 }
 
+function _whApiResponseCacheTtl(action){
+    const ttlMap={
+        stats:120000,
+        list:60000,
+        customer_list:300000,
+        salesperson_list:300000,
+        overview_today:180000,
+        daily_summary_preview:180000,
+        order_grouped_today:120000,
+        order_timeline:300000,
+        odoo_slips:120000,
+        customer_detail:300000,
+        customer_full_detail:300000,
+        notification_log:120000,
+        activity_log_list:120000,
+        odoo_bdo_list_api:120000,
+        webhook_stats_mini:60000,
+        dlq_stats:60000
+    };
+    return ttlMap[String(action||'')] || 0;
+}
+
+function _whApiResponseCacheKey(data){
+    return _dashCacheKey('whapi', _whBuildInFlightKey(data));
+}
+
+function _whGetCachedResponse(action, data){
+    const ttlMs=_whApiResponseCacheTtl(action);
+    if(!ttlMs) return null;
+    return _cacheGet(_whApiResponseCacheKey(data));
+}
+
+function _whSetCachedResponse(action, data, response){
+    const ttlMs=_whApiResponseCacheTtl(action);
+    if(!ttlMs || !response || !response.success) return;
+    _cacheSet(_whApiResponseCacheKey(data), response, ttlMs);
+}
+
+function _whWrapCachedResponse(response, meta){
+    return Object.assign({}, response, {
+        meta: Object.assign({}, response&&response.meta||{}, meta||{})
+    });
+}
+
+function _whGetCooldownRemaining(action){
+    const state=_whFailureState.get(String(action||''));
+    if(!state) return 0;
+    const remaining=(state.until||0)-Date.now();
+    if(remaining<=0){
+        _whFailureState.delete(String(action||''));
+        return 0;
+    }
+    return remaining;
+}
+
+function _whRecordFailure(action, errorMessage){
+    const key=String(action||'');
+    const prev=_whFailureState.get(key)||{count:0, until:0, lastError:''};
+    const count=prev.count+1;
+    const cooldown=Math.min(120000, _WH_API_COOLDOWN_BASE_MS * Math.max(1, count));
+    _whFailureState.set(key,{
+        count,
+        until:Date.now()+cooldown,
+        lastError:String(errorMessage||'')
+    });
+}
+
+function _whRecordSuccess(action){
+    _whFailureState.delete(String(action||''));
+}
+
+async function _whTryLocalFallback(action, data){
+    if(!(window.LocalApi && typeof window.LocalApi.call==='function')) return null;
+    try{
+        if(action==='customer_list'){
+            const r=await window.LocalApi.call('customers_list',{
+                limit:data.limit||30,
+                offset:data.offset||0,
+                search:data.search||'',
+                invoice_filter:data.invoice_filter||'',
+                sort_by:data.sort_by||'',
+                salesperson_id:data.salesperson_id||''
+            });
+            return r&&r.success?{success:true,data:r.data,meta:{source:'local-fallback'}}:null;
+        }
+        if(action==='salesperson_list'){
+            const r=await window.LocalApi.call('customers_list',{limit:100,offset:0});
+            const customers=r&&r.success&&r.data&&Array.isArray(r.data.customers)?r.data.customers:[];
+            const seen=new Set(),salespersons=[];
+            customers.forEach(function(c){
+                const sid=String(c.salesperson_id||'').trim();
+                const nm=String(c.salesperson_name||'').trim();
+                if(sid && nm && !seen.has(sid)){
+                    seen.add(sid);
+                    salespersons.push({id:sid,name:nm});
+                }
+            });
+            return salespersons.length?{success:true,data:{salespersons},meta:{source:'local-fallback'}}:null;
+        }
+        if(action==='order_timeline'){
+            const r=await window.LocalApi.call('order_timeline',{
+                order_id:data.order_id||'',
+                order_key:data.order_name||data.order_key||''
+            });
+            if(r&&r.success){
+                const payload=r.data||{};
+                return {
+                    success:true,
+                    data:{
+                        events:payload.events||[],
+                        order_name:payload.order_name||payload.order_key||data.order_name||data.order_id||'-'
+                    },
+                    meta:{source:'local-fallback'}
+                };
+            }
+            return null;
+        }
+        if(action==='customer_detail'){
+            const r=await window.LocalApi.call('customer_detail',{
+                customer_ref:data.customer_ref||'',
+                partner_id:data.partner_id||''
+            });
+            return r&&r.success?{success:true,data:r.data,meta:{source:'local-fallback'}}:null;
+        }
+        if(action==='odoo_slips'){
+            const r=await window.LocalApi.call('slips_list',{
+                limit:data.limit||30,
+                offset:data.offset||0,
+                search:data.search||'',
+                status:data.status||'',
+                date:data.date||''
+            });
+            return r&&r.success?{success:true,data:r.data,meta:{source:'local-fallback'}}:null;
+        }
+        if(action==='overview_today'){
+            const [kpiRes, ordersRes, slipsRes, overdueRes] = await Promise.all([
+                window.LocalApi.call('overview_kpi'),
+                window.LocalApi.call('orders_today'),
+                window.LocalApi.call('slips_pending'),
+                window.LocalApi.call('invoices_overdue')
+            ]);
+            if(!(kpiRes&&kpiRes.success&&ordersRes&&ordersRes.success&&slipsRes&&slipsRes.success&&overdueRes&&overdueRes.success)){
+                return null;
+            }
+            const kpi=kpiRes.data||{}, orders=ordersRes.data||{}, slips=slipsRes.data||{}, overdue=overdueRes.data||{};
+            const overdueCustomers=(overdue.invoices||[]).map(function(inv){
+                return {
+                    customer_name: inv.customer_name || '-',
+                    customer_ref: inv.customer_ref || '',
+                    partner_id: inv.partner_id || inv.customer_id || '',
+                    total_due: inv.amount_residual || 0,
+                    overdue_amount: inv.amount_residual || 0,
+                    line_user_id: inv.line_user_id || null
+                };
+            });
+            return {
+                success:true,
+                data:{
+                    stats:{
+                        unique_orders_today:Number(kpi.orders&&kpi.orders.today||0),
+                        notified_today:0,
+                        total:0,
+                        success:0,
+                        dead_letter:0
+                    },
+                    orders:orders.orders||[],
+                    orders_total:Number(orders.count||0),
+                    overdue_customers:overdueCustomers,
+                    overdue_total:Number(overdue.count||0),
+                    pending_bdo:{orders:[]},
+                    slips_pending:slips.slips||[],
+                    slips_pending_total:Number(slips.count||0),
+                    slips_matched_today_sum:Number(kpi.slips&&kpi.slips.matched_today||0)
+                },
+                meta:{source:'local-fallback'}
+            };
+        }
+    }catch(_e){
+        return null;
+    }
+    return null;
+}
+
 function showSection(id){
     // 'webhooks-raw' maps to the same webhooks section but forces list mode
     let sectionId = id;
@@ -138,7 +323,7 @@ function showSection(id){
     const t=document.getElementById('section-'+sectionId);if(t)t.classList.add('active');
     const m=document.querySelector(`.menu-card[onclick="showSection('${id}')"]`);if(m)m.classList.add('active');
 
-    if(id==='overview'){if(typeof loadTodayOverview==='function')loadTodayOverview();}
+    if(id==='overview'){if((!_overviewLoaded||_sectionNeedsLoad('overview'))&&typeof loadTodayOverview==='function'){loadTodayOverview();_sectionMarkLoaded('overview');}}
     else if(id==='webhooks'){if(_sectionNeedsLoad('webhooks')){loadWebhookStats();_sectionMarkLoaded('webhooks');}if(whViewMode==='grouped'){if(!document.getElementById('webhookList').querySelector('div[style*="border-radius:10px"]'))loadOrdersGrouped();}else{if(!document.getElementById('webhookList').querySelector('table'))loadWebhooks();}}
     else if(id==='webhooks-raw'){if(_sectionNeedsLoad('webhooks')){loadWebhookStats();_sectionMarkLoaded('webhooks');}if(forceListMode){setWhViewMode('list');}else{if(!document.getElementById('webhookList').querySelector('table'))loadWebhooks();}}
     else if(id==='customers'){loadSalespersonDropdown();if(_sectionNeedsLoad('customers')||!document.getElementById('customerList').querySelector('table')){loadCustomers();_sectionMarkLoaded('customers');}}
@@ -146,11 +331,33 @@ function showSection(id){
     else if(id==='daily-summary'){if(dailySummaryData.length===0)loadDailySummary();}
     else if(id==='health'){loadSystemHealth();}
     else if(id==='slips'){if(_sectionNeedsLoad('slips')||!document.getElementById('slipList').querySelector('table')){loadSlips();_sectionMarkLoaded('slips');}}
-    else if(id==='matching'){loadSalespersonDropdown();if(_sectionNeedsLoad('matching')){loadMatchingCustomerGrid();_sectionMarkLoaded('matching');}else{loadMatchingCustomerGrid();}}
+    else if(id==='matching'){loadSalespersonDropdown();if(_sectionNeedsLoad('matching')||!document.getElementById('matchCustomerGrid')?.children.length){loadMatchingCustomerGrid();_sectionMarkLoaded('matching');}}
 }
 
 async function whApiCall(data){
     const action=String(data&&data.action||'').trim();
+    const cachedResponse=_whGetCachedResponse(action, data);
+    const cooldownRemaining=_whGetCooldownRemaining(action);
+    if(cooldownRemaining>0){
+        const localFallback=await _whTryLocalFallback(action, data);
+        if(localFallback&&localFallback.success){
+            return _whWrapCachedResponse(localFallback,{
+                cache:'local-fallback',
+                cooldown_ms:cooldownRemaining
+            });
+        }
+        if(cachedResponse&&cachedResponse.success){
+            return _whWrapCachedResponse(cachedResponse,{
+                cache:'session',
+                stale:true,
+                cooldown_ms:cooldownRemaining
+            });
+        }
+        return {
+            success:false,
+            error:'API cooling down for '+Math.ceil(cooldownRemaining/1000)+'s'
+        };
+    }
     const runRequest=async ()=>{
         const tried=[];
         const endpoints=[WH_API_ACTIVE,...WH_API_CANDIDATES.filter(u=>u!==WH_API_ACTIVE)];
@@ -219,7 +426,35 @@ async function whApiCall(data){
         return _whInFlight.get(requestKey);
     }
 
-    const requestPromise=runRequest().finally(()=>_whInFlight.delete(requestKey));
+    const requestPromise=(async function(){
+        const response=await runRequest();
+        if(response&&response.success){
+            _whRecordSuccess(action);
+            _whSetCachedResponse(action, data, response);
+            return response;
+        }
+
+        _whRecordFailure(action, response&&response.error);
+
+        const localFallback=await _whTryLocalFallback(action, data);
+        if(localFallback&&localFallback.success){
+            _whSetCachedResponse(action, data, localFallback);
+            return _whWrapCachedResponse(localFallback,{
+                cache:'local-fallback',
+                warning:(response&&response.error)||''
+            });
+        }
+
+        if(cachedResponse&&cachedResponse.success){
+            return _whWrapCachedResponse(cachedResponse,{
+                cache:'session',
+                stale:true,
+                warning:(response&&response.error)||''
+            });
+        }
+
+        return response;
+    })().finally(()=>_whInFlight.delete(requestKey));
     _whInFlight.set(requestKey, requestPromise);
     return requestPromise;
 }
