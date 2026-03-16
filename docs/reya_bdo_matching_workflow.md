@@ -793,36 +793,118 @@ Odoo Validation:
 
 ---
 
-## 9. สรุป สิ่งที่ต้องทำ
+## 9. Current Implementation Status (March 2026)
 
-### ฝั่ง Odoo (SOMZAA)
+ส่วนสำคัญของ workflow นี้ถูก implement แล้วในฝั่ง Re-Ya และใช้งานผ่าน API ภายในดังนี้:
 
-| # | Task | Priority |
-|---|------|----------|
-| 1 | ทดสอบ endpoint `/reya/bdo/list` บน staging และเตรียม production rollout | High |
-| 2 | ทดสอบ endpoint `/reya/bdo/detail` (พร้อม SO lines, invoices, CNs) | High |
-| 3 | ทดสอบ endpoint `/reya/bdo/statement-pdf/{id}` ทั้งแบบ header และ query param | Medium |
-| 4 | ทดสอบ endpoint `/reya/slip/match-bdo` (Sales จับคู่จาก Re-Ya) | High |
-| 5 | ทดสอบ endpoint `/reya/slip/unmatch` | Medium |
-| 6 | เพิ่ม fields: `reya_matched_by`, `reya_matched_at` ใน slip model | Low |
-| 7 | เพิ่ม Odoo URL ใน BDO/Slip API responses | Low |
+- Canonical contract: `classes/BdoSlipContract.php`
+- Context lifecycle manager: `classes/BdoContextManager.php`
+- Internal BDO facade API: `api/bdo-inbox-api.php`
+- Webhook close/open context hooks: `classes/OdooWebhookHandler.php`
 
-### ฝั่ง Re-Ya (Developer)
+หลักการที่ยืนยันจากโค้ด:
 
-| # | Task | Priority |
-|---|------|----------|
-| 1 | เก็บ bdo_id จาก webhook ใน LINE chat context | High |
-| 2 | ส่ง bdo_id กลับมากับ slip upload | High |
-| 3 | Dashboard: เพิ่ม BDO Detail modal (เรียก `/reya/bdo/detail`) | High |
-| 4 | Dashboard: สร้าง Matching Interface (เลือกสลิป ↔ BDO) | High |
-| 5 | Dashboard: เรียก `/reya/slip/match-bdo` เมื่อ Sales กดยืนยัน | High |
-| 6 | Dashboard: เรียก `/reya/slip/unmatch` เมื่อ Sales กดยกเลิก | Medium |
-| 7 | Dashboard: แสดง delivery_type badge (สายส่ง/ขนส่งเอกชน) | Medium |
-| 8 | Dashboard: แสดง Statement PDF link | Medium |
-| 9 | LINE Bot: แจ้งลูกค้าตาม match_confidence | Medium |
+- Odoo เป็นแหล่งจริงของสถานะการจับคู่ (authoritative source)
+- การ `match/unmatch` ต้องสำเร็จที่ Odoo ก่อนเสมอ จึงค่อย update cache ฝั่ง Re-Ya
+- `slip_inbox_id` เป็น canonical slip key สำหรับ action mutation กับ Odoo
+- ลูกค้าสามารถมีหลาย BDO ที่เปิดอยู่พร้อมกันได้ (key เป็น `(line_user_id, bdo_id)`)
+
+---
+
+## 10. Internal API Contract (Re-Ya Side)
+
+Endpoint กลางสำหรับ inbox BDO UI คือ:
+
+- `POST /api/bdo-inbox-api.php`
+
+### 10A. Actions ที่รองรับ
+
+| Group | Action | Purpose |
+|------|--------|---------|
+| Read | `bdo_list` | รายการ BDO จาก local cache (`odoo_bdos`) |
+| Read | `bdo_detail` | รายละเอียด BDO จาก Odoo live (fallback local cache ได้) |
+| Read | `slip_list` | รายการสลิปสำหรับ matching |
+| Read | `bdo_context` | ดู open context ของลูกค้า |
+| Read | `matching_workspace` | รวม slips + BDOs + smart suggestions ใน call เดียว |
+| Write | `slip_match_bdo` | ส่ง match ไป Odoo `/reya/slip/match-bdo` |
+| Write | `slip_unmatch` | ส่ง unmatch ไป Odoo `/reya/slip/unmatch` |
+| Write | `slip_upload` | ส่งอัพโหลดสลิปไป Odoo `/reya/slip/upload` |
+| Utility | `statement_pdf_url` | URL โหลด statement (local cache ก่อน แล้วค่อย fallback Odoo) |
+| Utility | `health` | ตรวจสุขภาพ endpoint |
+
+### 10B. ข้อควรรู้สำหรับ Slip Upload
+
+เมื่อเรียก `slip_upload` โดยไม่ส่ง `bdo_id`:
+
+- ถ้ามี open BDO เดียว: ระบบ resolve `bdo_id` ให้อัตโนมัติ
+- ถ้าไม่มี open BDO: ส่งต่อไป Odoo โดยไม่มี `bdo_id`
+- ถ้ามีหลาย open BDO: API จะตอบ error พร้อม `ambiguous_bdos` ให้ UI ให้ผู้ใช้เลือกก่อน
+
+---
+
+## 11. Feature Flags (Rollout Controls)
+
+ไฟล์ config: `config/bdo_feature_flags.php`
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `new_context_manager` | `true` | ใช้ `BdoContextManager` แทน flow เก่า |
+| `strict_match` | `true` | ห้าม local-only success เมื่อ Odoo ไม่ยืนยัน |
+| `new_inbox_api` | `true` | ให้ inbox ใช้ `bdo-inbox-api.php` เป็น data source หลัก |
+| `store_financial_detail` | `true` | เก็บ `financial_summary_json` และ selected invoices/CNs |
+| `block_unmatch_posted` | `true` | บล็อก unmatch เมื่อ slip อยู่สถานะ `posted`/`done` |
+| `require_bdo_id_resolution` | `true` | บังคับ resolve `bdo_id` เมื่อมีหลาย open BDO |
+
+ตัวอย่าง env override:
+
+```bash
+BDO_FLAG_STRICT_MATCH=0
+BDO_FLAG_REQUIRE_BDO_ID_RESOLUTION=0
+```
+
+---
+
+## 12. Migration and Ops Runbook
+
+### 12A. Database migration ที่ต้องรัน
+
+```bash
+php install/migration_bdo_context_v2.php
+```
+
+migration นี้จะ ensure:
+
+- ตาราง `odoo_bdo_context` และคีย์ `(line_user_id, bdo_id)`
+- คอลัมน์ JSON สำหรับ financial breakdown
+- คอลัมน์ canonical slip key (`slip_inbox_id`) และดัชนีใน `odoo_slip_uploads`
+
+### 12B. Quick verification checklist
+
+1. ตรวจ health ของ API:
+
+```bash
+curl "https://<host>/api/bdo-inbox-api.php?action=health"
+```
+
+2. ทดสอบ read action:
+
+```bash
+curl -X POST "https://<host>/api/bdo-inbox-api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Secret: <INTERNAL_API_SECRET>" \
+  -d '{"action":"bdo_context","line_user_id":"Uxxxx"}'
+```
+
+3. ตรวจว่า webhook `bdo.confirmed` เปิด context และ `bdo.done`/`bdo.cancelled` ปิด context ได้จริง
+
+### 12C. Pitfalls ที่พบบ่อย
+
+- ใช้ local `odoo_slip_uploads.id` แทน `slip_inbox_id` ตอน match/unmatch
+- ทำ local update ก่อน Odoo ตอบกลับสำเร็จ (ทำให้ state divergence)
+- ไม่ handle กรณีลูกค้ามีหลาย open BDO แล้วส่งสลิปโดยไม่ระบุ `bdo_id`
 
 ---
 
 *Document: reya_bdo_matching_workflow.md*
-*Version: 1.0 — 2026-03-06*
+*Version: 1.1 — 2026-03-16*
 *Contact: consdevs | SOMZAA*

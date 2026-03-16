@@ -249,6 +249,67 @@ User message → /api/ai-chat.php
     → Return response + suggestions
 ```
 
+### 4. Odoo Dashboard Overview Flow
+
+```
+odoo-dashboard.js
+    → POST /api/odoo-dashboard-api.php { action: "overview_fast" }
+    → If fast overview is empty/failed, fallback to { action: "overview_today" }
+    → Render KPI + orders + pending slips + overdue customers
+```
+
+The dashboard API now uses short-lived server-side cache and returns timing metadata in `_meta.duration_ms` and `_meta.cached`.
+
+---
+
+## Odoo Dashboard Data Plane (March 2026)
+
+### Intent
+
+The dashboard read path is optimized to keep "today overview" responsive even when `odoo_webhooks_log` is large:
+
+- Prefer indexed sync tables for primary dashboard cards.
+- Avoid full-table JSON extraction on the hot path.
+- Expose circuit breaker state to help operators diagnose upstream Odoo issues.
+
+### API Behavior (`/api/odoo-dashboard-api.php`)
+
+| Action | Purpose | Source Tables | Typical Use |
+|-------|---------|---------------|-------------|
+| `overview_fast` | Fast KPI snapshot optimized for latency | `odoo_orders`, `odoo_bdos`, `odoo_slip_uploads`, `odoo_customer_projection` (+ lightweight webhook counters) | First call from dashboard overview |
+| `overview_today` | Full overview with richer detail and compatibility fallback | Mix of sync tables + webhook-derived helpers | Secondary fallback when fast response is insufficient |
+| `circuit_breaker_status` | Inspect Odoo circuit status (`odoo_reya`, `odoo_cny`) | Circuit state files/APCu via `OdooCircuitBreaker` | Ops monitoring |
+| `circuit_breaker_reset` | Manual reset of a circuit breaker | Circuit state files/APCu via `OdooCircuitBreaker` | Recovery after upstream stabilization |
+
+### Cache and Timing Contracts
+
+- API actions use per-action TTL cache (for example: `overview_fast` 30s, `overview_today` 45s).
+- Responses include `_meta.action`, `_meta.cached`, and `_meta.duration_ms`.
+- Search-heavy payloads (for example `customer_list` with non-empty search) are intentionally excluded from cache to avoid stale lookup UX.
+
+### Operational Quick Checks
+
+```bash
+# 1) Fast health check
+curl "https://<host>/api/odoo-dashboard-api.php?action=health"
+
+# 2) Check fast overview latency + cache metadata
+curl -X POST "https://<host>/api/odoo-dashboard-api.php" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"overview_fast"}'
+
+# 3) Inspect circuit breaker state
+curl -X POST "https://<host>/api/odoo-dashboard-api.php" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"circuit_breaker_status"}'
+```
+
+### Constraints and Pitfalls
+
+- `overview_fast` is only as good as sync-table freshness. If sync cron/backfill is stale, values can lag even if API latency is low.
+- If sync tables are missing, API falls back where possible, but cards may show zero/empty states by design.
+- Circuit breaker opening is expected during repeated upstream failures; reset only after confirming Odoo reachability to avoid flap loops.
+
 ---
 
 ## Cron Jobs
