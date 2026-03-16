@@ -1,6 +1,6 @@
 # 🏗️ LINE Telepharmacy CRM - Architecture
 
-Version 3.2 | Last Updated: January 2026
+Version 3.3 | Last Updated: March 2026
 
 ---
 
@@ -42,6 +42,64 @@ Version 3.2 | Last Updated: January 2026
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Odoo Integration Data Plane (March 2026)
+
+### 1. Live Odoo API Plane
+
+- `api/odoo-dashboard-api.php` is the main live dashboard API.
+- It supports single-resource actions plus batched views such as `customer_full_detail` and `overview_combined`.
+- Circuit breaker controls are exposed as API actions: `circuit_breaker_status` and `circuit_breaker_reset`.
+- Shared query and cache helpers live in `api/odoo-dashboard-functions.php` (APCu + file cache, schema detection helpers).
+
+### 2. Local Cache Read Plane
+
+- `api/odoo-dashboard-local.php` serves dashboard data from local denormalized tables only (no outbound Odoo calls).
+- Primary read tables:
+  - `odoo_orders_summary`
+  - `odoo_customers_cache`
+  - `odoo_invoices_cache`
+  - `odoo_slips_cache`
+  - `odoo_order_events`
+- Local cache sync job: `cron/sync_odoo_dashboard_cache.php`.
+- Verification tool: `verify_odoo_local_cache.php`.
+- Manual browser trigger (token-protected): `trigger_odoo_sync.php`.
+- Constraint: the sync job exits early if required cache tables are missing.
+
+### 3. BDO Confirm and Slip Matching Plane
+
+- `api/bdo-inbox-api.php` is the normalized backend for the BDO Confirm workspace (`bdo-confirm.php`).
+- Read actions provide matching workspace data from local cache.
+- Write actions are Odoo-authoritative and Odoo-first:
+  - `slip_match_bdo`
+  - `slip_unmatch`
+  - `slip_upload`
+- Canonical contract/constants are centralized in `classes/BdoSlipContract.php`.
+- Customer BDO context is managed in `classes/BdoContextManager.php` with key `(line_user_id, bdo_id)` to support multiple open BDOs safely.
+
+### 4. Reliability and Performance Components
+
+- `classes/OdooAPIClient.php`: JSON-RPC client with retries, exponential backoff, keep-alive cURL reuse, in-memory rate limit guard, and circuit breaker integration.
+- `classes/OdooAPIPool.php`: parallel request execution for dashboard views needing multiple Odoo resources.
+- `classes/OdooCircuitBreaker.php`: shared circuit state (APCu with file fallback) to fail fast during upstream instability.
+
+### 5. Operational Entry Points
+
+```bash
+# Cache sync
+php cron/sync_odoo_dashboard_cache.php incremental
+php cron/sync_odoo_dashboard_cache.php full
+
+# Cache verification
+php verify_odoo_local_cache.php
+
+# BDO-related migrations
+php install/migration_bdo_matching.php
+php install/migration_bdo_context_v2.php
+php install/migration_slip_verification.php
 ```
 
 ---

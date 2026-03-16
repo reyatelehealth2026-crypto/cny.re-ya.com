@@ -201,10 +201,11 @@ Set up in Admin > AI Settings:
 ## 📖 Documentation
 
 - [Architecture](ARCHITECTURE.md)
-- [Project Flow](PROJECT_FLOW_DOCUMENTATION.md)
-- [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
-- [User Manual](USER_MANUAL.md)
-- [Setup Guide](SETUP_GUIDE_COMPLETE.md)
+- [Odoo Dashboard and BDO Operations Runbook](ODOO_OPERATIONS_RUNBOOK.md)
+- [Re-Ya ↔ Odoo BDO Matching Workflow](reya_bdo_matching_workflow.md)
+- [Slip Upload API Spec](reya_slip_api_spec.md)
+- [Complete Documentation](COMPLETE_DOCUMENTATION.md)
+- [Master User Manual](MASTER_USER_MANUAL.md)
 
 ---
 
