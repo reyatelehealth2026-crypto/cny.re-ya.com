@@ -177,8 +177,8 @@ $pageTitle = 'CNY Sync Dashboard';
                     </div>
                     <span class="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">Push</span>
                 </div>
-                <div class="text-3xl font-bold text-gray-800 mb-1"><?= number_format($pushStats['tracked'] ?? 0) ?></div>
-                <div class="text-sm text-gray-500">Tracked (<?= number_format($pushStats['success'] ?? 0) ?> ok / <?= number_format($pushStats['failed'] ?? 0) ?> fail)</div>
+                <div class="text-3xl font-bold text-gray-800 mb-1"><?= number_format($pushStats ? ($pushStats['tracked'] ?? 0) : 0) ?></div>
+                <div class="text-sm text-gray-500">Tracked (<?= number_format($pushStats ? ($pushStats['success'] ?? 0) : 0) ?> ok / <?= number_format($pushStats ? ($pushStats['failed'] ?? 0) : 0) ?> fail)</div>
             </div>
         </div>
 
@@ -222,19 +222,19 @@ $pageTitle = 'CNY Sync Dashboard';
                     </div>
                     <div class="grid grid-cols-4 gap-3 mb-3">
                         <div class="text-center p-2 bg-white rounded">
-                            <div class="text-lg font-bold text-gray-800" id="pushStatTracked"><?= number_format($pushStats['tracked'] ?? 0) ?></div>
+                            <div class="text-lg font-bold text-gray-800" id="pushStatTracked"><?= number_format($pushStats ? ($pushStats['tracked'] ?? 0) : 0) ?></div>
                             <div class="text-xs text-gray-500">Tracked</div>
                         </div>
                         <div class="text-center p-2 bg-white rounded">
-                            <div class="text-lg font-bold text-green-600" id="pushStatSuccess"><?= number_format($pushStats['success'] ?? 0) ?></div>
+                            <div class="text-lg font-bold text-green-600" id="pushStatSuccess"><?= number_format($pushStats ? ($pushStats['success'] ?? 0) : 0) ?></div>
                             <div class="text-xs text-gray-500">Success</div>
                         </div>
                         <div class="text-center p-2 bg-white rounded">
-                            <div class="text-lg font-bold text-red-600" id="pushStatFailed"><?= number_format($pushStats['failed'] ?? 0) ?></div>
+                            <div class="text-lg font-bold text-red-600" id="pushStatFailed"><?= number_format($pushStats ? ($pushStats['failed'] ?? 0) : 0) ?></div>
                             <div class="text-xs text-gray-500">Failed</div>
                         </div>
                         <div class="text-center p-2 bg-white rounded">
-                            <div class="text-lg font-bold text-blue-600" id="pushStatNeedsPush"><?= number_format($pushStats['needs_push'] ?? 0) ?></div>
+                            <div class="text-lg font-bold text-blue-600" id="pushStatNeedsPush"><?= number_format($pushStats ? ($pushStats['needs_push'] ?? 0) : 0) ?></div>
                             <div class="text-xs text-gray-500">Needs Push</div>
                         </div>
                     </div>
