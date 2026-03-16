@@ -129,13 +129,19 @@ class LiffApp {
             if (window.initRetailShop) {
                 window.initRetailShop(this);
             }
-            
-            // Redirect to retail shop if on home page
+        }
+    }
+
+    /**
+     * Redirect to retail shop if in retail mode
+     * Call this AFTER router is initialized
+     */
+    redirectToRetailShop() {
+        if (this.config.IS_RETAIL_MODE) {
             const hash = window.location.hash || '#/';
             if (hash === '#/' || hash === '#/home') {
-                setTimeout(() => {
-                    window.router.navigate('/retail-shop', {}, true);
-                }, 100);
+                console.log('🏪 Redirecting to retail shop...');
+                window.router.navigate('/retail-shop', {}, true);
             }
         }
     }
@@ -349,6 +355,9 @@ class LiffApp {
 
         // Initialize router
         window.router.init(contentEl);
+        
+        // Redirect to retail shop if in retail mode (after router init)
+        this.redirectToRetailShop();
 
         // Navigate to initial page if specified
         const initialPage = this.config.INITIAL_PAGE;
