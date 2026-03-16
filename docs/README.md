@@ -201,6 +201,7 @@ Set up in Admin > AI Settings:
 ## 📖 Documentation
 
 - [Architecture](ARCHITECTURE.md)
+- [Odoo Dashboard Performance and Operations Guide](ODOO_DASHBOARD_PERFORMANCE_PLAN.md)
 - [Project Flow](PROJECT_FLOW_DOCUMENTATION.md)
 - [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
 - [User Manual](USER_MANUAL.md)
