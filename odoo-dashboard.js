@@ -2679,53 +2679,59 @@ async function loadTodayOverview(){
         return;
     }
 
-    // Try the combined overview_today first; if it fails/times out,
-    // fall back to loading each section independently in parallel.
+    // Strategy: try overview_fast first (uses indexed sync tables, <500ms),
+    // then fall back to overview_today (heavier, may timeout on large tables).
     let res = null;
-    try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 10000);
-        const r = await fetch(WH_API_ACTIVE + '?_t=' + Date.now(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'overview_today' }),
-            signal: ctrl.signal
-        });
-        clearTimeout(timer);
-        res = await r.json();
-        if (!res || !res.success) res = null;
-    } catch (_e) {
-        res = null;
-    }
 
-    // Fallback: load parts in parallel (each is lighter and faster)
-    if (!res) {
-        try {
-            const [statsRes, ordersRes, overdueRes] = await Promise.all([
-                whApiCall({ action: 'webhook_stats_mini' }).catch(() => null),
-                whApiCall({ action: 'order_grouped_today', limit: 5, offset: 0 }).catch(() => null),
-                whApiCall({ action: 'customer_list', invoice_filter: 'overdue', limit: 5, offset: 0, sort_by: 'due_desc' }).catch(() => null)
-            ]);
-            const s = (statsRes && statsRes.success) ? statsRes.data : {};
-            const ordData = (ordersRes && ordersRes.success) ? ordersRes.data : {};
-            const ovData = (overdueRes && overdueRes.success) ? overdueRes.data : {};
+    // 1st: Try ultra-fast overview (avoids slow webhooks_log table)
+    try {
+        const fastRes = await whApiCall({ action: 'overview_fast' });
+        if (fastRes && fastRes.success && fastRes.data) {
+            const f = fastRes.data;
             res = {
                 success: true,
                 data: {
-                    stats: s,
-                    orders: ordData.orders || [],
-                    orders_total: ordData.total || 0,
-                    overdue_customers: ovData.customers || [],
-                    overdue_total: ovData.total || 0,
-                    pending_bdo: { orders: [], bdos: [], total: 0 },
+                    stats: {
+                        unique_orders_today: f.orders_today || 0,
+                        notified_today: f.webhook_total_today || 0,
+                        total: f.webhook_total_today || 0,
+                        success: Math.round((f.webhook_success_rate || 0) * (f.webhook_total_today || 0) / 100),
+                        dead_letter: 0,
+                        last_webhook: f.last_webhook
+                    },
+                    orders: f.orders || [],
+                    orders_total: f.orders_today || 0,
+                    overdue_customers: [],
+                    overdue_total: f.overdue_customers || 0,
+                    pending_bdo: {
+                        orders: [],
+                        bdos: Array(f.bdos_pending || 0).fill({ amount_net_to_pay: f.bdos_pending_amount / Math.max(1, f.bdos_pending) }),
+                        total: f.bdos_pending || 0
+                    },
                     slips_pending: [],
-                    slips_pending_total: 0,
-                    slips_matched_today_sum: 0
+                    slips_pending_total: f.slips_pending || 0,
+                    slips_matched_today_sum: f.payments_today || 0,
+                    _source: 'overview_fast'
                 }
             };
-        } catch (_e2) {
-            res = null;
         }
+    } catch (_e) { /* fall through */ }
+
+    // 2nd: If fast overview failed or returned nothing, try the full overview_today
+    if (!res) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 12000);
+            const r = await fetch(WH_API_ACTIVE + '?_t=' + Date.now(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'overview_today' }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            const parsed = await r.json();
+            if (parsed && parsed.success) res = parsed;
+        } catch (_e2) { /* fall through */ }
     }
     const kpiOrders=document.getElementById('kpiOrdersToday');
     const kpiSales=document.getElementById('kpiSalesToday');
