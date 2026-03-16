@@ -201,10 +201,11 @@ Set up in Admin > AI Settings:
 ## 📖 Documentation
 
 - [Architecture](ARCHITECTURE.md)
-- [Project Flow](PROJECT_FLOW_DOCUMENTATION.md)
-- [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
-- [User Manual](USER_MANUAL.md)
-- [Setup Guide](SETUP_GUIDE_COMPLETE.md)
+- [Complete Documentation](COMPLETE_DOCUMENTATION.md)
+- [Master User Manual](MASTER_USER_MANUAL.md)
+- [Re-Ya Slip API Spec](reya_slip_api_spec.md)
+- [Re-Ya BDO Matching Workflow](reya_bdo_matching_workflow.md)
+- [Odoo Production API Testing](CNY_ODOO_PRODUCTION_API_TESTING.md)
 
 ---
 

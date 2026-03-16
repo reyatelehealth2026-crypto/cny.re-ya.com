@@ -1,6 +1,6 @@
 # 🏗️ LINE Telepharmacy CRM - Architecture
 
-Version 3.2 | Last Updated: January 2026
+Version 3.3 | Last Updated: March 2026
 
 ---
 
@@ -158,6 +158,8 @@ All APIs return JSON and follow RESTful conventions:
 - **Communication APIs**: `messages.php`, `inbox-v2.php`, `broadcast.php`
 - **AI APIs**: `ai-chat.php`, `pharmacy-ai.php`, `symptom-assessment.php`
 - **Pharmacy APIs**: `pharmacist.php`, `appointments.php`, `video-call.php`
+- **Odoo Dashboard APIs**: `odoo-dashboard-api.php`, `odoo-webhooks-dashboard.php`, `odoo-dashboard-local.php`
+- **BDO/Slip Matching API**: `bdo-inbox-api.php` (internal facade for inbox matching workspace)
 
 ### 3. Service Classes (`/classes/`)
 
@@ -171,6 +173,12 @@ All APIs return JSON and follow RESTful conventions:
 | `POSService` | Point of sale operations |
 | `InboxService` | Chat inbox operations |
 | `NotificationService` | Push notifications |
+| `OdooCustomerDashboardService` | Customer 360 aggregation (parallel Odoo API + webhook fallback) |
+| `OdooAPIClient` | Odoo JSON-RPC client with retry + circuit breaker |
+| `OdooAPIPool` | Parallel Odoo calls via `curl_multi` |
+| `OdooCircuitBreaker` | Upstream resilience guard (`closed/open/half_open`) |
+| `BdoContextManager` | Multi-BDO context lifecycle for slip auto-attach |
+| `BdoSlipContract` | Canonical slip/BDO IDs, statuses, and validation rules |
 
 ---
 
@@ -248,6 +256,94 @@ User message → /api/ai-chat.php
     → Detect red flags
     → Return response + suggestions
 ```
+
+---
+
+### 4. BDO Context + Slip Matching Flow
+
+```
+Odoo webhook bdo.confirmed
+    → OdooWebhookHandler::handleBdoConfirmed()
+    → BdoContextManager::openContext()
+    → Save per-customer context in odoo_bdo_context
+      (line_user_id + bdo_id + delivery_type + financial_summary + statement_pdf_path)
+
+Customer uploads slip (inbox / dashboard)
+    → /api/bdo-inbox-api.php?action=slip_upload
+    → resolveSlipBdoId(line_user_id)
+       - 1 open BDO  : auto-attach bdo_id
+       - >1 open BDO : return ambiguous_bdos (caller must choose)
+    → Odoo /reya/slip/upload
+    → update local read model (odoo_slip_uploads) from Odoo response
+
+Sales confirms/unmatches
+    → /api/bdo-inbox-api.php?action=slip_match_bdo|slip_unmatch
+    → Odoo-first mutation (no local-only fallback)
+    → update local cache only after Odoo success
+
+Odoo webhook bdo.done / bdo.cancelled
+    → BdoContextManager::closeContext()
+    → mark context done/cancel to prevent stale auto-attach
+```
+
+### 5. Customer Dashboard Data Path (Performance Mode)
+
+```
+Frontend dashboard
+    → /api/odoo-dashboard-api.php (TTL cache per action)
+        → OdooCustomerDashboardService
+            → OdooAPIPool (parallel /reya/user/profile, /reya/credit-status, /reya/orders, /reya/invoices)
+            → fallback to webhook/local projection tables when live API is empty/error
+        → OdooCircuitBreaker status/reset actions for operations team
+
+Optional local-first mode
+    → /api/odoo-dashboard-local.php
+    → reads only from denormalized cache tables (no external API call)
+```
+
+---
+
+## Odoo/BDO Operations Runbook
+
+### Required Migrations
+
+Run once per environment before enabling the new flow:
+
+```bash
+php install/migration_bdo_context_v2.php
+php install/migration_slip_verification.php
+mysql -u <user> -p <db_name> < database/migration_odoo_api_performance.sql
+```
+
+> Note: `cron/sync_odoo_dashboard_cache.php` and `verify_odoo_local_cache.php` reference a `database/migration_odoo_dashboard_cache.sql` file, but that SQL file is not present in this repository snapshot. Provision cache tables from your environment-specific DB bootstrap before enabling local dashboard mode.
+
+### Required Cron
+
+```bash
+*/5 * * * * php /path/to/project/cron/sync_odoo_dashboard_cache.php incremental
+```
+
+### Health and Verification
+
+```bash
+# BDO inbox facade
+curl -s "https://<host>/api/bdo-inbox-api.php?action=health&secret=<internal_secret>"
+
+# Dashboard API + circuit breaker
+curl -s -X POST "https://<host>/api/odoo-dashboard-api.php" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"circuit_breaker_status"}'
+
+# Local cache verification
+php verify_odoo_local_cache.php
+```
+
+### Common Pitfalls
+
+- Use `slip_inbox_id` (Odoo ID) for match/unmatch operations; do not use local `odoo_slip_uploads.id`.
+- If a customer has multiple open BDO contexts, callers must pass `bdo_id` explicitly on upload.
+- `slip_unmatch` is blocked when slip status is `posted` or `done`.
+- Statement PDF URL may return local cached file first, then Odoo direct fallback when local file is unavailable.
 
 ---
 

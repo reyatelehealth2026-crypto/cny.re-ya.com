@@ -1,6 +1,6 @@
 # Re-Ya ↔ Odoo API Specification — Slip Payment + BDO Integration
 
-**Version:** 2.0 (March 2026)
+**Version:** 2.1 (March 2026)
 **Base URL:** `https://stg-erp.cnyrxapp.com` (Staging) / `https://cny.cnyrxapp.com` (Production)
 **Auth:** Header `X-Api-Key: <api_key>`
 **Format:** JSON-RPC (`Content-Type: application/json`)
@@ -8,6 +8,48 @@
 > **Legacy Reference:** บางระบบยังอ้างอิง `https://erp.cnyrxapp.com` อยู่ชั่วคราว
 > **Related Doc:** [reya_bdo_matching_workflow.md](reya_bdo_matching_workflow.md) — Workflow ละเอียด + ทุก Case + UI Mockups + Dashboard/Manual Matching Endpoints ที่พร้อมทดสอบบน staging
 > **Staging-ready Endpoints:** `/reya/bdo/list`, `/reya/bdo/detail`, `/reya/bdo/statement-pdf/{id}`, `/reya/slip/match-bdo`, `/reya/slip/unmatch`
+
+---
+
+## 0. Re-Ya Internal Facade (Backend-to-Backend)
+
+สำหรับหน้า Inbox/Matching ภายใน Re-Ya มี facade endpoint เพิ่ม: `POST /api/bdo-inbox-api.php`
+
+### Auth (Internal Only)
+
+- Header: `X-Internal-Secret: <INTERNAL_API_SECRET>`
+- หรือ query param: `?secret=<INTERNAL_API_SECRET>`
+- Health check: `GET /api/bdo-inbox-api.php?action=health`
+
+### Action Contract
+
+| Action | Purpose | Source of Truth |
+|--------|---------|-----------------|
+| `bdo_list` | รายการ BDO ต่อ customer | Local cache (`odoo_bdos` + `odoo_bdo_context`) |
+| `bdo_detail` | รายละเอียด BDO | Odoo live, fallback local cache (read-only) |
+| `slip_list` | รายการสลิปเพื่อจับคู่ | Local cache (`odoo_slip_uploads`) |
+| `bdo_context` | Open BDO contexts ต่อ LINE user | `odoo_bdo_context` |
+| `matching_workspace` | pending slips + open BDOs + suggestions | Compose จาก read models |
+| `slip_upload` | อัปโหลดสลิป | **Odoo-first** (`/reya/slip/upload`) |
+| `slip_match_bdo` | จับคู่สลิปกับ BDO | **Odoo-first** (`/reya/slip/match-bdo`) |
+| `slip_unmatch` | ยกเลิกจับคู่ | **Odoo-first** (`/reya/slip/unmatch`) |
+| `statement_pdf_url` | URL สำหรับ statement PDF | local cached file → Odoo direct fallback |
+
+### Critical Constraints (Implemented in Code)
+
+1. Canonical slip key สำหรับ match/unmatch คือ `slip_inbox_id` (Odoo Slip Inbox ID)
+2. การเปลี่ยนสถานะ (`slip_match_bdo`, `slip_unmatch`, `slip_upload`) ต้องสำเร็จที่ Odoo ก่อน จึงอัปเดต local cache
+3. ถ้าลูกค้ามีหลาย BDO ที่ยัง `waiting` และไม่ได้ส่ง `bdo_id`, ระบบจะตอบ error พร้อม `ambiguous_bdos` ให้ผู้ใช้เลือก
+4. `slip_unmatch` ไม่อนุญาตเมื่อสถานะสลิปเป็น `posted` หรือ `done`
+
+### Example — Matching Workspace
+
+```json
+{
+  "action": "matching_workspace",
+  "line_user_id": "U1234567890abcdef"
+}
+```
 
 ---
 
@@ -319,6 +361,8 @@ curl -s -X POST $STAGING_URL/reya/payment/status \
 5. **Error อยู่ใน `result.error`** ไม่ใช่ HTTP error code (JSON-RPC format)
 6. **ขนส่งเอกชน** — ลูกค้าต้องจ่ายก่อนส่ง ดังนั้นต้องส่ง bdo_id + amount ไปก่อน
    ถ้า match สำเร็จ (confidence=bdo_prepayment) → แจ้งลูกค้าว่าจะจัดส่งเร็วๆ นี้
+7. **Manual matching ต้องใช้ `slip_inbox_id`** (ไม่ใช่ local DB id) เพื่อหลีกเลี่ยง mismatched record
+8. **Unmatch มี guard เพิ่ม**: ถ้าสลิปเป็น `posted/done` จะถูกปฏิเสธทันที
 
 ---
 
@@ -540,10 +584,38 @@ if (slip.bdo_id && bdo.bdo_id === slip.bdo_id) {
 4. [ ] Dashboard: ข้อมูลครบ
    - BDO tab แสดง BDO ที่สร้าง?
    - Slip tab แสดง slip ที่ upload + bdo_name?
+
+5. [ ] Internal facade (ถ้าใช้ inbox API ใหม่)
+   - `GET /api/bdo-inbox-api.php?action=health` ผ่าน secret ได้หรือไม่
+   - `matching_workspace` ส่ง pending slips + open BDO + suggestions ได้ครบ
+   - `slip_match_bdo` ล้มเหลวเมื่อ Odoo ล้มเหลว (ต้องไม่ local-success)
+   - `slip_unmatch` บล็อกสถานะ `posted/done` ถูกต้อง
 ```
 
 ---
 
+## 11. Quick Troubleshooting
+
+### อาการ: upload สลิปแล้วไม่ผูก BDO อัตโนมัติ
+
+- ตรวจ `bdo_context` ของ user ว่ามีรายการ `waiting` กี่รายการ
+- ถ้ามากกว่า 1 รายการ ต้องส่ง `bdo_id` ชัดเจน
+- ตรวจ webhook lifecycle ว่ามี `bdo.confirmed` เปิด context และ `bdo.done/cancelled` ปิด context ถูกต้อง
+
+### อาการ: match สำเร็จใน Re-Ya แต่ Odoo ไม่เปลี่ยนสถานะ
+
+- ตรวจว่าเรียกผ่าน action `slip_match_bdo` ที่ส่ง `slip_inbox_id`
+- ตรวจ response ว่าเป็น success จาก Odoo จริง (ไม่ใช่ local-only path)
+- ตรวจ `bdo-inbox-api.php` หรือ `odoo-dashboard-api.php` logs สำหรับ `NETWORK_ERROR` หรือ Odoo rejection code
+
+### อาการ: statement PDF เปิดไม่ได้
+
+- ตรวจ field `statement_pdf_path` ใน `odoo_bdo_context`
+- ถ้าไฟล์ local ไม่อยู่ ระบบควร fallback เป็น Odoo direct URL อัตโนมัติ
+- ตรวจว่า `uploads/bdo_statements/` เขียนไฟล์ได้
+
+---
+
 *Document generated: 2026-03-06*
-*Updated: 2026-03-06 — Added webhook payload, Re-Ya action items, dashboard analysis*
+*Updated: 2026-03-16 — Added internal bdo-inbox facade contract, Odoo-first constraints, and troubleshooting runbook*
 *Contact: consdevs | SOMZAA*
