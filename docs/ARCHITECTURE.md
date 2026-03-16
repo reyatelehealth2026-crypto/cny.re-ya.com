@@ -1,6 +1,6 @@
 # 🏗️ LINE Telepharmacy CRM - Architecture
 
-Version 3.2 | Last Updated: January 2026
+Version 3.2 | Last Updated: March 2026
 
 ---
 
@@ -171,6 +171,81 @@ All APIs return JSON and follow RESTful conventions:
 | `POSService` | Point of sale operations |
 | `InboxService` | Chat inbox operations |
 | `NotificationService` | Push notifications |
+
+---
+
+## Odoo Dashboard + BDO Matching Subsystem
+
+### Intent
+
+This subsystem separates fast dashboard reads from authoritative Odoo writes:
+
+- `api/odoo-dashboard-local.php` serves local denormalized tables for low-latency dashboard views.
+- `api/odoo-dashboard-api.php` serves webhook/live projection endpoints and circuit-breaker controls.
+- `api/bdo-inbox-api.php` is the normalized facade for BDO matching UI flows.
+- `classes/BdoContextManager.php` and `classes/BdoSlipContract.php` enforce BDO/slip rules.
+
+### Data Planes
+
+| Plane | Primary code paths | Source of truth | Typical use |
+|------|---------------------|-----------------|-------------|
+| Local read model | `api/odoo-dashboard-local.php`, `cron/sync_odoo_dashboard_cache.php` | Local cache tables | KPI cards, customer/order/slip list screens |
+| Live/projection API | `api/odoo-dashboard-api.php`, `api/odoo-dashboard-functions.php` | Webhook log + Odoo-backed reads | Monitoring, timeline, circuit breaker controls |
+| BDO matching facade | `api/bdo-inbox-api.php`, `classes/BdoContextManager.php`, `classes/BdoSlipContract.php` | Odoo for write operations | Slip upload, match/unmatch, BDO context workspace |
+
+### Public Interface Quick Reference
+
+| Endpoint | Auth | Key actions |
+|---------|------|-------------|
+| `api/odoo-dashboard-local.php` | Session/bot context | `health`, `overview_kpi`, `orders_list`, `customers_list`, `invoices_list`, `slips_list`, `search_global`, `cache_status` |
+| `api/odoo-dashboard-api.php` | Session/API caller | `overview_today`, `customer_full_detail`, `odoo_bdo_list_api`, `slip_match_bdo`, `slip_unmatch`, `circuit_breaker_status`, `circuit_breaker_reset` |
+| `api/bdo-inbox-api.php` | `X-Internal-Secret` | `bdo_list`, `bdo_detail`, `slip_list`, `matching_workspace`, `slip_upload`, `slip_match_bdo`, `slip_unmatch`, `statement_pdf_url` |
+
+### Workflow Notes (Verified)
+
+1. `bdo.confirmed` webhooks call `BdoContextManager::openContext()` from `classes/OdooWebhookHandler.php`.
+2. Context rows are keyed by `(line_user_id, bdo_id)` so one customer can have multiple open BDOs.
+3. `bdo.done` and `bdo.cancelled` close context via `BdoContextManager::closeContext(...)`.
+4. `action=slip_upload` in `api/bdo-inbox-api.php` auto-resolves `bdo_id` only when exactly one open context exists.
+5. Match/unmatch actions call Odoo first and only update local cache after Odoo success.
+
+### Operational Runbook
+
+```bash
+# 1) BDO schema baseline
+php install/migration_bdo_matching.php
+
+# 2) BDO context v2 fields (financial summary + canonical slip IDs)
+php install/migration_bdo_context_v2.php
+
+# 3) Slip verification fields (optional, if SlipMate is used)
+php install/migration_slip_verification.php
+
+# 4) Build local dashboard cache
+php cron/sync_odoo_dashboard_cache.php full
+
+# 5) Verify local cache readiness
+php verify_odoo_local_cache.php
+```
+
+### API Examples
+
+```bash
+# Local dashboard health
+curl -s "https://<host>/api/odoo-dashboard-local.php?action=health"
+
+# BDO matching workspace (internal)
+curl -s -X POST "https://<host>/api/bdo-inbox-api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Secret: <secret>" \
+  -d '{"action":"matching_workspace","line_user_id":"Uxxxxxxxx"}'
+```
+
+### Common Pitfalls
+
+- `slip_upload` without `bdo_id` fails with `ambiguous_bdos` when multiple open BDO contexts exist.
+- Local cache sync script expects pre-created cache tables; validate schema availability before enabling cron.
+- `bdo-inbox-api` write actions are intentionally Odoo-first; local-only state mutation is not a supported fallback path.
 
 ---
 

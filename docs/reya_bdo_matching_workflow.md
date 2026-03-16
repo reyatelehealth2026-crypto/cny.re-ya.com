@@ -1,6 +1,6 @@
 # Re-Ya ↔ Odoo: BDO Matching Workflow — Complete Design
 
-**Version:** 1.0 (March 2026)
+**Version:** 1.1 (March 2026)
 **สำหรับ:** Re-Ya Developer + CNY Sales Team
 **เป้าหมาย:** Sales ทำ matching ที่ Re-Ya ที่เดียว → Odoo auto-process + validate
 
@@ -823,6 +823,74 @@ Odoo Validation:
 
 ---
 
+## 10. สถานะ Implementation ปัจจุบันใน Repo (March 2026)
+
+> Section นี้อ้างอิงจาก code ปัจจุบันเพื่อใช้เป็นเอกสารอ้างอิงสำหรับทีมพัฒนา
+> และช่วยลด drift ระหว่าง design doc กับ implementation จริง
+
+### 10.1 Canonical API สำหรับ Inbox BDO Confirm
+
+`api/bdo-inbox-api.php` เป็น facade หลักสำหรับ inboxreya โดยมี action สำคัญ:
+
+| กลุ่ม | Action |
+|------|--------|
+| Read | `bdo_list`, `bdo_detail`, `slip_list`, `bdo_context`, `matching_workspace`, `statement_pdf_url` |
+| Write (Odoo-first) | `slip_upload`, `slip_match_bdo`, `slip_unmatch` |
+| Utility | `health` |
+
+**Auth:** เรียกด้วย `X-Internal-Secret` (หรือ `secret` query param สำหรับบางกรณีภายใน)
+
+ตัวอย่าง:
+
+```bash
+curl -X POST "https://<host>/api/bdo-inbox-api.php" \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Secret: <secret>" \
+  -d '{"action":"bdo_list","line_user_id":"U1234567890abcdef","state":"waiting"}'
+```
+
+### 10.2 Contract Rules ที่บังคับใช้จริง
+
+Source: `classes/BdoSlipContract.php`
+
+- Odoo เป็น source of truth ของ match/unmatch state
+- ใช้ `slip_inbox_id` เป็น canonical slip identifier สำหรับ mutation
+- ใช้ `bdo_id` เป็น canonical BDO identifier
+- Match validation:
+  - `slip_inbox_id > 0`
+  - `matches` ต้องไม่ว่าง
+  - แต่ละ `matches[].bdo_id` และ `matches[].amount` ต้อง valid
+  - ยอดรวม match ต้องไม่เกินยอดสลิป (เมื่อมี slip_amount)
+- Unmatch ถูก block เมื่อ status เป็น `posted` หรือ `done`
+
+### 10.3 BDO Context Lifecycle ที่ใช้งานจริง
+
+Source: `classes/OdooWebhookHandler.php` + `classes/BdoContextManager.php`
+
+1. Event `bdo.confirmed` → `openContext()` เพื่อเปิด/refresh context
+2. Event `bdo.done` → `closeContext(..., 'done')`
+3. Event `bdo.cancelled` → `closeContext(..., 'cancel')`
+4. ตาราง context ใช้ key `(line_user_id, bdo_id)` รองรับหลาย BDO ต่อ 1 ลูกค้า
+5. ถ้า `slip_upload` ไม่มี `bdo_id`:
+   - มี open context 1 ตัว → auto attach
+   - มีหลายตัว → คืน `ambiguous_bdos` ให้ frontend บังคับผู้ใช้เลือก
+   - ไม่มีเลย → ส่งให้ Odoo ตัดสินใจ auto-match จากข้อมูลอื่น
+
+### 10.4 Rollout Flags ที่มีใน config
+
+Source: `config/bdo_feature_flags.php`
+
+- `new_context_manager`
+- `strict_match`
+- `new_inbox_api`
+- `store_financial_detail`
+- `block_unmatch_posted`
+- `require_bdo_id_resolution`
+
+หมายเหตุ: ไฟล์ config มีนิยาม flags ครบสำหรับ staged rollout; ก่อนใช้เป็น runtime switch ใน production ควรตรวจ call path ใน release นั้นว่า flags ถูก wire-in แล้วครบทุก flow
+
+---
+
 *Document: reya_bdo_matching_workflow.md*
-*Version: 1.0 — 2026-03-06*
+*Version: 1.1 — 2026-03-16*
 *Contact: consdevs | SOMZAA*

@@ -201,10 +201,11 @@ Set up in Admin > AI Settings:
 ## 📖 Documentation
 
 - [Architecture](ARCHITECTURE.md)
-- [Project Flow](PROJECT_FLOW_DOCUMENTATION.md)
-- [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
-- [User Manual](USER_MANUAL.md)
-- [Setup Guide](SETUP_GUIDE_COMPLETE.md)
+- [Re-Ya ↔ Odoo BDO Matching Workflow](reya_bdo_matching_workflow.md)
+- [Complete Documentation](COMPLETE_DOCUMENTATION.md)
+- [Admin User Guide](ADMIN_USER_GUIDE.md)
+- [Customer User Guide](CUSTOMER_USER_GUIDE.md)
+- [Odoo BDO Webhook Testing Guide](ODOO_BDO_WEBHOOK_TESTING_GUIDE.md)
 
 ---
 
