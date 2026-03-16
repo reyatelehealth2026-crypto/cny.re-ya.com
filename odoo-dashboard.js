@@ -101,6 +101,7 @@ function normalizeBdoPaymentStatus(bdo){
 // ===== SECTION-LOADED GUARDS — prevent redundant API calls on tab switch =====
 const _sectionLoadedAt = {};    // sectionId → timestamp
 const _SECTION_STALE_MS = 300000; // 5 minutes before re-fetching
+const _whInFlight = new Map();
 function _sectionNeedsLoad(id){
     const loadedAt = _sectionLoadedAt[id];
     if(!loadedAt) return true;
@@ -108,6 +109,22 @@ function _sectionNeedsLoad(id){
 }
 function _sectionMarkLoaded(id){
     _sectionLoadedAt[id] = Date.now();
+}
+
+function _whBuildInFlightKey(data){
+    const payload = Object.assign({}, data || {});
+    delete payload._t;
+    return JSON.stringify(payload);
+}
+
+function _whCanDeduplicate(action){
+    return new Set([
+        'stats','list','detail','notification_log','customer_list','order_grouped_today','salesperson_list',
+        'invoice_list','order_list','customer_detail','daily_summary_preview','order_timeline','odoo_orders',
+        'odoo_invoices','odoo_slips','customer_360','overview_today','pending_bdo_orders','activity_log_list',
+        'customer_lookup','invoice_lookup','webhook_stats_mini','dlq_list','dlq_stats','odoo_bdo_list_api',
+        'bdo_detail','bdo_detail_live','odoo_bdo_detail_api','customer_full_detail','overview_combined'
+    ]).has(String(action||''));
 }
 
 function showSection(id){
@@ -133,63 +150,78 @@ function showSection(id){
 }
 
 async function whApiCall(data){
-    const tried=[];
-    const endpoints=[WH_API_ACTIVE,...WH_API_CANDIDATES.filter(u=>u!==WH_API_ACTIVE)];
     const action=String(data&&data.action||'').trim();
-    const heavyActions=new Set([
-        'stats',
-        'list',
-        'customer_list',
-        'notification_log',
-        'daily_summary_preview',
-        'order_grouped_today',
-        'overview_today',
-        'customer_detail',
-        'odoo_orders',
-        'odoo_invoices',
-        'odoo_slips',
-        'odoo_bdos',
-        'pending_bdo_orders',
-        'activity_log_list',
-        'customer_360'
-    ]);
-    const actionTimeoutMs={
-        stats:8000,
-        list:10000,
-        customer_list:10000,
-        notification_log:10000,
-        daily_summary_preview:12000,
-        order_grouped_today:10000,
-        overview_today:12000,
-        customer_detail:15000,
-        customer_360:20000,
-        odoo_orders:15000,
-        odoo_invoices:15000,
-        odoo_slips:15000,
-        odoo_bdos:15000,
-        pending_bdo_orders:12000,
-        activity_log_list:10000
-    };
-    const timeoutMs=actionTimeoutMs[action]||(heavyActions.has(action)?15000:8000);
-    for(const apiUrl of endpoints){
-        try{
-            const ctrl=new AbortController();
-            const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
-            const r=await fetch(apiUrl+'?_t='+Date.now(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:ctrl.signal});
-            clearTimeout(timer);
-            const raw=await r.text();
-            let parsed=null;
-            try{parsed=JSON.parse(raw);}catch(_e){parsed=null;}
-            if(parsed&&typeof parsed==='object'&&Object.prototype.hasOwnProperty.call(parsed,'success')){
-                WH_API_ACTIVE=apiUrl;
-                return parsed;
+    const runRequest=async ()=>{
+        const tried=[];
+        const endpoints=[WH_API_ACTIVE,...WH_API_CANDIDATES.filter(u=>u!==WH_API_ACTIVE)];
+        const heavyActions=new Set([
+            'stats',
+            'list',
+            'customer_list',
+            'notification_log',
+            'daily_summary_preview',
+            'order_grouped_today',
+            'overview_today',
+            'customer_detail',
+            'odoo_orders',
+            'odoo_invoices',
+            'odoo_slips',
+            'odoo_bdos',
+            'pending_bdo_orders',
+            'activity_log_list',
+            'customer_360'
+        ]);
+        const actionTimeoutMs={
+            stats:8000,
+            list:10000,
+            customer_list:10000,
+            notification_log:10000,
+            daily_summary_preview:12000,
+            order_grouped_today:10000,
+            overview_today:12000,
+            customer_detail:15000,
+            customer_360:20000,
+            odoo_orders:15000,
+            odoo_invoices:15000,
+            odoo_slips:15000,
+            odoo_bdos:15000,
+            pending_bdo_orders:12000,
+            activity_log_list:10000
+        };
+        const timeoutMs=actionTimeoutMs[action]||(heavyActions.has(action)?15000:8000);
+        for(const apiUrl of endpoints){
+            try{
+                const ctrl=new AbortController();
+                const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
+                const r=await fetch(apiUrl+'?_t='+Date.now(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:ctrl.signal});
+                clearTimeout(timer);
+                const raw=await r.text();
+                let parsed=null;
+                try{parsed=JSON.parse(raw);}catch(_e){parsed=null;}
+                if(parsed&&typeof parsed==='object'&&Object.prototype.hasOwnProperty.call(parsed,'success')){
+                    WH_API_ACTIVE=apiUrl;
+                    return parsed;
+                }
+                tried.push(apiUrl+' (non-json:'+r.status+')');
+            }catch(e){
+                tried.push(apiUrl+' ('+(e.name==='AbortError'?'timeout '+Math.round(timeoutMs/1000)+'s':e.message)+')');
             }
-            tried.push(apiUrl+' (non-json:'+r.status+')');
-        }catch(e){
-            tried.push(apiUrl+' ('+(e.name==='AbortError'?'timeout '+Math.round(timeoutMs/1000)+'s':e.message)+')');
         }
+        return{success:false,error:'API unreachable: '+tried.join(' | ')};
+    };
+
+    if(!_whCanDeduplicate(action)){
+        return runRequest();
     }
-    return{success:false,error:'API unreachable: '+tried.join(' | ')};
+
+    const requestKey=action+'|'+_whBuildInFlightKey(data);
+    if(_whInFlight.has(requestKey)){
+        return _whInFlight.get(requestKey);
+    }
+
+    const requestPromise=runRequest().finally(()=>_whInFlight.delete(requestKey));
+    _whInFlight.set(requestKey, requestPromise);
+    return requestPromise;
 }
 
 async function testConnection(){const el=document.getElementById('connectionStatus');try{const r=await whApiCall({action:'stats'});if(r&&r.success){el.className='status-badge online';el.innerHTML='<span class="status-dot"></span><span>เชื่อมต่อแล้ว</span>';}else{el.className='status-badge offline';el.innerHTML='<span class="status-dot"></span><span>ไม่สามารถเชื่อมต่อได้</span>';}}catch(e){el.className='status-badge offline';el.innerHTML='<span class="status-dot"></span><span>Error</span>';}}

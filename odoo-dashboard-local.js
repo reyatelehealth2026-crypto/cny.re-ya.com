@@ -70,6 +70,7 @@ const _original = {
     loadSlips: typeof loadSlips === 'function' ? loadSlips : null,
     loadWebhookStats: typeof loadWebhookStats === 'function' ? loadWebhookStats : null,
     showCustomerDetail: typeof showCustomerDetail === 'function' ? showCustomerDetail : null,
+    showOrderTimeline: typeof showOrderTimeline === 'function' ? showOrderTimeline : null,
     globalSearch: typeof globalSearch === 'function' ? globalSearch : null
 };
 
@@ -110,6 +111,11 @@ async function loadTodayOverviewLocal() {
     if (kpiSalesToday) kpiSalesToday.textContent = '฿' + Number(kpi.revenue?.today || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
     if (kpiSlipsPending) kpiSlipsPending.textContent = Number(kpi.slips?.pending || 0).toLocaleString();
     if (kpiOverdueCustomers) kpiOverdueCustomers.textContent = Number(kpi.invoices?.overdue || 0).toLocaleString();
+    if (kpiBdosPending) kpiBdosPending.textContent = Number(kpi.bdos?.pending || 0).toLocaleString();
+    if (kpiPaymentsToday) {
+        const matchedToday = Number(kpi.slips?.matched_today || 0);
+        kpiPaymentsToday.textContent = matchedToday > 0 ? matchedToday.toLocaleString() : '-';
+    }
     
     // Update lists
     await Promise.all([
@@ -308,6 +314,134 @@ async function loadCustomersLocal() {
     console.log('[LocalAPI] Customers loaded from local cache');
 }
 
+// Override: Load Slips List
+async function loadSlipsLocal() {
+    const el = document.getElementById('slipList');
+    if (!el) return;
+
+    const cacheKey = typeof _dashCacheKey === 'function'
+        ? _dashCacheKey('slips-local', JSON.stringify({
+            o: typeof slipCurrentOffset !== 'undefined' ? slipCurrentOffset : (window.slipCurrentOffset || 0),
+            q: document.getElementById('slipSearch')?.value || '',
+            s: document.getElementById('slipStatusFilter')?.value || '',
+            d: document.getElementById('slipDateFilter')?.value || ''
+        }))
+        : null;
+    const cached = cacheKey ? _cacheGet(cacheKey) : null;
+    if (cacheKey && cached && typeof _dashRenderFromCache === 'function'
+        && _dashRenderFromCache('slipList', cached.html, { cachedAt: cached.cachedAt, refreshFn: '_cacheClear(\'dash:slips-local\');loadSlips()' })) {
+        return;
+    }
+
+    el.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด (local)...</div></div>';
+
+    const limit = typeof slipPageSize !== 'undefined' ? slipPageSize : 30;
+    const offset = typeof slipCurrentOffset !== 'undefined' ? slipCurrentOffset : (window.slipCurrentOffset || 0);
+    const search = document.getElementById('slipSearch')?.value || '';
+    const status = document.getElementById('slipStatusFilter')?.value || '';
+    const date = document.getElementById('slipDateFilter')?.value || '';
+
+    const res = await localApiCall('slips_list', { limit, offset, search, status, date });
+    if (!res.success || !res.data) {
+        console.log('[LocalAPI] Slips local failed, using fallback');
+        if (_original.loadSlips) return _original.loadSlips();
+        el.innerHTML = '<p style="padding:1rem;color:var(--danger);">Error loading slips</p>';
+        return;
+    }
+
+    const slips = res.data.slips || [];
+    const total = Number(res.data.total || 0);
+    const tc = document.getElementById('slipTotalCount');
+    if (tc) tc.textContent = total.toLocaleString() + ' รายการ';
+
+    if (slips.length === 0) {
+        el.innerHTML = '<p style="color:var(--gray-500);padding:1.5rem;text-align:center;"><i class="bi bi-inbox" style="font-size:2rem;"></i><br>ไม่พบสลิป</p>';
+        return;
+    }
+
+    window._slipErrors = window._slipErrors || {};
+    window._slipMeta = window._slipMeta || {};
+
+    let html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.875rem;"><thead><tr style="background:var(--gray-50);">';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">รูปสลิป</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">ลูกค้า</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">จำนวนเงิน</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">สถานะ</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">ออเดอร์/ใบแจ้งหนี้</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">บันทึกโดย</th>';
+    html += '<th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">วันที่บันทึก</th>';
+    html += '<th style="padding:10px 12px;text-align:center;font-weight:600;color:var(--gray-600);border-bottom:2px solid var(--gray-200);">การดำเนินการ</th>';
+    html += '</tr></thead><tbody>';
+
+    slips.forEach((s, i) => {
+        const bg = i % 2 === 0 ? 'white' : 'var(--gray-50)';
+        const amt = s.amount != null ? '฿' + parseFloat(s.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
+        const dt = s.uploaded_at ? new Date(s.uploaded_at).toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const thumb = s.image_full_url
+            ? '<img src="' + escapeHtml(s.image_full_url) + '" onclick="openSlipPreview(\'' + escapeHtml(s.image_full_url) + '\')" style="width:48px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--gray-200);" onerror="this.style.display=\'none\'">'
+            : '<span style="color:var(--gray-400);font-size:0.75rem;">ไม่มีรูป</span>';
+        const custName = escapeHtml(s.customer_name || s.line_user_id || '-');
+        const custLine = s.customer_name ? '<div style="font-size:0.75rem;color:var(--gray-400);">' + escapeHtml(s.line_user_id || '') + '</div>' : '';
+        if (s.status === 'failed') window._slipErrors[s.id] = s.match_reason || 'ไม่มีข้อมูล';
+        window._slipMeta[s.id] = {
+            line_user_id: s.line_user_id,
+            line_account_id: s.line_account_id,
+            amount: s.amount,
+            status: s.status,
+            customer_name: s.customer_name || s.line_user_id,
+            slip_inbox_id: s.slip_inbox_id || s.odoo_slip_id || 0
+        };
+
+        let actionBtn = '';
+        if (s.status === 'pending') {
+            actionBtn = '<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">'
+                + '<button id="slip-btn-' + s.id + '" class="chip" onclick="sendOneSlipToOdoo(' + s.id + ',false)" style="font-size:0.75rem;padding:3px 10px;white-space:nowrap;"><i class="bi bi-cloud-upload"></i> ส่ง Odoo</button>'
+                + '</div>';
+        } else if (s.status === 'matched') {
+            actionBtn = '<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">'
+                + '<span style="color:#16a34a;font-size:0.75rem;">✓ ส่งแล้ว</span>'
+                + '<button class="chip" onclick="unMatchSlip(' + s.id + ')" style="font-size:0.7rem;padding:2px 6px;border-color:#6b7280;color:#6b7280;" title="รีเซ็ตกลับเป็น pending"><i class="bi bi-arrow-counterclockwise"></i> รีเซ็ต</button>'
+                + '</div>';
+        } else {
+            actionBtn = '<div style="display:flex;flex-direction:column;gap:3px;align-items:center;">'
+                + '<span style="color:#dc2626;font-size:0.72rem;cursor:pointer;text-decoration:underline;" onclick="showSlipError(' + s.id + ');">[ดูข้อผิดพลาด]</span>'
+                + '<button id="slip-btn-' + s.id + '" class="chip" onclick="sendOneSlipToOdoo(' + s.id + ',true)" style="font-size:0.72rem;padding:2px 8px;border-color:#dc2626;color:#dc2626;white-space:nowrap;"><i class="bi bi-arrow-clockwise"></i> ส่งซ้ำ</button>'
+                + '</div>';
+        }
+
+        html += '<tr style="background:' + bg + ';border-bottom:1px solid var(--gray-100);" id="slip-row-' + s.id + '">'
+            + '<td style="padding:10px 12px;">' + thumb + '</td>'
+            + '<td style="padding:10px 12px;"><div style="font-weight:500;">' + custName + '</div>' + custLine + '</td>'
+            + '<td style="padding:10px 12px;font-weight:600;color:#16a34a;">' + amt + '</td>'
+            + '<td style="padding:10px 12px;">' + slipStatusBadge(s.status) + '</td>'
+            + '<td style="padding:10px 12px;" id="slip-orders-' + s.id + '">' + slipOrderInfo(s) + '</td>'
+            + '<td style="padding:10px 12px;color:var(--gray-500);font-size:0.8rem;">' + escapeHtml(s.uploaded_by || '-') + '</td>'
+            + '<td style="padding:10px 12px;color:var(--gray-500);font-size:0.8rem;">' + dt + '</td>'
+            + '<td style="padding:10px 12px;text-align:center;" id="slip-action-' + s.id + '">' + actionBtn + '</td>'
+            + '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+    if (cacheKey && typeof _dashCacheSaveHtml === 'function') {
+        _dashCacheSaveHtml(cacheKey, 'slipList', '_cacheClear(\'dash:slips-local\');loadSlips()');
+    }
+
+    const pag = document.getElementById('slipPagination');
+    if (pag) {
+        if (total > limit) {
+            const tp = Math.ceil(total / limit);
+            const cp = Math.floor(offset / limit) + 1;
+            let ph = cp > 1 ? '<button class="chip" onclick="slipGoPage(' + (cp - 2) + ')"><i class="bi bi-chevron-left"></i></button>' : '';
+            ph += '<span style="padding:0.5rem 1rem;font-size:0.85rem;">หน้า ' + cp + ' / ' + tp + '</span>';
+            if (cp < tp) ph += '<button class="chip" onclick="slipGoPage(' + cp + ')"><i class="bi bi-chevron-right"></i></button>';
+            pag.innerHTML = ph;
+        } else {
+            pag.innerHTML = '';
+        }
+    }
+}
+
 // Override: Show Customer Detail
 async function showCustomerDetailLocal(customerRef, partnerId, custName) {
     const modal = document.getElementById('customerInvoiceModal');
@@ -379,6 +513,53 @@ async function showCustomerDetailLocal(customerRef, partnerId, custName) {
     console.log('[LocalAPI] Customer detail loaded from local cache');
 }
 
+async function showOrderTimelineLocal(orderId, orderName) {
+    const modal = document.getElementById('orderTimelineModal');
+    const content = document.getElementById('orderTimelineContent');
+    if (!modal || !content) return;
+
+    content.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด (local)...</div></div>';
+    modal.classList.add('active');
+
+    const res = await localApiCall('order_timeline', {
+        order_id: orderId || '',
+        order_key: orderName || ''
+    });
+
+    if (!res.success || !res.data) {
+        console.log('[LocalAPI] Timeline local failed, using fallback');
+        if (_original.showOrderTimeline) return _original.showOrderTimeline(orderId, orderName);
+        content.innerHTML = '<p style="color:var(--danger);">Error loading timeline</p>';
+        return;
+    }
+
+    const events = res.data.events || [];
+    const orderTitle = res.data.order_name || orderName || orderId || '-';
+    let html = '<h5 style="margin-bottom:1rem;"><i class="bi bi-clock-history"></i> Timeline: ' + escapeHtml(orderTitle) + '</h5>';
+    if (!events.length) {
+        html += '<p style="color:var(--gray-400);">ไม่พบข้อมูล</p>';
+    } else {
+        html += '<div style="position:relative;padding-left:24px;border-left:3px solid var(--gray-200);margin-left:8px;">';
+        events.forEach((e, i) => {
+            const et = String(e.event_type || '');
+            const icon = EVENT_ICONS[et] || '📌';
+            const pd = e.processed_at ? new Date(e.processed_at) : null;
+            const t = pd && !isNaN(pd) ? pd.toLocaleString('th-TH') : '-';
+            const state = e.new_state_display && e.new_state_display !== 'null' ? e.new_state_display : (et ? et.split('.').pop() : '-');
+            const dot = i === events.length - 1 ? 'var(--primary)' : 'var(--gray-400)';
+            html += '<div style="position:relative;margin-bottom:1.5rem;padding-left:16px;">'
+                + '<div style="position:absolute;left:-32px;top:2px;width:16px;height:16px;border-radius:50%;background:' + dot + ';border:3px solid white;box-shadow:0 0 0 2px ' + dot + ';"></div>'
+                + '<div style="font-weight:600;font-size:0.9rem;">' + icon + ' ' + escapeHtml(state) + '</div>'
+                + '<div style="font-size:0.8rem;color:var(--gray-500);margin-top:2px;">' + escapeHtml(t) + '</div>'
+                + '<div style="font-size:0.75rem;color:var(--gray-400);">' + escapeHtml(et) + ' &middot; ' + escapeHtml(e.status || '-') + '</div>'
+                + '</div>';
+        });
+        html += '</div>';
+    }
+
+    content.innerHTML = html;
+}
+
 // Override: Global Search
 async function globalSearchLocal(query) {
     if (!query || query.length < 2) return { results: [], total: 0 };
@@ -412,10 +593,22 @@ async function initLocalApi() {
         if (typeof window !== 'undefined') {
             window.loadTodayOverview = loadTodayOverviewLocal;
             window.loadCustomers = loadCustomersLocal;
+            window.loadSlips = loadSlipsLocal;
             window.showCustomerDetail = showCustomerDetailLocal;
+            window.showOrderTimeline = showOrderTimelineLocal;
             window.globalSearch = globalSearchLocal;
             
             console.log('[LocalAPI] Functions overridden to use local cache');
+        }
+
+        if (document.getElementById('section-overview')?.classList.contains('active')) {
+            window.loadTodayOverview();
+        }
+        if (document.getElementById('section-customers')?.classList.contains('active')) {
+            window.loadCustomers();
+        }
+        if (document.getElementById('section-slips')?.classList.contains('active')) {
+            window.loadSlips();
         }
         
         return true;

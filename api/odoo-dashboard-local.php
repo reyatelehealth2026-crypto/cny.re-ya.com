@@ -776,6 +776,7 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     $offset = max((int) ($input['offset'] ?? 0), 0);
     $search = trim((string) ($input['search'] ?? ''));
     $status = trim((string) ($input['status'] ?? ''));
+    $date = trim((string) ($input['date'] ?? ''));
     
     $where = [];
     $params = [];
@@ -797,6 +798,12 @@ function getSlipsList($db, $input, $lineAccountId = null) {
         $where[] = "status = ?";
         $params[] = $status;
     }
+
+    if ($date !== '') {
+        $where[] = "(payment_date = ? OR DATE(created_at) = ?)";
+        $params[] = $date;
+        $params[] = $date;
+    }
     
     $whereClause = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
     
@@ -808,10 +815,31 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     
     // Data
     $sql = "SELECT 
-        slip_id, order_key, bdo_id,
-        customer_name, amount, matched_amount,
-        payment_date, payment_method, status, confidence,
-        matched_at, matched_by, image_url, line_user_id
+        slip_id,
+        slip_id AS id,
+        order_key,
+        order_id,
+        invoice_id,
+        bdo_id,
+        odoo_slip_id,
+        slip_inbox_id,
+        customer_name,
+        amount,
+        matched_amount,
+        payment_date,
+        payment_date AS transfer_date,
+        payment_method,
+        status,
+        confidence,
+        match_reason,
+        matched_at,
+        matched_by,
+        uploaded_by,
+        image_path,
+        image_url,
+        created_at AS uploaded_at,
+        line_user_id,
+        line_account_id
     FROM odoo_slips_cache
     {$whereClause}
     ORDER BY payment_date DESC, created_at DESC
@@ -820,6 +848,23 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : '[REDACTED]', '/');
+    foreach ($slips as &$slip) {
+        $slip['id'] = (int) ($slip['id'] ?? 0);
+        $slip['slip_id'] = (int) ($slip['slip_id'] ?? 0);
+        $slip['slip_inbox_id'] = $slip['slip_inbox_id'] !== null ? (int) $slip['slip_inbox_id'] : null;
+        $slip['odoo_slip_id'] = $slip['odoo_slip_id'] !== null ? (int) $slip['odoo_slip_id'] : null;
+        $slip['bdo_id'] = $slip['bdo_id'] !== null ? (int) $slip['bdo_id'] : null;
+        $slip['amount'] = $slip['amount'] !== null ? (float) $slip['amount'] : null;
+        $slip['matched_amount'] = $slip['matched_amount'] !== null ? (float) $slip['matched_amount'] : null;
+        if (!empty($slip['image_path'])) {
+            $slip['image_full_url'] = $baseUrl . '/' . ltrim($slip['image_path'], '/');
+        } else {
+            $slip['image_full_url'] = $slip['image_url'] ?: null;
+        }
+    }
+    unset($slip);
     
     return [
         'slips' => $slips,
@@ -857,7 +902,7 @@ function getSlipsPending($db, $lineAccountId = null) {
     
     // Top pending
     $sql = "SELECT 
-        slip_id, customer_name, amount, payment_date, order_key, bdo_id
+        slip_id, customer_name, amount, payment_date, order_key, bdo_id, image_path, image_url
     FROM odoo_slips_cache
     {$where}
     ORDER BY payment_date DESC
@@ -866,6 +911,16 @@ function getSlipsPending($db, $lineAccountId = null) {
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : '[REDACTED]', '/');
+    foreach ($slips as &$slip) {
+        if (!empty($slip['image_path'])) {
+            $slip['image_full_url'] = $baseUrl . '/' . ltrim($slip['image_path'], '/');
+        } else {
+            $slip['image_full_url'] = $slip['image_url'] ?: null;
+        }
+    }
+    unset($slip);
     
     return [
         'count' => (int) ($summary['count'] ?? 0),
@@ -938,6 +993,12 @@ function getOrderTimelineLocal($db, $input) {
         $result['source'] = 'webhook_fallback';
     } else {
         $result['source'] = 'local_cache';
+    }
+
+    if (!empty($result['order_info']['order_key']) && empty($result['order_name'])) {
+        $result['order_name'] = $result['order_info']['order_key'];
+    } elseif ($orderKey !== '') {
+        $result['order_name'] = $orderKey;
     }
     
     return $result;
