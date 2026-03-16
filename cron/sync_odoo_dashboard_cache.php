@@ -17,6 +17,7 @@ require_once __DIR__ . '/../config/database.php';
 $isCli = php_sapi_name() === 'cli';
 $jobType = $isCli ? ($argv[1] ?? 'incremental') : 'full';
 $lineAccountId = $isCli ? ($argv[2] ?? null) : ($_GET['bot_id'] ?? null);
+$lineAccountId = ($lineAccountId !== null && $lineAccountId !== '') ? (int) $lineAccountId : null;
 
 // Logging function
 function logMessage($msg, $level = 'INFO') {
@@ -71,8 +72,16 @@ try {
         'orders' => ['inserted' => 0, 'updated' => 0],
         'customers' => ['inserted' => 0, 'updated' => 0],
         'invoices' => ['inserted' => 0, 'updated' => 0],
+        'slips' => ['inserted' => 0, 'updated' => 0],
         'events' => ['inserted' => 0]
     ];
+
+    $processedAtColumn = resolveWebhookTimeColumn($db);
+    $processedAtExpr = $processedAtColumn ?: 'NOW()';
+    $orderNameExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_name'))), '')";
+    $payloadOrderIdExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_id'))), '')";
+    $rowOrderIdExpr = "NULLIF(TRIM(CAST(order_id AS CHAR)), '')";
+    $orderKeyExpr = "NULLIF(TRIM(COALESCE(NULLIF({$orderNameExpr}, 'null'), NULLIF({$payloadOrderIdExpr}, 'null'), NULLIF({$rowOrderIdExpr}, 'null'))), '')";
     
     // ============================================
     // SYNC ORDERS
@@ -87,15 +96,6 @@ try {
         }
         
         // Build base subquery from webhook log
-        $processedAtColumn = resolveWebhookTimeColumn($db);
-        $processedAtExpr = $processedAtColumn ?: 'NOW()';
- 
-        // Order key extraction from JSON payload
-        $orderNameExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_name'))), '')";
-        $payloadOrderIdExpr = "NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_id'))), '')";
-        $rowOrderIdExpr = "NULLIF(TRIM(CAST(order_id AS CHAR)), '')";
-        $orderKeyExpr = "NULLIF(TRIM(COALESCE(NULLIF({$orderNameExpr}, 'null'), NULLIF({$payloadOrderIdExpr}, 'null'), NULLIF({$rowOrderIdExpr}, 'null'))), '')";
- 
         $where = "status = 'success'";
         $params = [];
  
@@ -125,6 +125,8 @@ try {
                 SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.salesperson.id')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as salesperson_id,
                 SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.salesperson.name')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as salesperson_name,
                 SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.state')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as state,
+                SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.new_state_display')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as state_display,
+                SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.invoice_status')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as invoice_status,
                 SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.delivery_type')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as delivery_type,
                 SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.payment_status')), '') ORDER BY {$processedAtExpr} DESC), ',', 1) as payment_status,
                 MAX(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_id')), '') AS UNSIGNED)) as odoo_order_id,
@@ -149,10 +151,10 @@ try {
             INSERT INTO odoo_orders_summary (
                 order_key, odoo_order_id, customer_id, partner_id, customer_name, customer_ref,
                 salesperson_id, salesperson_name, amount_total, amount_tax, amount_untaxed, currency,
-                state, delivery_type, payment_status, line_user_id, line_account_id,
+                state, state_display, invoice_status, delivery_type, payment_status, line_user_id, line_account_id,
                 first_event_at, last_event_at, created_at_odoo, date_order, expected_delivery_date,
                 synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE
                 odoo_order_id = VALUES(odoo_order_id),
                 customer_id = VALUES(customer_id),
@@ -166,10 +168,14 @@ try {
                 amount_untaxed = VALUES(amount_untaxed),
                 currency = VALUES(currency),
                 state = VALUES(state),
+                state_display = VALUES(state_display),
+                invoice_status = VALUES(invoice_status),
                 delivery_type = VALUES(delivery_type),
                 payment_status = VALUES(payment_status),
                 line_user_id = VALUES(line_user_id),
                 line_account_id = VALUES(line_account_id),
+                date_order = VALUES(date_order),
+                expected_delivery_date = VALUES(expected_delivery_date),
                 last_event_at = VALUES(last_event_at),
                 synced_at = NOW()
         ");
@@ -189,10 +195,12 @@ try {
                 $o['amount_untaxed'] ?: 0,
                 $o['currency'] ?: 'THB',
                 $o['state'] ?: 'draft',
+                $o['state_display'] ?: ($o['state'] ?: 'draft'),
+                $o['invoice_status'] ?: null,
                 $o['delivery_type'],
                 $o['payment_status'],
                 $o['line_user_id'],
-                $o['line_account_id'],
+                $o['line_account_id'] ?: 0,
                 $o['first_event_at'],
                 $o['last_event_at'],
                 $o['created_at_odoo'],
@@ -222,7 +230,7 @@ try {
         $eventsSql = "
             INSERT INTO odoo_order_events (
                 order_key, event_type, event_category, status, old_state, new_state,
-                payload_summary, webhook_log_id, processed_at
+                payload_summary, webhook_log_id, line_account_id, processed_at
             )
             SELECT 
                 {$orderKeyExpr} as order_key,
@@ -244,6 +252,7 @@ try {
                     'state', JSON_UNQUOTE(JSON_EXTRACT(payload, '$.state'))
                 ),
                 id,
+                COALESCE(line_account_id, 0),
                 {$processedAtExpr}
              FROM odoo_webhooks_log
              WHERE {$eventsWhere}
@@ -252,6 +261,7 @@ try {
              ON DUPLICATE KEY UPDATE
                  status = VALUES(status),
                  new_state = VALUES(new_state),
+                 line_account_id = VALUES(line_account_id),
                  processed_at = VALUES(processed_at)
          ";
         
@@ -292,10 +302,10 @@ try {
                 MIN(first_event_at) as first_order,
                 MAX(last_event_at) as latest_order,
                 MAX(line_user_id) as line_uid,
-                MAX(line_account_id) as line_aid
+                COALESCE(MAX(line_account_id), 0) as line_aid
             FROM odoo_orders_summary
             {$custWhere}
-            GROUP BY COALESCE(customer_id, partner_id), partner_id
+            GROUP BY COALESCE(customer_id, partner_id), COALESCE(line_account_id, 0)
             ON DUPLICATE KEY UPDATE
                 customer_name = VALUES(customer_name),
                 customer_ref = VALUES(customer_ref),
@@ -308,6 +318,7 @@ try {
                 first_order_at = VALUES(first_order_at),
                 latest_order_at = VALUES(latest_order_at),
                 line_user_id = VALUES(line_user_id),
+                line_account_id = VALUES(line_account_id),
                 synced_at = NOW()
         ";
         
@@ -322,10 +333,16 @@ try {
     // ============================================
     // SYNC INVOICES
     // ============================================
-    if ($jobType === 'full' || $jobType === 'invoices') {
+    if ($jobType === 'full' || $jobType === 'invoices' || $jobType === 'incremental') {
         logMessage('Syncing invoices from webhook log...');
         
         $invWhere = "event_type LIKE 'invoice.%' AND status = 'success'";
+        if ($jobType === 'incremental') {
+            $invoiceLastSync = $db->query("SELECT MAX(updated_at) FROM odoo_invoices_cache" . ($lineAccountId ? " WHERE line_account_id = {$lineAccountId}" : ""))->fetchColumn();
+            if ($invoiceLastSync) {
+                $invWhere .= " AND {$processedAtExpr} > " . $db->quote($invoiceLastSync);
+            }
+        }
         if ($lineAccountId) {
             $invWhere .= " AND line_account_id = {$lineAccountId}";
         }
@@ -333,7 +350,7 @@ try {
         $invSql = "
             INSERT INTO odoo_invoices_cache (
                 invoice_number, invoice_id, order_key, customer_id, partner_id, customer_name,
-                amount_total, amount_residual, state, invoice_date, due_date,
+                amount_total, amount_residual, amount_paid, state, payment_state, invoice_date, due_date,
                 is_overdue, days_overdue, line_user_id, line_account_id, synced_at
             )
             SELECT 
@@ -350,12 +367,23 @@ try {
                 CAST(COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_total')), ''), '0') AS DECIMAL(14,2)),
                 CAST(COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_residual')), ''), 
                               NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_total')), ''), '0') AS DECIMAL(14,2)),
+                GREATEST(
+                    CAST(COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_total')), ''), '0') AS DECIMAL(14,2)) -
+                    CAST(COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_residual')), ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.amount_total')), ''), '0') AS DECIMAL(14,2)),
+                    0
+                ) as amount_paid,
                 CASE event_type
                     WHEN 'invoice.paid' THEN 'paid'
                     WHEN 'invoice.overdue' THEN 'overdue'
                     WHEN 'invoice.posted' THEN 'posted'
                     ELSE 'open'
                 END as state,
+                CASE event_type
+                    WHEN 'invoice.paid' THEN 'paid'
+                    WHEN 'invoice.overdue' THEN 'partial'
+                    WHEN 'invoice.posted' THEN 'open'
+                    ELSE 'open'
+                END as payment_state,
                 CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.invoice_date')), '') AS DATE),
                 CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.due_date')), '') AS DATE),
                 CASE WHEN event_type = 'invoice.overdue' THEN 1 ELSE 0 END as is_overdue,
@@ -364,16 +392,20 @@ try {
                     ELSE 0 
                 END as days_overdue,
                 line_user_id,
-                line_account_id,
+                COALESCE(line_account_id, 0),
                 NOW()
             FROM odoo_webhooks_log
             WHERE {$invWhere}
             HAVING inv_num IS NOT NULL
             ON DUPLICATE KEY UPDATE
                 amount_residual = VALUES(amount_residual),
+                amount_paid = VALUES(amount_paid),
                 state = VALUES(state),
+                payment_state = VALUES(payment_state),
                 is_overdue = VALUES(is_overdue),
                 days_overdue = VALUES(days_overdue),
+                line_user_id = VALUES(line_user_id),
+                line_account_id = VALUES(line_account_id),
                 synced_at = NOW()
         ";
         
@@ -389,6 +421,126 @@ try {
         
         logMessage("Invoices: ~{$stats['invoices']['updated']} updated");
     }
+
+    // ============================================
+    // SYNC SLIPS
+    // ============================================
+    if ($jobType === 'full' || $jobType === 'slips' || $jobType === 'incremental') {
+        logMessage('Syncing slips from odoo_slip_uploads...');
+
+        $slipWhere = [];
+        if ($lineAccountId) {
+            $slipWhere[] = "s.line_account_id = {$lineAccountId}";
+        }
+        if ($jobType === 'incremental') {
+            $slipLastSync = $db->query("SELECT MAX(updated_at) FROM odoo_slips_cache" . ($lineAccountId ? " WHERE line_account_id = {$lineAccountId}" : ""))->fetchColumn();
+            if ($slipLastSync) {
+                $quotedLastSync = $db->quote($slipLastSync);
+                $slipWhere[] = "(s.uploaded_at > {$quotedLastSync} OR (s.matched_at IS NOT NULL AND s.matched_at > {$quotedLastSync}))";
+            }
+        }
+        $slipWhereClause = $slipWhere ? ('WHERE ' . implode(' AND ', $slipWhere)) : '';
+
+        $slipsSql = "
+            INSERT INTO odoo_slips_cache (
+                slip_id, line_account_id, line_user_id, customer_name, order_key, order_id, invoice_id, bdo_id,
+                odoo_slip_id, slip_inbox_id, amount, matched_amount, payment_date, payment_method, status, confidence, match_reason,
+                matched_at, matched_by, uploaded_by, image_path, image_url, synced_at
+            )
+            SELECT
+                s.id,
+                COALESCE(s.line_account_id, 0),
+                s.line_user_id,
+                COALESCE(u.display_name, s.line_user_id),
+                o.order_key,
+                s.order_id,
+                s.invoice_id,
+                s.bdo_id,
+                s.odoo_slip_id,
+                s.slip_inbox_id,
+                s.amount,
+                CASE WHEN s.status = 'matched' THEN s.amount ELSE NULL END,
+                s.transfer_date,
+                'bank_transfer',
+                s.status,
+                s.match_confidence,
+                s.match_reason,
+                s.matched_at,
+                s.uploaded_by,
+                s.uploaded_by,
+                s.image_path,
+                s.image_url,
+                NOW()
+            FROM odoo_slip_uploads s
+            LEFT JOIN users u ON u.line_user_id = s.line_user_id
+            LEFT JOIN odoo_orders_summary o ON o.odoo_order_id = s.order_id
+                AND o.line_account_id = COALESCE(s.line_account_id, 0)
+            {$slipWhereClause}
+            ON DUPLICATE KEY UPDATE
+                line_account_id = VALUES(line_account_id),
+                line_user_id = VALUES(line_user_id),
+                customer_name = VALUES(customer_name),
+                order_key = VALUES(order_key),
+                order_id = VALUES(order_id),
+                invoice_id = VALUES(invoice_id),
+                bdo_id = VALUES(bdo_id),
+                odoo_slip_id = VALUES(odoo_slip_id),
+                slip_inbox_id = VALUES(slip_inbox_id),
+                amount = VALUES(amount),
+                matched_amount = VALUES(matched_amount),
+                payment_date = VALUES(payment_date),
+                payment_method = VALUES(payment_method),
+                status = VALUES(status),
+                confidence = VALUES(confidence),
+                match_reason = VALUES(match_reason),
+                matched_at = VALUES(matched_at),
+                matched_by = VALUES(matched_by),
+                uploaded_by = VALUES(uploaded_by),
+                image_path = VALUES(image_path),
+                image_url = VALUES(image_url),
+                synced_at = NOW()
+        ";
+
+        if (tableExists($db, 'odoo_slip_uploads')) {
+            $slipResult = $db->exec($slipsSql);
+            $stats['slips']['updated'] = $slipResult > 0 ? $slipResult : 0;
+            logMessage("Slips: ~{$stats['slips']['updated']} updated");
+        } else {
+            logMessage('Skipping slips sync: odoo_slip_uploads table not found', 'WARNING');
+        }
+    }
+
+    // ============================================
+    // ENRICH CUSTOMER CACHE
+    // ============================================
+    if (tableExists($db, 'odoo_customers_cache')) {
+        logMessage('Refreshing customer due metrics and profile hints...');
+
+        $lineFilterCustomers = $lineAccountId ? "WHERE c.line_account_id = {$lineAccountId}" : '';
+        $db->exec("
+            UPDATE odoo_customers_cache c
+            LEFT JOIN (
+                SELECT
+                    COALESCE(customer_id, partner_id) AS cust_key,
+                    line_account_id,
+                    MAX(invoice_date) AS last_invoice_at,
+                    MAX(CASE WHEN state = 'paid' THEN invoice_date END) AS last_payment_at,
+                    SUM(CASE WHEN state IN ('open', 'posted', 'overdue') THEN amount_residual ELSE 0 END) AS total_due,
+                    SUM(CASE WHEN is_overdue = 1 THEN amount_residual ELSE 0 END) AS overdue_amount
+                FROM odoo_invoices_cache
+                GROUP BY COALESCE(customer_id, partner_id), line_account_id
+            ) inv ON inv.cust_key = c.customer_id AND inv.line_account_id = c.line_account_id
+            LEFT JOIN users u ON u.line_user_id = c.line_user_id
+            SET
+                c.total_due = COALESCE(inv.total_due, 0),
+                c.overdue_amount = COALESCE(inv.overdue_amount, 0),
+                c.last_invoice_at = inv.last_invoice_at,
+                c.last_payment_at = inv.last_payment_at,
+                c.line_display_name = COALESCE(u.display_name, c.line_display_name),
+                c.synced_at = NOW()
+            {$lineFilterCustomers}
+        ");
+    }
     
     // ============================================
     // UPDATE CACHE METADATA
@@ -397,7 +549,8 @@ try {
         INSERT INTO odoo_dashboard_cache_meta (cache_key, cache_type, last_synced_at, is_dirty)
         VALUES ('orders_summary', 'summary', NOW(), 0),
                ('customers_cache', 'list', NOW(), 0),
-               ('invoices_cache', 'list', NOW(), 0)
+               ('invoices_cache', 'list', NOW(), 0),
+               ('slips_cache', 'list', NOW(), 0)
         ON DUPLICATE KEY UPDATE last_synced_at = VALUES(last_synced_at), is_dirty = 0
     ")->execute();
     
@@ -408,6 +561,7 @@ try {
     $totalRecords = $stats['orders']['inserted'] + $stats['orders']['updated'] + 
                     $stats['customers']['inserted'] + $stats['customers']['updated'] +
                     $stats['invoices']['inserted'] + $stats['invoices']['updated'] +
+                    $stats['slips']['inserted'] + $stats['slips']['updated'] +
                     $stats['events']['inserted'];
     
     $db->prepare("
@@ -421,8 +575,8 @@ try {
         WHERE id = ?
     ")->execute([
         $totalRecords,
-        $stats['orders']['inserted'] + $stats['customers']['inserted'] + $stats['invoices']['inserted'],
-        $stats['orders']['updated'] + $stats['customers']['updated'] + $stats['invoices']['updated'],
+        $stats['orders']['inserted'] + $stats['customers']['inserted'] + $stats['invoices']['inserted'] + $stats['slips']['inserted'],
+        $stats['orders']['updated'] + $stats['customers']['updated'] + $stats['invoices']['updated'] + $stats['slips']['updated'],
         $duration,
         $jobId
     ]);
@@ -471,4 +625,13 @@ function resolveWebhookTimeColumn($db) {
         // ignore
     }
     return 'id';
+}
+
+function tableExists($db, $table) {
+    try {
+        $stmt = $db->query("SHOW TABLES LIKE " . $db->quote($table));
+        return $stmt && $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        return false;
+    }
 }

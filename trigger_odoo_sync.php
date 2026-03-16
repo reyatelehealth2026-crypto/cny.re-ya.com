@@ -31,7 +31,7 @@ try {
     $db = Database::getInstance()->getConnection();
     
     $counts = [];
-    $tables = ['odoo_orders_summary', 'odoo_customers_cache', 'odoo_invoices_cache'];
+    $tables = ['odoo_orders_summary', 'odoo_customers_cache', 'odoo_invoices_cache', 'odoo_slips_cache'];
     foreach ($tables as $t) {
         $counts[$t] = $db->query("SELECT COUNT(*) FROM {$t}")->fetchColumn();
     }

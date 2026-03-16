@@ -26,6 +26,10 @@ header('Access-Control-Allow-Headers: Content-Type');
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -48,10 +52,20 @@ try {
     
     switch ($action) {
         case 'health':
+            $localTables = checkLocalTables($db);
+            $hasData = false;
+            foreach ($localTables as $tableInfo) {
+                if (!empty($tableInfo['exists']) && !empty($tableInfo['count'])) {
+                    $hasData = true;
+                    break;
+                }
+            }
             $result = [
                 'status' => 'ok',
                 'service' => 'odoo-dashboard-local',
-                'local_tables' => checkLocalTables($db),
+                'local_tables' => $localTables,
+                'local_enabled' => $hasData,
+                'has_data' => $hasData,
                 'timestamp' => date('c')
             ];
             break;
@@ -187,7 +201,7 @@ function getOverviewKpi($db, $lineAccountId = null) {
             COUNT(*) as total,
             SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) as new_today,
             SUM(CASE WHEN YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END) as new_month,
-            SUM(CASE WHERE latest_order_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as active_30d
+            SUM(CASE WHEN latest_order_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as active_30d
         FROM odoo_customers_cache {$where}";
         
         $row = $db->query($sql)->fetch(PDO::FETCH_ASSOC);
@@ -207,7 +221,7 @@ function getOverviewKpi($db, $lineAccountId = null) {
             SUM(CASE WHEN state IN ('open', 'posted') AND is_overdue = 0 THEN 1 ELSE 0 END) as open_count,
             SUM(CASE WHEN is_overdue = 1 THEN 1 ELSE 0 END) as overdue_count,
             SUM(CASE WHEN state = 'paid' AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) as paid_today,
-            SUM(CASE WHERE state IN ('open', 'posted', 'overdue') THEN amount_residual ELSE 0 END) as total_due
+            SUM(CASE WHEN state IN ('open', 'posted', 'overdue') THEN amount_residual ELSE 0 END) as total_due
         FROM odoo_invoices_cache {$where}";
         
         $row = $db->query($sql)->fetch(PDO::FETCH_ASSOC);
@@ -486,9 +500,10 @@ function getCustomersList($db, $input, $lineAccountId = null) {
 function getCustomerDetail($db, $input, $lineAccountId = null) {
     $customerId = trim((string) ($input['customer_id'] ?? ''));
     $partnerId = trim((string) ($input['partner_id'] ?? ''));
+    $customerRef = trim((string) ($input['customer_ref'] ?? ''));
     
-    if ($customerId === '' && $partnerId === '') {
-        throw new Exception('Missing customer_id or partner_id');
+    if ($customerId === '' && $partnerId === '' && $customerRef === '') {
+        throw new Exception('Missing customer_id, partner_id or customer_ref');
     }
     
     $result = [
@@ -515,6 +530,10 @@ function getCustomerDetail($db, $input, $lineAccountId = null) {
     if ($partnerId !== '') {
         $where[] = "partner_id = ?";
         $params[] = $partnerId;
+    }
+    if ($customerRef !== '') {
+        $where[] = "customer_ref = ?";
+        $params[] = $customerRef;
     }
     $whereClause = 'WHERE ' . implode(' OR ', $where);
     if ($lineAccountId) {
@@ -757,6 +776,7 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     $offset = max((int) ($input['offset'] ?? 0), 0);
     $search = trim((string) ($input['search'] ?? ''));
     $status = trim((string) ($input['status'] ?? ''));
+    $date = trim((string) ($input['date'] ?? ''));
     
     $where = [];
     $params = [];
@@ -778,6 +798,12 @@ function getSlipsList($db, $input, $lineAccountId = null) {
         $where[] = "status = ?";
         $params[] = $status;
     }
+
+    if ($date !== '') {
+        $where[] = "(payment_date = ? OR DATE(created_at) = ?)";
+        $params[] = $date;
+        $params[] = $date;
+    }
     
     $whereClause = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
     
@@ -789,10 +815,31 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     
     // Data
     $sql = "SELECT 
-        slip_id, order_key, bdo_id,
-        customer_name, amount, matched_amount,
-        payment_date, payment_method, status, confidence,
-        matched_at, matched_by, image_url, line_user_id
+        slip_id,
+        slip_id AS id,
+        order_key,
+        order_id,
+        invoice_id,
+        bdo_id,
+        odoo_slip_id,
+        slip_inbox_id,
+        customer_name,
+        amount,
+        matched_amount,
+        payment_date,
+        payment_date AS transfer_date,
+        payment_method,
+        status,
+        confidence,
+        match_reason,
+        matched_at,
+        matched_by,
+        uploaded_by,
+        image_path,
+        image_url,
+        created_at AS uploaded_at,
+        line_user_id,
+        line_account_id
     FROM odoo_slips_cache
     {$whereClause}
     ORDER BY payment_date DESC, created_at DESC
@@ -801,6 +848,23 @@ function getSlipsList($db, $input, $lineAccountId = null) {
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : '[REDACTED]', '/');
+    foreach ($slips as &$slip) {
+        $slip['id'] = (int) ($slip['id'] ?? 0);
+        $slip['slip_id'] = (int) ($slip['slip_id'] ?? 0);
+        $slip['slip_inbox_id'] = $slip['slip_inbox_id'] !== null ? (int) $slip['slip_inbox_id'] : null;
+        $slip['odoo_slip_id'] = $slip['odoo_slip_id'] !== null ? (int) $slip['odoo_slip_id'] : null;
+        $slip['bdo_id'] = $slip['bdo_id'] !== null ? (int) $slip['bdo_id'] : null;
+        $slip['amount'] = $slip['amount'] !== null ? (float) $slip['amount'] : null;
+        $slip['matched_amount'] = $slip['matched_amount'] !== null ? (float) $slip['matched_amount'] : null;
+        if (!empty($slip['image_path'])) {
+            $slip['image_full_url'] = $baseUrl . '/' . ltrim($slip['image_path'], '/');
+        } else {
+            $slip['image_full_url'] = $slip['image_url'] ?: null;
+        }
+    }
+    unset($slip);
     
     return [
         'slips' => $slips,
@@ -838,7 +902,7 @@ function getSlipsPending($db, $lineAccountId = null) {
     
     // Top pending
     $sql = "SELECT 
-        slip_id, customer_name, amount, payment_date, order_key, bdo_id
+        slip_id, customer_name, amount, payment_date, order_key, bdo_id, image_path, image_url
     FROM odoo_slips_cache
     {$where}
     ORDER BY payment_date DESC
@@ -847,6 +911,16 @@ function getSlipsPending($db, $lineAccountId = null) {
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : '[REDACTED]', '/');
+    foreach ($slips as &$slip) {
+        if (!empty($slip['image_path'])) {
+            $slip['image_full_url'] = $baseUrl . '/' . ltrim($slip['image_path'], '/');
+        } else {
+            $slip['image_full_url'] = $slip['image_url'] ?: null;
+        }
+    }
+    unset($slip);
     
     return [
         'count' => (int) ($summary['count'] ?? 0),
@@ -868,7 +942,7 @@ function getOrderTimelineLocal($db, $input) {
     
     // First find order_key if only order_id provided
     if ($orderKey === '' && $orderId !== '' && tableExists($db, 'odoo_orders_summary')) {
-        $findSql = "SELECT order_key FROM odoo_orders_summary WHERE order_id = ? OR odoo_order_id = ? LIMIT 1";
+        $findSql = "SELECT order_key FROM odoo_orders_summary WHERE order_key = ? OR odoo_order_id = ? LIMIT 1";
         $findStmt = $db->prepare($findSql);
         $findStmt->execute([$orderId, $orderId]);
         $found = $findStmt->fetchColumn();
@@ -919,6 +993,12 @@ function getOrderTimelineLocal($db, $input) {
         $result['source'] = 'webhook_fallback';
     } else {
         $result['source'] = 'local_cache';
+    }
+
+    if (!empty($result['order_info']['order_key']) && empty($result['order_name'])) {
+        $result['order_name'] = $result['order_info']['order_key'];
+    } elseif ($orderKey !== '') {
+        $result['order_name'] = $orderKey;
     }
     
     return $result;

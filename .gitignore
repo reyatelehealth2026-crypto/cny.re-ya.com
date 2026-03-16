@@ -102,3 +102,4 @@ MULTI_ASSIGNEE_FEATURE.md
 database/*.sql
 !database/schema_complete.sql
 !database/install_thai.sql
+!database/migration_odoo_dashboard_cache.sql
