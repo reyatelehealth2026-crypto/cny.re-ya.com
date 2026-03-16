@@ -128,8 +128,110 @@ if ($isApi) {
                 ]
             ], JSON_UNESCAPED_UNICODE);
             
+        } elseif ($mode === 'fill_cny') {
+            // Fill cny_products table from CNY API using cached temp file
+            // This avoids page timeout by processing in small batches via AJAX
+            $fillProgressFile = sys_get_temp_dir() . '/cny_fill_progress.json';
+            
+            $fillOffset = $reset ? 0 : (function() use ($fillProgressFile) {
+                if (file_exists($fillProgressFile)) {
+                    $data = json_decode(file_get_contents($fillProgressFile), true);
+                    return $data['offset'] ?? 0;
+                }
+                return 0;
+            })();
+            
+            // Get all products from CNY API (cached to temp file for 1 hour)
+            $cacheResult = $cnyApi->getAllProductsCached();
+            if (!$cacheResult['success']) {
+                throw new Exception('Cannot fetch from CNY API: ' . ($cacheResult['error'] ?? 'Unknown'));
+            }
+            
+            $allProducts = $cacheResult['data'];
+            $totalAvailable = count($allProducts);
+            
+            if ($fillOffset >= $totalAvailable) {
+                file_put_contents($fillProgressFile, json_encode(['offset' => 0, 'updated' => date('Y-m-d H:i:s')]));
+                echo json_encode([
+                    'success' => true,
+                    'stats' => ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'failed' => 0],
+                    'progress' => ['offset' => 0, 'total' => $totalAvailable, 'complete' => true]
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            
+            $batchProducts = array_slice($allProducts, $fillOffset, $batchSize);
+            unset($allProducts);
+            
+            $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'failed' => 0];
+            
+            // Prepare INSERT ... ON DUPLICATE KEY UPDATE for cny_products
+            $insertStmt = $db->prepare("
+                INSERT INTO cny_products (
+                    sku, barcode, name, name_en, spec_name, description,
+                    properties_other, how_to_use, photo_path, qty, qty_incoming,
+                    enable, product_price
+                ) VALUES (
+                    :sku, :barcode, :name, :name_en, :spec_name, :description,
+                    :properties_other, :how_to_use, :photo_path, :qty, :qty_incoming,
+                    :enable, :product_price
+                )
+                ON DUPLICATE KEY UPDATE
+                    barcode = VALUES(barcode), name = VALUES(name), name_en = VALUES(name_en),
+                    spec_name = VALUES(spec_name), description = VALUES(description),
+                    properties_other = VALUES(properties_other), how_to_use = VALUES(how_to_use),
+                    photo_path = VALUES(photo_path), qty = VALUES(qty),
+                    qty_incoming = VALUES(qty_incoming), enable = VALUES(enable),
+                    product_price = VALUES(product_price), last_updated = NOW()
+            ");
+            
+            foreach ($batchProducts as $product) {
+                try {
+                    $insertStmt->execute([
+                        ':sku'               => $product['sku'] ?? '',
+                        ':barcode'           => $product['barcode'] ?? '',
+                        ':name'              => $product['name'] ?? '',
+                        ':name_en'           => $product['name_en'] ?? '',
+                        ':spec_name'         => $product['spec_name'] ?? '',
+                        ':description'       => $product['description'] ?? '',
+                        ':properties_other'  => $product['properties_other'] ?? '',
+                        ':how_to_use'        => $product['how_to_use'] ?? '',
+                        ':photo_path'        => $product['photo_path'] ?? '',
+                        ':qty'               => $product['qty'] ?? 0,
+                        ':qty_incoming'      => $product['qty_incoming'] ?? 0,
+                        ':enable'            => $product['enable'] ?? '1',
+                        ':product_price'     => json_encode($product['product_price'] ?? [], JSON_UNESCAPED_UNICODE),
+                    ]);
+                    $stats['processed']++;
+                    $rowCount = $insertStmt->rowCount();
+                    // ON DUPLICATE KEY: 1=inserted, 2=updated, 0=unchanged
+                    if ($rowCount === 1) $stats['created']++;
+                    elseif ($rowCount >= 2) $stats['updated']++;
+                    else $stats['skipped']++;
+                } catch (Exception $e) {
+                    $stats['processed']++;
+                    $stats['failed']++;
+                }
+            }
+            
+            $newFillOffset = $fillOffset + count($batchProducts);
+            $isComplete = $newFillOffset >= $totalAvailable;
+            file_put_contents($fillProgressFile, json_encode([
+                'offset' => $isComplete ? 0 : $newFillOffset,
+                'updated' => date('Y-m-d H:i:s')
+            ]));
+            
+            echo json_encode([
+                'success' => true,
+                'stats' => $stats,
+                'progress' => [
+                    'offset' => $fillOffset,
+                    'total' => $totalAvailable,
+                    'complete' => $isComplete
+                ]
+            ], JSON_UNESCAPED_UNICODE);
+            
         } else {
-            // Queue-based sync
             require_once __DIR__ . '/classes/SyncWorker.php';
             $worker = new SyncWorker($db, $cnyApi);
             

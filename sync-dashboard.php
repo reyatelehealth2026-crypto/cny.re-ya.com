@@ -222,12 +222,9 @@ $pageTitle = 'CNY Sync Dashboard';
                     <h2 class="text-lg font-semibold">
                         <i class="fas fa-cloud-download-alt mr-2"></i>Method 2: Sync from API
                     </h2>
-                    <p class="text-sm text-white/80 mt-1">ดึงข้อมูลตรงจาก CNY API - ต้องใช้ memory สูง</p>
+                    <p class="text-sm text-white/80 mt-1">ดึงข้อมูลจาก CNY API → cny_products ทีละ batch (ไม่ timeout)</p>
                 </div>
                 <div class="p-6">
-                    <p class="text-gray-600 mb-4">
-                        ดึงข้อมูลจาก CNY Pharmacy API โดยตรง
-                    </p>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">เลือกตารางปลายทาง:</label>
                         <div class="space-y-2">
@@ -242,10 +239,32 @@ $pageTitle = 'CNY Sync Dashboard';
                         </div>
                     </div>
                     <div class="flex gap-3">
-                        <button onclick="syncFromAPI()" 
+                        <button id="syncFromAPIBtn" onclick="syncFromAPIAjax(false)"
                            class="flex-1 text-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
                             <i class="fas fa-sync mr-2"></i>Sync from API
                         </button>
+                        <button onclick="syncFromAPIAjax(true)"
+                           class="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                           title="Reset และ Sync ใหม่ตั้งแต่ต้น">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </div>
+                    <!-- API Fill Status Panel -->
+                    <div id="apiFillStatusPanel" class="hidden mt-4 bg-gray-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700"><i class="fas fa-chart-line mr-1"></i>สถานะ</span>
+                            <span id="apiFillBadge" class="px-2 py-1 bg-blue-500 text-white text-xs rounded-full">กำลังทำงาน...</span>
+                        </div>
+                        <div class="mb-2">
+                            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span id="apiFillProgressText">0 / 0</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="apiFillProgressBar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div id="apiFillLog" class="log-container bg-gray-900 text-gray-300 p-3 rounded text-xs max-h-32 overflow-y-auto"></div>
                     </div>
                 </div>
             </div>
@@ -727,8 +746,11 @@ $pageTitle = 'CNY Sync Dashboard';
         }
     }
     
-    // Sync from API with table selection
-    function syncFromAPI() {
+    // ===================== METHOD 2: SYNC FROM API (AJAX Batch) =====================
+    let apiFillRunning = false;
+    let apiFillStats = { batches: 0, created: 0, updated: 0, failed: 0 };
+    
+    async function syncFromAPIAjax(reset = false) {
         const toCny = document.getElementById('apiToCny').checked;
         const toBusiness = document.getElementById('apiToBusiness').checked;
         
@@ -737,13 +759,114 @@ $pageTitle = 'CNY Sync Dashboard';
             return;
         }
         
-        let targets = [];
-        if (toCny) targets.push('cny_products');
-        if (toBusiness) targets.push('business_items');
+        // If only business_items (no cny cache step), use legacy navigate
+        if (!toCny && toBusiness) {
+            window.location.href = 'admin/setup-cny.php?key=cny2024&step=sync&targets=business_items';
+            return;
+        }
         
-        const url = `admin/setup-cny.php?key=cny2024&step=sync&targets=${targets.join(',')}`;
-        window.location.href = url;
+        // AJAX batch mode for filling cny_products
+        apiFillRunning = true;
+        apiFillStats = { batches: 0, created: 0, updated: 0, failed: 0 };
+        
+        const btn = document.getElementById('syncFromAPIBtn');
+        btn.disabled = true;
+        
+        const panel = document.getElementById('apiFillStatusPanel');
+        const badge = document.getElementById('apiFillBadge');
+        const log   = document.getElementById('apiFillLog');
+        
+        panel.classList.remove('hidden');
+        badge.textContent = 'กำลังทำงาน...';
+        badge.className = 'px-2 py-1 bg-blue-500 text-white text-xs rounded-full';
+        log.innerHTML = '';
+        document.getElementById('apiFillProgressBar').style.width = '0%';
+        document.getElementById('apiFillProgressText').textContent = '0 / 0';
+        
+        addApiFillLog(reset ? '🔄 เริ่ม Sync ใหม่จาก CNY API...' : '▶️ Sync จาก CNY API...', 'info');
+        addApiFillLog('⏳ กำลังดาวน์โหลดข้อมูลจาก API (อาจใช้เวลา 30-60 วินาทีสำหรับ batch แรก)...', 'warning');
+        
+        runApiFillBatch(reset);
     }
+    
+    async function runApiFillBatch(reset = false) {
+        if (!apiFillRunning) return;
+        
+        try {
+            let url = `sync-worker-run.php?api=1&mode=fill_cny&batch_size=100`;
+            if (reset && apiFillStats.batches === 0) url += '&reset=1';
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success) {
+                apiFillStats.batches++;
+                apiFillStats.created += data.stats.created || 0;
+                apiFillStats.updated += data.stats.updated || 0;
+                apiFillStats.failed  += data.stats.failed  || 0;
+                
+                if (data.progress) {
+                    const current = data.progress.offset + (data.stats.processed || 0);
+                    const total   = data.progress.total || 0;
+                    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+                    document.getElementById('apiFillProgressBar').style.width = percent + '%';
+                    document.getElementById('apiFillProgressText').textContent = `${current.toLocaleString()} / ${total.toLocaleString()}`;
+                }
+                
+                const processed = data.stats.processed || 0;
+                const isComplete = data.progress && data.progress.complete;
+                
+                if (processed > 0) {
+                    addApiFillLog(`✓ Batch #${apiFillStats.batches}: ${processed} รายการ (C:${data.stats.created} U:${data.stats.updated} F:${data.stats.failed})`, 'success');
+                }
+                
+                if (isComplete) {
+                    addApiFillLog(`🎉 โหลดข้อมูล CNY สำเร็จ! ${(data.progress.total || 0).toLocaleString()} รายการเข้า cny_products แล้ว`, 'success');
+                    const badge = document.getElementById('apiFillBadge');
+                    badge.textContent = 'เสร็จสมบูรณ์';
+                    badge.className = 'px-2 py-1 bg-green-500 text-white text-xs rounded-full';
+                    document.getElementById('syncFromAPIBtn').disabled = false;
+                    apiFillRunning = false;
+                    
+                    // If business_items also checked, now run Sync to Business Items
+                    if (document.getElementById('apiToBusiness').checked) {
+                        addApiFillLog('▶️ เริ่ม Sync ไปยัง business_items...', 'info');
+                        setTimeout(() => startContinuousSync(true), 500);
+                    } else {
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                    return;
+                }
+                
+                if (apiFillRunning) setTimeout(() => runApiFillBatch(false), 300);
+                
+            } else {
+                addApiFillLog(`❌ Error: ${data.error || 'Unknown error'}`, 'error');
+                const badge = document.getElementById('apiFillBadge');
+                badge.textContent = 'Error';
+                badge.className = 'px-2 py-1 bg-red-500 text-white text-xs rounded-full';
+                document.getElementById('syncFromAPIBtn').disabled = false;
+                apiFillRunning = false;
+            }
+        } catch (error) {
+            addApiFillLog(`❌ Network error: ${error.message}`, 'error');
+            document.getElementById('apiFillBadge').textContent = 'Error';
+            document.getElementById('apiFillBadge').className = 'px-2 py-1 bg-red-500 text-white text-xs rounded-full';
+            document.getElementById('syncFromAPIBtn').disabled = false;
+            apiFillRunning = false;
+        }
+    }
+    
+    function addApiFillLog(message, type = 'info') {
+        const logDiv = document.getElementById('apiFillLog');
+        const time = new Date().toLocaleTimeString('th-TH');
+        const colorClass = { success: 'log-success', error: 'log-error', warning: 'log-warning', info: 'log-info' }[type] || 'log-info';
+        logDiv.innerHTML += `<div class="${colorClass}">[${time}] ${message}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    // Legacy — kept for backward compatibility
+    function syncFromAPI() { syncFromAPIAjax(false); }
     </script>
 </body>
 </html>
