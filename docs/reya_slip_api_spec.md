@@ -1,11 +1,12 @@
 # Re-Ya ↔ Odoo API Specification — Slip Payment + BDO Integration
 
-**Version:** 2.0 (March 2026)
+**Version:** 2.1 (March 2026)
 **Base URL:** `https://stg-erp.cnyrxapp.com` (Staging) / `https://cny.cnyrxapp.com` (Production)
 **Auth:** Header `X-Api-Key: <api_key>`
 **Format:** JSON-RPC (`Content-Type: application/json`)
 
 > **Legacy Reference:** บางระบบยังอ้างอิง `https://erp.cnyrxapp.com` อยู่ชั่วคราว
+> **Code Default (Dashboard/Proxy):** ถ้าไม่ได้ตั้งค่า env เพิ่ม ระบบฝั่ง Re-Ya จะ default ไปที่ `https://erp.cnyrxapp.com`
 > **Related Doc:** [reya_bdo_matching_workflow.md](reya_bdo_matching_workflow.md) — Workflow ละเอียด + ทุก Case + UI Mockups + Dashboard/Manual Matching Endpoints ที่พร้อมทดสอบบน staging
 > **Staging-ready Endpoints:** `/reya/bdo/list`, `/reya/bdo/detail`, `/reya/bdo/statement-pdf/{id}`, `/reya/slip/match-bdo`, `/reya/slip/unmatch`
 
@@ -544,6 +545,147 @@ if (slip.bdo_id && bdo.bdo_id === slip.bdo_id) {
 
 ---
 
+## 11. Re-Ya Local Ingest API (Internal) — `POST /api/odoo-slip-upload.php`
+
+> ส่วนนี้คือ **endpoint ฝั่ง Re-Ya ภายในระบบ** สำหรับรับรูปสลิปเข้า local DB ก่อนส่งต่อ/จับคู่กับ Odoo  
+> **ไม่ใช่ JSON-RPC** และไม่ได้วิ่งไป Odoo โดยตรง
+
+### 11.1 จุดประสงค์
+
+- รับสลิปจาก LINE event หรือจาก admin upload flow
+- บันทึกรูปลง `uploads/slips/`
+- บันทึกข้อมูลลง `odoo_slip_uploads` โดยตั้งสถานะเริ่มต้นเป็น `pending`
+- ถ้ามี `bdo_id` จะอัปเดต `odoo_bdo_orders.payment_status` จาก `pending` → `slip_uploaded` (ถ้ามี table นี้)
+
+### 11.2 Request Contract (JSON body)
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| `line_user_id` | string | **YES** | ใช้หา user + ผูก customer |
+| `message_id` | string | conditional | ใช้โหลดรูปจาก LINE Content API |
+| `image_base64` | string | conditional | ส่งรูปโดยตรง (Base64) |
+| `image_url` | string | conditional | โหลดรูปจาก URL (admin flow) |
+| `line_account_id` | int | optional | ถ้าไม่ส่ง ระบบพยายามหาเองจาก `users.line_user_id` |
+| `bdo_id` | int | optional | ผูกกับ BDO |
+| `invoice_id` | int | optional | ผูกกับ Invoice |
+| `order_id` | int | optional | ผูกกับ Sale Order |
+| `amount` | number | optional | ยอดโอน |
+| `transfer_date` | string | optional | `YYYY-MM-DD` |
+| `uploaded_by` | string | optional | ระบุผู้บันทึก (admin/user) |
+| `message_id_ref` | string/int | optional | อ้างอิง ID ฝั่ง message table |
+| `skip_line_notify` | bool | optional | ฟิลด์สำรองสำหรับ admin flow (endpoint นี้ยังไม่ได้ใช้ค่านี้ต่อ) |
+
+**Validation สำคัญ:** ต้องมีอย่างน้อย 1 ใน `message_id` หรือ `image_base64` หรือ `image_url`
+
+### 11.3 ลำดับการดึงรูป (ตามโค้ดจริง)
+
+1. ถ้ามี `image_url` → ลองโหลดจาก URL ก่อน  
+2. ถ้าโหลด URL ไม่ได้ และมี `message_id` → fallback ไปโหลดจาก LINE Content API  
+3. ถ้ามี `image_base64` → decode แล้วใช้รูปนั้น  
+4. ถ้าเหลือแค่ `message_id` → โหลดจาก LINE Content API
+
+**เงื่อนไข reject:** ถ้ารูปได้มาน้อยกว่า ~100 bytes จะถือว่า invalid
+
+### 11.4 SlipMate Verification Fields (optional)
+
+รองรับการบันทึกผลตรวจสลิปจาก SlipMate ตอน ingest:
+
+| Field | Type | Meaning |
+|------|------|---------|
+| `slip_verified` | bool | `true/false` ว่าตรวจผ่านหรือไม่ |
+| `slip_verify_ref` | string | transaction reference จาก SlipMate |
+| `slip_verify_amount` | number | ยอดที่ SlipMate อ่านได้ |
+| `slip_verify_data` | object | payload รายละเอียดการตรวจ |
+
+ระบบจะตั้ง `slip_verified_at` อัตโนมัติเมื่อมี `slip_verified`
+
+### 11.5 Backward Compatibility (สำคัญ)
+
+โค้ด ingest รองรับทั้ง 2 schema:
+
+- **Schema ใหม่**: มีคอลัมน์ `slip_verified*`
+- **Schema เก่า**: ยังไม่มีคอลัมน์ดังกล่าว
+
+ระบบจะเช็คคอลัมน์ก่อน insert ทุกครั้ง และ fallback ให้อัตโนมัติ  
+ดังนั้น deploy โค้ดก่อน migration ได้ โดยไม่ทำให้ insert ล้ม
+
+### 11.6 Migration Runbook
+
+รันครั้งเดียวบน server:
+
+```bash
+php install/migration_slip_verification.php
+```
+
+Migration นี้จะเพิ่ม:
+- `slip_verified`
+- `slip_verify_ref`
+- `slip_verify_amount`
+- `slip_verify_data`
+- `slip_verified_at`
+- index `idx_slip_verified`
+
+### 11.7 CORS / Preflight
+
+Endpoint นี้รองรับ:
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type`
+- `OPTIONS` จะตอบ `200` ทันที
+
+> การใช้งานจริงให้เรียก `POST` เท่านั้น (โค้ดฝั่ง ingest อ่าน JSON body)
+
+### 11.8 Example (Internal Re-Ya call)
+
+```bash
+curl -X POST https://cny.re-ya.com/api/odoo-slip-upload.php \
+  -H "Content-Type: application/json" \
+  -d '{
+    "line_user_id": "U1234567890abcdef",
+    "image_url": "https://example.com/slips/slip-001.jpg",
+    "line_account_id": 1,
+    "bdo_id": 35576,
+    "amount": 7929.00,
+    "transfer_date": "2026-03-16",
+    "slip_verified": true,
+    "slip_verify_ref": "TRX-99887766",
+    "slip_verify_amount": 7929.00,
+    "slip_verify_data": {
+      "bank_code": "KBANK",
+      "payer_name": "TEST CUSTOMER"
+    }
+  }'
+```
+
+### 11.9 Response Shape
+
+```json
+{
+  "success": true,
+  "message": "บันทึกสลิปเรียบร้อยแล้ว",
+  "data": {
+    "id": 123,
+    "image_path": "uploads/slips/slip_U123...jpg",
+    "status": "pending",
+    "line_user_id": "U1234567890abcdef",
+    "amount": 7929,
+    "transfer_date": "2026-03-16"
+  }
+}
+```
+
+### 11.10 Troubleshooting
+
+| Symptom | Likely Cause | Action |
+|--------|--------------|--------|
+| `Missing line_user_id` | ไม่ส่ง `line_user_id` | ใส่ `line_user_id` ทุกครั้ง |
+| `Missing message_id, image_base64, or image_url` | ไม่มี source รูป | ส่งอย่างน้อย 1 source |
+| `User not found` | หา `line_account_id` จาก users ไม่เจอ | ส่ง `line_account_id` ตรงๆ หรือเช็คตาราง `users` |
+| `Failed to download image from URL and LINE fallback` | URL ใช้ไม่ได้ + fallback ไม่ได้ | ตรวจ URL/สิทธิ์ไฟล์ หรือส่ง `image_base64` |
+| insert ล้มเพราะคอลัมน์ verify | schema เก่ายังไม่ migration | รัน `php install/migration_slip_verification.php` |
+
+---
+
 *Document generated: 2026-03-06*
-*Updated: 2026-03-06 — Added webhook payload, Re-Ya action items, dashboard analysis*
+*Updated: 2026-03-16 — Added internal slip ingest API contract, SlipMate verification fields, migration + troubleshooting runbook*
 *Contact: consdevs | SOMZAA*
