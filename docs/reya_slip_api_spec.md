@@ -1,11 +1,11 @@
 # Re-Ya ↔ Odoo API Specification — Slip Payment + BDO Integration
 
-**Version:** 2.0 (March 2026)
-**Base URL:** `https://stg-erp.cnyrxapp.com` (Staging) / `https://cny.cnyrxapp.com` (Production)
+**Version:** 2.1 (March 2026)
+**Base URL:** `https://stg-erp.cnyrxapp.com` (Staging) / `https://erp.cnyrxapp.com` (Production)
 **Auth:** Header `X-Api-Key: <api_key>`
 **Format:** JSON-RPC (`Content-Type: application/json`)
 
-> **Legacy Reference:** บางระบบยังอ้างอิง `https://erp.cnyrxapp.com` อยู่ชั่วคราว
+> **หมายเหตุ:** เอกสารนี้อัปเดตให้ตรงกับ flow ที่ใช้งานจริงใน `odoo-dashboard.js` และ API proxy ฝั่ง Re-Ya
 > **Related Doc:** [reya_bdo_matching_workflow.md](reya_bdo_matching_workflow.md) — Workflow ละเอียด + ทุก Case + UI Mockups + Dashboard/Manual Matching Endpoints ที่พร้อมทดสอบบน staging
 > **Staging-ready Endpoints:** `/reya/bdo/list`, `/reya/bdo/detail`, `/reya/bdo/statement-pdf/{id}`, `/reya/slip/match-bdo`, `/reya/slip/unmatch`
 
@@ -485,39 +485,42 @@ Slip API response ตอนนี้ return fields ใหม่:
 
 ---
 
-## 9. Re-Ya Dashboard: Current Architecture
+## 9. Re-Ya Dashboard Integration (As-Built)
 
-จากการวิเคราะห์ `odoo-dashboard.js`:
+อ้างอิงจากโค้ดปัจจุบันใน `odoo-dashboard.js` + `api/odoo-webhooks-dashboard.php` + `api/slip-match-orders.php`
 
-### Current Data Flow
-```
-Re-Ya Dashboard (JS) → whApiCall({action:'odoo_slips'}) → PHP Backend → Odoo
-                      → whApiCall({action:'odoo_bdos'})  → PHP Backend → Odoo
-```
+### 9.1 Data Sources ที่ใช้จริง
 
-### Current Slip Matching (Client-side)
-- `matchSlipsToItems()` → 2-pass: exact → 5% tolerance
-- Match by: `amount` + `transfer_date` proximity (≤180 days)
-- **ยังไม่ใช้ `bdo_id` ในการ match** → ควรเพิ่ม
+| หน้าจอ | Endpoint ภายใน Re-Ya | Purpose |
+|---|---|---|
+| Slip list | `GET api/slips-list.php` | โหลดสลิปรอจับคู่/จับคู่แล้ว |
+| Matching dashboard | `POST api/odoo-webhooks-dashboard.php` (`action=odoo_bdos`) | โหลด BDO ฝั่ง dashboard |
+| Confirm/Batch match | `POST api/odoo-webhooks-dashboard.php` (`action=slip_match_bdo`) | ส่งต่อไป `/reya/slip/match-bdo` |
+| Unmatch | `POST api/odoo-webhooks-dashboard.php` (`action=slip_unmatch`) | ส่งต่อไป `/reya/slip/unmatch` |
+| Multi-order search/match | `POST api/slip-match-orders.php` (`action=search_orders|match|unmatch|match_bdo`) | flow จับคู่ invoice/order/BDO แบบ manual |
+| Statement PDF | `GET api/odoo-dashboard-api.php?action=statement_pdf&bdo_id=...` | stream PDF จาก Odoo |
 
-### แนะนำ: ใช้ `bdo_id` ในการ match
-ถ้า slip มี `bdo_id` → match กับ BDO ตรง ไม่ต้อง fuzzy match
-```javascript
-// Instead of fuzzy matching:
-if (slip.bdo_id && bdo.bdo_id === slip.bdo_id) {
-    // Direct match — no need for amount/date comparison
-    matchMap.set(bdoIndex, slip);
-}
-```
+### 9.2 Matching Rules ใน UI ปัจจุบัน
 
-### Fields เพิ่มจาก Odoo Slip API
-| Field | Type | ต้องแสดงใน Dashboard |
-|-------|------|---------------------|
-| `bdo_id` | int | ใช้ match กับ BDO |
-| `bdo_name` | string | แสดงใน slip detail |
-| `delivery_type` | string | badge: "สายส่ง" / "ขนส่งเอกชน" |
-| `match_confidence` | string | badge: status ของ matching |
-| `bdo_amount` | number | ยอดตาม BDO |
+ฟังก์ชัน `computeSmartMatches()` ใช้ลำดับดังนี้:
+1. `bdo_id` ตรง + ยอดต่างไม่เกิน ±1 บาท (`exact_bdo_id`)
+2. ยอดตรงกัน ±1 บาท (`exact_amount`)
+3. ยอดต่างไม่เกิน 5% และลูกค้าเดียวกัน หรือไม่เกิน 2% (`fuzzy`)
+
+หมายเหตุ: กลุ่ม `exact_bdo_id` ถูก auto-confirm โดย `autoConfirmExactMatches()`
+
+### 9.3 Response Contract ที่ต้องระวัง
+
+1. Odoo endpoint ใช้ JSON-RPC (`result.success`, `result.data`)
+2. Proxy endpoint `api/odoo-webhooks-dashboard.php` ห่อผลลัพธ์อีกชั้นเป็น `{success, data}`
+3. บางกรณี top-level เป็น `success=true` แต่มี `data.error` (เช่น Odoo unreachable) จึงต้องเช็คทั้งสองชั้นเสมอ
+
+### 9.4 Operational Constraints
+
+1. `/reya/slip/match-bdo` ต้องใช้ `slip_inbox_id`; ถ้ายังไม่มี ระบบจะ pre-upload slip เพื่อสร้างก่อน
+2. `search_orders` ใน `api/slip-match-orders.php` มี fallback: sync tables → Odoo API → webhook log
+3. ถ้า `odoo_bdo_orders` ไม่มี ระบบยังทำงานได้ แต่สถานะ `payment_status` บางส่วนจะไม่ update
+4. Production base URL ที่ใช้งานจริงคือ `https://erp.cnyrxapp.com`
 
 ---
 
@@ -545,5 +548,5 @@ if (slip.bdo_id && bdo.bdo_id === slip.bdo_id) {
 ---
 
 *Document generated: 2026-03-06*
-*Updated: 2026-03-06 — Added webhook payload, Re-Ya action items, dashboard analysis*
+*Updated: 2026-03-13 — Synced dashboard integration flow and production host*
 *Contact: consdevs | SOMZAA*
