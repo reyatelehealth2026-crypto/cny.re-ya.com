@@ -110,9 +110,32 @@ define(
 );
 
 // Odoo API Settings
-define('ODOO_API_TIMEOUT', 30); // seconds
+$odooApiTimeoutEnv = getenv('ODOO_API_TIMEOUT');
+$odooApiConnectTimeoutEnv = getenv('ODOO_API_CONNECT_TIMEOUT');
+$odooApiRetryLimitEnv = getenv('ODOO_API_RETRY_LIMIT');
+$odooApiDebugEnv = getenv('ODOO_API_DEBUG_LOG');
+$odooWebhookDebugEnv = getenv('ODOO_WEBHOOK_DEBUG_LOG');
+$odooWebhookSignatureDebugEnv = getenv('ODOO_WEBHOOK_SIGNATURE_DEBUG');
+$odooDashboardStaleEnv = getenv('ODOO_DASHBOARD_STALE_TTL');
+
+define('ODOO_API_TIMEOUT', $odooApiTimeoutEnv !== false ? max(5, (int) $odooApiTimeoutEnv) : 15); // seconds
+define('ODOO_API_CONNECT_TIMEOUT', $odooApiConnectTimeoutEnv !== false ? max(1, (int) $odooApiConnectTimeoutEnv) : 3); // seconds
+define('ODOO_API_RETRY_LIMIT', $odooApiRetryLimitEnv !== false ? max(0, (int) $odooApiRetryLimitEnv) : 1); // transient retries
+define(
+    'ODOO_API_DEBUG_LOG',
+    $odooApiDebugEnv !== false && in_array(strtolower((string) $odooApiDebugEnv), ['1', 'true', 'yes', 'on'], true)
+);
+define(
+    'ODOO_WEBHOOK_DEBUG_LOG',
+    $odooWebhookDebugEnv !== false && in_array(strtolower((string) $odooWebhookDebugEnv), ['1', 'true', 'yes', 'on'], true)
+);
+define(
+    'ODOO_WEBHOOK_SIGNATURE_DEBUG',
+    $odooWebhookSignatureDebugEnv !== false && in_array(strtolower((string) $odooWebhookSignatureDebugEnv), ['1', 'true', 'yes', 'on'], true)
+);
 define('ODOO_API_RATE_LIMIT', 60); // requests per minute
 define('ODOO_WEBHOOK_TIMEOUT', 5); // seconds - must respond within this time
+define('ODOO_DASHBOARD_STALE_TTL', $odooDashboardStaleEnv !== false ? max(30, (int) $odooDashboardStaleEnv) : 300); // seconds
 
 // Odoo Product API credentials (for /ineco_gc endpoints)
 $defaultCnyOdooApiUser = ODOO_ENVIRONMENT === 'production' ? 'webapi_user2@cny.co' : '';

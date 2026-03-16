@@ -51,6 +51,8 @@ try {
         'stats' => 60,
         'order_grouped_today' => 60,
         'customer_list' => 60,
+        'invoice_list' => 60,
+        'order_list' => 60,
         'notification_log' => 60,
         'salesperson_list' => 300,
         'overview_today' => 45,
@@ -61,142 +63,169 @@ try {
         'odoo_slips' => 30,
         'odoo_bdo_list_api' => 30,
         'customer_detail' => 45,
+        'customer_360' => 30,
         'pending_bdo_orders' => 60,
         'activity_log_list' => 30,
+        'webhook_stats_mini' => 30,
+        'dlq_stats' => 30,
     ];
     $cacheKey = null;
+    $cacheTtl = null;
     if (isset($cacheTtls[$action])) {
+        $cacheTtl = (int) $cacheTtls[$action];
         $cacheKey = dashboardApiBuildCacheKey($action, $input);
-        $cachedResult = dashboardApiCacheGet($cacheKey, (int) $cacheTtls[$action]);
+        $cachedResult = dashboardApiCacheGet($cacheKey, $cacheTtl);
         if ($cachedResult !== null) {
-            echo json_encode(['success' => true, 'data' => $cachedResult], JSON_UNESCAPED_UNICODE);
+            echo json_encode([
+                'success' => true,
+                'data' => $cachedResult,
+                'meta' => ['cache' => 'hit']
+            ], JSON_UNESCAPED_UNICODE);
             exit;
         }
     }
 
-    switch ($action) {
-        case 'health':
-            $result = [
-                'status' => 'ok',
-                'service' => 'odoo-webhooks-dashboard',
-                'timestamp' => date('c')
-            ];
-            break;
-        case 'stats':
-            $result = getStats($db);
-            break;
-        case 'list':
-            $result = getWebhookList($db, $input);
-            break;
-        case 'detail':
-            $result = getWebhookDetail($db, $input);
-            break;
-        case 'notification_log':
-            $result = getNotificationLog($db, $input);
-            break;
-        case 'customer_list':
-            $result = getCustomerList($db, $input);
-            break;
-        case 'order_grouped_today':
-            $result = getOrderGroupedToday($db, $input);
-            break;
-        case 'salesperson_list':
-            $result = getSalespersonList($db);
-            break;
-        case 'invoice_list':
-            $result = getInvoiceList($db, $input);
-            break;
-        case 'order_list':
-            $result = getOrderList($db, $input);
-            break;
-        case 'customer_detail':
-            $result = getCustomerDetail($db, $input);
-            break;
-        case 'daily_summary_preview':
-            $result = getDailySummaryPreview($db);
-            break;
-        case 'send_daily_summary':
-            $result = sendDailySummary($db, $input['user_ids'] ?? []);
-            break;
-        case 'order_timeline':
-            $result = getOrderTimeline($db, $input);
-            break;
-        case 'odoo_orders':
-            $result = getOdooOrders($db, $input);
-            break;
-        case 'odoo_invoices':
-            $result = getOdooInvoices($db, $input);
-            break;
-        case 'odoo_slips':
-            $result = getOdooSlips($db, $input);
-            break;
-        case 'customer_360':
-            $result = getCustomer360($db, $input);
-            break;
-        case 'overview_today':
-            $result = getOverviewToday($db);
-            break;
-        case 'pending_bdo_orders':
-            $result = getPendingBdoOrdersApi($db, $input);
-            break;
-        case 'activity_log_list':
-            $result = activityLogList($db, $input);
-            break;
-        case 'order_status_override':
-            $result = orderStatusOverride($db, $input);
-            break;
-        case 'order_note_add':
-            $result = orderNoteAdd($db, $input);
-            break;
-        case 'order_notes_list':
-            $result = orderNotesList($db, $input);
-            break;
-        case 'customer_lookup':
-            $result = getCustomerLookup($db, $input);
-            break;
-        case 'invoice_lookup':
-            $result = getInvoiceLookup($db, $input);
-            break;
-        case 'webhook_stats_mini':
-            $result = getWebhookStatsMini($db, $input);
-            break;
-        case 'dlq_list':
-            $result = getDlqList($db, $input);
-            break;
-        case 'dlq_retry':
-            $result = retryDlqItem($db, $input);
-            break;
-        case 'dlq_stats':
-            $result = getDlqStats($db);
-            break;
-        case 'odoo_bdo_list_api':
-            $result = getBdoListLive($db, $input);
-            break;
-        case 'bdo_detail':
-        case 'bdo_detail_live':
-        case 'odoo_bdo_detail_api':
-            $result = getBdoDetailLive($db, $input);
-            break;
-        case 'slip_match_bdo':
-        case 'odoo_slip_match_api':
-            $result = slipMatchBdo($db, $input);
-            break;
-        case 'slip_unmatch':
-        case 'odoo_slip_unmatch_api':
-            $result = slipUnmatch($db, $input);
-            break;
-        case 'customer_full_detail':
-            $result = getCustomerFullDetail($db, $input);
-            break;
-        case 'overview_combined':
-            $result = getOverviewCombined($db, $input);
-            break;
-        case 'statement_pdf':
-        case 'odoo_bdo_statement_pdf':
-            streamStatementPdf($db, $input);
-            exit; // PDF streams directly, no JSON wrapper
-        default:
-            throw new Exception('Unknown action: ' . $action);
+    try {
+        switch ($action) {
+            case 'health':
+                $result = [
+                    'status' => 'ok',
+                    'service' => 'odoo-webhooks-dashboard',
+                    'timestamp' => date('c')
+                ];
+                break;
+            case 'stats':
+                $result = getStats($db);
+                break;
+            case 'list':
+                $result = getWebhookList($db, $input);
+                break;
+            case 'detail':
+                $result = getWebhookDetail($db, $input);
+                break;
+            case 'notification_log':
+                $result = getNotificationLog($db, $input);
+                break;
+            case 'customer_list':
+                $result = getCustomerList($db, $input);
+                break;
+            case 'order_grouped_today':
+                $result = getOrderGroupedToday($db, $input);
+                break;
+            case 'salesperson_list':
+                $result = getSalespersonList($db);
+                break;
+            case 'invoice_list':
+                $result = getInvoiceList($db, $input);
+                break;
+            case 'order_list':
+                $result = getOrderList($db, $input);
+                break;
+            case 'customer_detail':
+                $result = getCustomerDetail($db, $input);
+                break;
+            case 'daily_summary_preview':
+                $result = getDailySummaryPreview($db);
+                break;
+            case 'send_daily_summary':
+                $result = sendDailySummary($db, $input['user_ids'] ?? []);
+                break;
+            case 'order_timeline':
+                $result = getOrderTimeline($db, $input);
+                break;
+            case 'odoo_orders':
+                $result = getOdooOrders($db, $input);
+                break;
+            case 'odoo_invoices':
+                $result = getOdooInvoices($db, $input);
+                break;
+            case 'odoo_slips':
+                $result = getOdooSlips($db, $input);
+                break;
+            case 'customer_360':
+                $result = getCustomer360($db, $input);
+                break;
+            case 'overview_today':
+                $result = getOverviewToday($db);
+                break;
+            case 'pending_bdo_orders':
+                $result = getPendingBdoOrdersApi($db, $input);
+                break;
+            case 'activity_log_list':
+                $result = activityLogList($db, $input);
+                break;
+            case 'order_status_override':
+                $result = orderStatusOverride($db, $input);
+                break;
+            case 'order_note_add':
+                $result = orderNoteAdd($db, $input);
+                break;
+            case 'order_notes_list':
+                $result = orderNotesList($db, $input);
+                break;
+            case 'customer_lookup':
+                $result = getCustomerLookup($db, $input);
+                break;
+            case 'invoice_lookup':
+                $result = getInvoiceLookup($db, $input);
+                break;
+            case 'webhook_stats_mini':
+                $result = getWebhookStatsMini($db, $input);
+                break;
+            case 'dlq_list':
+                $result = getDlqList($db, $input);
+                break;
+            case 'dlq_retry':
+                $result = retryDlqItem($db, $input);
+                break;
+            case 'dlq_stats':
+                $result = getDlqStats($db);
+                break;
+            case 'odoo_bdo_list_api':
+                $result = getBdoListLive($db, $input);
+                break;
+            case 'bdo_detail':
+            case 'bdo_detail_live':
+            case 'odoo_bdo_detail_api':
+                $result = getBdoDetailLive($db, $input);
+                break;
+            case 'slip_match_bdo':
+            case 'odoo_slip_match_api':
+                $result = slipMatchBdo($db, $input);
+                break;
+            case 'slip_unmatch':
+            case 'odoo_slip_unmatch_api':
+                $result = slipUnmatch($db, $input);
+                break;
+            case 'customer_full_detail':
+                $result = getCustomerFullDetail($db, $input);
+                break;
+            case 'overview_combined':
+                $result = getOverviewCombined($db, $input);
+                break;
+            case 'statement_pdf':
+            case 'odoo_bdo_statement_pdf':
+                streamStatementPdf($db, $input);
+                exit; // PDF streams directly, no JSON wrapper
+            default:
+                throw new Exception('Unknown action: ' . $action);
+        }
+    } catch (Exception $actionException) {
+        if ($cacheKey !== null) {
+            $staleResult = dashboardApiCacheGetStale($cacheKey, defined('ODOO_DASHBOARD_STALE_TTL') ? (int) ODOO_DASHBOARD_STALE_TTL : 300);
+            if ($staleResult !== null) {
+                echo json_encode([
+                    'success' => true,
+                    'data' => $staleResult,
+                    'meta' => [
+                        'cache' => 'stale',
+                        'warning' => $actionException->getMessage()
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+        }
+        throw $actionException;
     }
 
     if ($cacheKey !== null && dashboardApiShouldCache($action, $input, $result)) {
@@ -2778,7 +2807,7 @@ function dashboardApiCachePath($key)
     return dashboardApiCacheDir() . DIRECTORY_SEPARATOR . preg_replace('/[^a-zA-Z0-9_-]/', '_', $key) . '.json';
 }
 
-function dashboardApiCacheGet($key, $ttl)
+function dashboardApiCacheRead($key)
 {
     $path = dashboardApiCachePath($key);
     if (!is_file($path)) {
@@ -2796,8 +2825,31 @@ function dashboardApiCacheGet($key, $ttl)
         return null;
     }
 
+    return $payload;
+}
+
+function dashboardApiCacheGet($key, $ttl)
+{
+    $payload = dashboardApiCacheRead($key);
+    if ($payload === null) {
+        return null;
+    }
+
     if ((time() - (int) $payload['t']) > $ttl) {
-        @unlink($path);
+        return null;
+    }
+
+    return $payload['d'] ?? null;
+}
+
+function dashboardApiCacheGetStale($key, $maxAge)
+{
+    $payload = dashboardApiCacheRead($key);
+    if ($payload === null) {
+        return null;
+    }
+
+    if ((time() - (int) $payload['t']) > $maxAge) {
         return null;
     }
 

@@ -140,9 +140,10 @@ try {
     $notify = $data['notify'] ?? ['customer' => true, 'salesperson' => false];
     $messageTemplate = $data['message_template'] ?? [];
 
-    // Debug: log what we're processing
-    error_log("Webhook processing: event=$event, customer_id=" . ($eventData['customer']['id'] ?? 'null') . 
-              ", line_user_id=" . ($eventData['customer']['line_user_id'] ?? 'null'));
+    if (defined('ODOO_WEBHOOK_DEBUG_LOG') && ODOO_WEBHOOK_DEBUG_LOG) {
+        error_log("Webhook processing: event=$event, customer_id=" . ($eventData['customer']['id'] ?? 'null') .
+            ", line_user_id=" . ($eventData['customer']['line_user_id'] ?? 'null'));
+    }
 
     // Process webhook
     $result = $handler->processWebhook($deliveryId, $event, $eventData, $notify, $messageTemplate);

@@ -68,8 +68,22 @@ const _original = {
     loadTodayOverview: typeof loadTodayOverview === 'function' ? loadTodayOverview : null,
     loadCustomers: typeof loadCustomers === 'function' ? loadCustomers : null,
     loadSlips: typeof loadSlips === 'function' ? loadSlips : null,
-    loadWebhookStats: typeof loadWebhookStats === 'function' ? loadWebhookStats : null
+    loadWebhookStats: typeof loadWebhookStats === 'function' ? loadWebhookStats : null,
+    showCustomerDetail: typeof showCustomerDetail === 'function' ? showCustomerDetail : null,
+    globalSearch: typeof globalSearch === 'function' ? globalSearch : null
 };
+
+function getCustomerOffsetLocal() {
+    if (typeof custCurrentOffset !== 'undefined') return custCurrentOffset;
+    return window.custCurrentOffset || 0;
+}
+
+function setCustomerOffsetLocal(value) {
+    if (typeof custCurrentOffset !== 'undefined') {
+        custCurrentOffset = value;
+    }
+    window.custCurrentOffset = value;
+}
 
 // Override: Load Today's Overview (KPI cards)
 async function loadTodayOverviewLocal() {
@@ -222,7 +236,7 @@ async function loadCustomersLocal() {
     
     const res = await localApiCall('customers_list', {
         limit: 30,
-        offset: window.custCurrentOffset || 0,
+        offset: getCustomerOffsetLocal(),
         search,
         invoice_filter: invoiceFilter,
         sort_by: sortBy,
@@ -262,7 +276,7 @@ async function loadCustomersLocal() {
             ? `<span style="background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:50px;font-size:0.72rem;">฿${Number(cu.overdue_amount).toLocaleString()}</span>`
             : (cu.total_due > 0 ? `<span style="background:#fef3c7;color:#d97706;padding:2px 7px;border-radius:50px;font-size:0.72rem;">฿${Number(cu.total_due).toLocaleString()}</span>` : '-');
         
-        html += `<tr style="cursor:pointer;" onclick="showCustomerDetail('${escapeHtml(cu.customer_id || cu.partner_id || '')}', '${escapeHtml(cu.customer_ref || '')}')">`;
+        html += `<tr style="cursor:pointer;" onclick="showCustomerDetail('${escapeHtml(cu.customer_ref || '')}', '${escapeHtml(cu.partner_id || cu.customer_id || '')}', '${escapeHtml(cu.customer_name || '')}')">`;
         html += `<td><strong>${escapeHtml(cu.customer_name || '-')}</strong></td>`;
         html += `<td>${escapeHtml(cu.customer_ref || '-')}</td>`;
         html += `<td>${escapeHtml(cu.partner_id || '-')}</td>`;
@@ -271,7 +285,7 @@ async function loadCustomersLocal() {
         html += `<td>${escapeHtml(cu.salesperson_name || '-')}</td>`;
         html += `<td>${lineBadge}</td>`;
         html += `<td>${overdueBadge}</td>`;
-        html += `<td><button class="chip" onclick="event.stopPropagation();showCustomerDetail('${escapeHtml(cu.customer_id || cu.partner_id || '')}', '${escapeHtml(cu.customer_ref || '')}')">รายละเอียด</button></td>`;
+        html += `<td><button class="chip" onclick="event.stopPropagation();showCustomerDetail('${escapeHtml(cu.customer_ref || '')}', '${escapeHtml(cu.partner_id || cu.customer_id || '')}', '${escapeHtml(cu.customer_name || '')}')">รายละเอียด</button></td>`;
         html += '</tr>';
     });
     
@@ -279,13 +293,13 @@ async function loadCustomersLocal() {
     
     // Pagination
     const totalPages = Math.ceil(total / 30);
-    const currentPage = Math.floor((window.custCurrentOffset || 0) / 30) + 1;
+    const currentPage = Math.floor(getCustomerOffsetLocal() / 30) + 1;
     
     if (totalPages > 1) {
         html += '<div style="display:flex;justify-content:center;gap:0.5rem;margin-top:1rem;">';
         for (let i = 1; i <= Math.min(totalPages, 10); i++) {
             const active = i === currentPage ? 'background:var(--primary);color:white;' : 'background:var(--gray-100);color:var(--gray-600);';
-            html += `<button onclick="window.custCurrentOffset=${(i-1)*30};loadCustomersLocal()" style="${active}border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.8rem;">${i}</button>`;
+            html += `<button onclick="setCustomerOffsetLocal(${(i-1)*30});loadCustomersLocal()" style="${active}border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.8rem;">${i}</button>`;
         }
         html += '</div>';
     }
@@ -295,7 +309,7 @@ async function loadCustomersLocal() {
 }
 
 // Override: Show Customer Detail
-async function showCustomerDetailLocal(customerId, ref) {
+async function showCustomerDetailLocal(customerRef, partnerId, custName) {
     const modal = document.getElementById('customerInvoiceModal');
     const content = document.getElementById('customerInvoiceContent');
     const title = document.getElementById('customerInvoiceTitle');
@@ -305,22 +319,27 @@ async function showCustomerDetailLocal(customerId, ref) {
     modal.style.display = 'flex';
     content.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat spin"></i><div>กำลังโหลด (local)...</div></div>';
     
-    const res = await localApiCall('customer_detail', { customer_id: customerId, partner_id: customerId });
+    const resolvedCustomerRef = customerRef || '';
+    const resolvedPartnerId = partnerId || '';
+    const res = await localApiCall('customer_detail', {
+        customer_ref: resolvedCustomerRef,
+        partner_id: resolvedPartnerId
+    });
     
     if (!res.success || !res.data) {
         // Fallback to original implementation
         console.log('[LocalAPI] Customer detail local failed, using fallback');
-        // Call original function if exists
-        if (typeof showCustomerDetail === 'function') {
-            showCustomerDetail(customerId, ref);
+        if (_original.showCustomerDetail) {
+            return _original.showCustomerDetail(customerRef, partnerId, custName);
         }
+        content.innerHTML = '<p style="padding:1rem;color:var(--danger);">Error loading customer detail</p>';
         return;
     }
     
     const data = res.data;
     const profile = data.profile || {};
     
-    if (title) title.innerHTML = `<i class="bi bi-person-lines-fill"></i> ${escapeHtml(profile.customer_name || 'รายละเอียดลูกค้า')}`;
+    if (title) title.innerHTML = `<i class="bi bi-person-lines-fill"></i> ${escapeHtml(profile.customer_name || custName || 'รายละเอียดลูกค้า')}`;
     
     let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">';
     html += `<div class="info-box"><div class="info-label">รหัสลูกค้า</div><div class="info-value">${escapeHtml(profile.customer_ref || '-')}</div></div>`;
@@ -367,6 +386,9 @@ async function globalSearchLocal(query) {
     const res = await localApiCall('search_global', { q: query, limit: 20 });
     
     if (!res.success) {
+        if (_original.globalSearch) {
+            return _original.globalSearch(query);
+        }
         return { results: [], total: 0, error: res.error };
     }
     

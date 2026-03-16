@@ -26,6 +26,10 @@ header('Access-Control-Allow-Headers: Content-Type');
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -48,10 +52,20 @@ try {
     
     switch ($action) {
         case 'health':
+            $localTables = checkLocalTables($db);
+            $hasData = false;
+            foreach ($localTables as $tableInfo) {
+                if (!empty($tableInfo['exists']) && !empty($tableInfo['count'])) {
+                    $hasData = true;
+                    break;
+                }
+            }
             $result = [
                 'status' => 'ok',
                 'service' => 'odoo-dashboard-local',
-                'local_tables' => checkLocalTables($db),
+                'local_tables' => $localTables,
+                'local_enabled' => $hasData,
+                'has_data' => $hasData,
                 'timestamp' => date('c')
             ];
             break;
@@ -187,7 +201,7 @@ function getOverviewKpi($db, $lineAccountId = null) {
             COUNT(*) as total,
             SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) as new_today,
             SUM(CASE WHEN YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END) as new_month,
-            SUM(CASE WHERE latest_order_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as active_30d
+            SUM(CASE WHEN latest_order_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as active_30d
         FROM odoo_customers_cache {$where}";
         
         $row = $db->query($sql)->fetch(PDO::FETCH_ASSOC);
@@ -207,7 +221,7 @@ function getOverviewKpi($db, $lineAccountId = null) {
             SUM(CASE WHEN state IN ('open', 'posted') AND is_overdue = 0 THEN 1 ELSE 0 END) as open_count,
             SUM(CASE WHEN is_overdue = 1 THEN 1 ELSE 0 END) as overdue_count,
             SUM(CASE WHEN state = 'paid' AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) as paid_today,
-            SUM(CASE WHERE state IN ('open', 'posted', 'overdue') THEN amount_residual ELSE 0 END) as total_due
+            SUM(CASE WHEN state IN ('open', 'posted', 'overdue') THEN amount_residual ELSE 0 END) as total_due
         FROM odoo_invoices_cache {$where}";
         
         $row = $db->query($sql)->fetch(PDO::FETCH_ASSOC);
@@ -486,9 +500,10 @@ function getCustomersList($db, $input, $lineAccountId = null) {
 function getCustomerDetail($db, $input, $lineAccountId = null) {
     $customerId = trim((string) ($input['customer_id'] ?? ''));
     $partnerId = trim((string) ($input['partner_id'] ?? ''));
+    $customerRef = trim((string) ($input['customer_ref'] ?? ''));
     
-    if ($customerId === '' && $partnerId === '') {
-        throw new Exception('Missing customer_id or partner_id');
+    if ($customerId === '' && $partnerId === '' && $customerRef === '') {
+        throw new Exception('Missing customer_id, partner_id or customer_ref');
     }
     
     $result = [
@@ -515,6 +530,10 @@ function getCustomerDetail($db, $input, $lineAccountId = null) {
     if ($partnerId !== '') {
         $where[] = "partner_id = ?";
         $params[] = $partnerId;
+    }
+    if ($customerRef !== '') {
+        $where[] = "customer_ref = ?";
+        $params[] = $customerRef;
     }
     $whereClause = 'WHERE ' . implode(' OR ', $where);
     if ($lineAccountId) {
@@ -868,7 +887,7 @@ function getOrderTimelineLocal($db, $input) {
     
     // First find order_key if only order_id provided
     if ($orderKey === '' && $orderId !== '' && tableExists($db, 'odoo_orders_summary')) {
-        $findSql = "SELECT order_key FROM odoo_orders_summary WHERE order_id = ? OR odoo_order_id = ? LIMIT 1";
+        $findSql = "SELECT order_key FROM odoo_orders_summary WHERE order_key = ? OR odoo_order_id = ? LIMIT 1";
         $findStmt = $db->prepare($findSql);
         $findStmt->execute([$orderId, $orderId]);
         $found = $findStmt->fetchColumn();

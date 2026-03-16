@@ -153,7 +153,24 @@ async function whApiCall(data){
         'activity_log_list',
         'customer_360'
     ]);
-    const timeoutMs=heavyActions.has(action)?12000:6000;
+    const actionTimeoutMs={
+        stats:8000,
+        list:10000,
+        customer_list:10000,
+        notification_log:10000,
+        daily_summary_preview:12000,
+        order_grouped_today:10000,
+        overview_today:12000,
+        customer_detail:15000,
+        customer_360:20000,
+        odoo_orders:15000,
+        odoo_invoices:15000,
+        odoo_slips:15000,
+        odoo_bdos:15000,
+        pending_bdo_orders:12000,
+        activity_log_list:10000
+    };
+    const timeoutMs=actionTimeoutMs[action]||(heavyActions.has(action)?15000:8000);
     for(const apiUrl of endpoints){
         try{
             const ctrl=new AbortController();

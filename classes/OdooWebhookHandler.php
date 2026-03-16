@@ -108,16 +108,13 @@ class OdooWebhookHandler
         // Primary format (Odoo v11.0.1.2.3): sha256=hash_hmac('sha256', $payload, $secret)
         $expectedSignature = 'sha256=' . hash_hmac('sha256', $payload, $this->webhookSecret);
 
-        // Debug logging (temporarily enabled for testing)
-        if (true) { // Temporarily force debug logging
+        if (defined('ODOO_WEBHOOK_SIGNATURE_DEBUG') && ODOO_WEBHOOK_SIGNATURE_DEBUG) {
             error_log('Signature Debug:');
             error_log('  Secret: ' . substr($this->webhookSecret, 0, 10) . '...');
             error_log('  Payload length: ' . strlen($payload));
             error_log('  Expected: ' . substr($expectedSignature, 0, 30) . '...');
             error_log('  Received: ' . substr($signature, 0, 30) . '...');
-            error_log('  Full Expected: ' . $expectedSignature);
-            error_log('  Full Received: ' . $signature);
-            error_log('  Payload preview: ' . substr($payload, 0, 200));
+            error_log('  Payload preview: ' . substr($payload, 0, 120));
         }
 
         if (hash_equals($signature, $expectedSignature)) {

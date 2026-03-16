@@ -20,7 +20,10 @@ class OdooAPIClient
     private $apiKey;
     private $baseUrl;
     private $timeout;
+    private $connectTimeout;
     private $rateLimit;
+    private static $tableExistsCache = [];
+    private static $rateLimitWindow = ['minute' => null, 'count' => null];
 
     /**
      * Error code to Thai message mapping
@@ -62,6 +65,7 @@ class OdooAPIClient
         $this->apiKey = ODOO_API_KEY;
         $this->baseUrl = rtrim(ODOO_API_BASE_URL, '/');
         $this->timeout = ODOO_API_TIMEOUT;
+        $this->connectTimeout = defined('ODOO_API_CONNECT_TIMEOUT') ? (int) ODOO_API_CONNECT_TIMEOUT : 3;
         $this->rateLimit = ODOO_API_RATE_LIMIT;
 
         if (empty($this->apiKey)) {
@@ -78,115 +82,115 @@ class OdooAPIClient
      * @return array API response data
      * @throws Exception on error
      */
-    public function call($endpoint, $params = [], $retryCount = 3)
+    public function call($endpoint, $params = [], $retryCount = null)
     {
-        $startTime = microtime(true);
+        $maxRetries = $retryCount === null
+            ? (defined('ODOO_API_RETRY_LIMIT') ? max(0, (int) ODOO_API_RETRY_LIMIT) : 1)
+            : max(0, (int) $retryCount);
+        $timeout = $this->resolveTimeoutForEndpoint($endpoint);
+        $connectTimeout = min(max(1, $this->connectTimeout), max(1, $timeout - 1));
 
-        try {
-            // Check rate limit
-            if (!$this->checkRateLimit()) {
-                throw new Exception('RATE_LIMIT_EXCEEDED');
-            }
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            $startTime = microtime(true);
+            $logged = false;
 
-            // Build JSON-RPC 2.0 request
-            $requestBody = [
-                'jsonrpc' => '2.0',
-                'params' => $params
-            ];
-
-            // Make HTTP request
-            $ch = curl_init($this->baseUrl . $endpoint);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($requestBody),
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'X-Api-Key: ' . $this->apiKey
-                ],
-                CURLOPT_TIMEOUT => $this->timeout,
-                CURLOPT_CONNECTTIMEOUT => 10
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
-
-            $duration = round((microtime(true) - $startTime) * 1000); // milliseconds
-
-            // Handle cURL errors
-            if ($response === false) {
-                if ($retryCount > 0) {
-                    usleep(500000); // Wait 500ms before retry
-                    return $this->call($endpoint, $params, $retryCount - 1);
+            try {
+                if (!$this->checkRateLimit()) {
+                    throw new Exception('RATE_LIMIT_EXCEEDED');
                 }
-                throw new Exception('NETWORK_ERROR: ' . $curlError);
-            }
 
-            // Parse JSON response
-            $data = json_decode($response, true);
+                $requestBody = [
+                    'jsonrpc' => '2.0',
+                    'params' => $params
+                ];
 
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                error_log("OdooAPI Invalid JSON from $endpoint: " . $response);
-                throw new Exception('Invalid JSON response: ' . json_last_error_msg());
-            }
+                $ch = curl_init($this->baseUrl . $endpoint);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => json_encode($requestBody),
+                    CURLOPT_HTTPHEADER => [
+                        'Content-Type: application/json',
+                        'X-Api-Key: ' . $this->apiKey
+                    ],
+                    CURLOPT_TIMEOUT => $timeout,
+                    CURLOPT_CONNECTTIMEOUT => $connectTimeout
+                ]);
 
-            // Log API call (optional)
-            $this->logApiCall($endpoint, $params, $data, $httpCode, $duration);
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                $curlErrno = curl_errno($ch);
+                curl_close($ch);
 
-            // Debug: Log successful response structure
-            if ($httpCode === 200) {
-                error_log("OdooAPI 200 response from $endpoint: " . json_encode($data));
-            }
+                $duration = round((microtime(true) - $startTime) * 1000);
 
-            // Handle HTTP errors
-            if ($httpCode >= 400) {
-                return $this->handleError($data, $httpCode);
-            }
+                if ($response === false) {
+                    if ($attempt < $maxRetries && $this->shouldRetryCurlError($curlErrno, $curlError)) {
+                        $this->sleepBeforeRetry($attempt);
+                        continue;
+                    }
 
-            // Handle JSON-RPC errors - but not for HTTP 200 (might be warning-level errors)
-            if (isset($data['error']) && $httpCode >= 400) {
-                return $this->handleError($data);
-            }
+                    throw new Exception('NETWORK_ERROR: ' . $curlError);
+                }
 
-            // For HTTP 200 responses with error field, log but don't throw
-            if ($httpCode === 200 && isset($data['error'])) {
-                error_log("OdooAPI 200 with error field from $endpoint: " . json_encode($data['error']));
-                // Return empty array for API errors in successful HTTP responses
-                return [];
-            }
+                $data = json_decode($response, true);
 
-            // For successful responses (200), check if it has expected structure
-            if ($httpCode === 200) {
-                // If response is empty or doesn't have result/data, return empty array instead of error
-                if (empty($data)) {
-                    error_log("OdooAPI empty response from $endpoint, returning []");
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    error_log("OdooAPI Invalid JSON from $endpoint: " . mb_substr($response, 0, 500));
+                    throw new Exception('Invalid JSON response: ' . json_last_error_msg());
+                }
+
+                if ($httpCode >= 400 && $attempt < $maxRetries && $this->shouldRetryHttpStatus($httpCode)) {
+                    $this->sleepBeforeRetry($attempt);
+                    continue;
+                }
+
+                $this->logApiCall($endpoint, $params, $data, $httpCode, $duration);
+                $logged = true;
+
+                if ($httpCode >= 400) {
+                    $this->handleError($data, $httpCode);
+                }
+
+                if ($httpCode === 200 && isset($data['error'])) {
+                    if ($this->shouldDebugLog()) {
+                        error_log("OdooAPI 200 with error field from $endpoint: " . json_encode($data['error']));
+                    }
                     return [];
                 }
-                
-                // If it's a non-JSON-RPC response, return as-is
-                if (!isset($data['jsonrpc']) && !isset($data['result'])) {
-                    error_log("OdooAPI non-JSON-RPC response from $endpoint, returning as-is");
+
+                if ($httpCode === 200 && empty($data)) {
+                    if ($this->shouldDebugLog()) {
+                        error_log("OdooAPI empty response from $endpoint, returning []");
+                    }
+                    return [];
+                }
+
+                if ($httpCode === 200 && !isset($data['jsonrpc']) && !isset($data['result'])) {
+                    if ($this->shouldDebugLog()) {
+                        error_log("OdooAPI non-JSON-RPC response from $endpoint, returning as-is");
+                    }
                     return $data;
                 }
+
+                return $data['result'] ?? $data;
+            } catch (Exception $e) {
+                if (!$logged) {
+                    $this->logApiCall(
+                        $endpoint,
+                        $params,
+                        ['error' => $e->getMessage()],
+                        0,
+                        round((microtime(true) - $startTime) * 1000),
+                        $e->getMessage()
+                    );
+                }
+                throw $e;
             }
-
-            // Return result
-            return $data['result'] ?? $data;
-
-        } catch (Exception $e) {
-            // Log error
-            $this->logApiCall(
-                $endpoint,
-                $params,
-                ['error' => $e->getMessage()],
-                0,
-                round((microtime(true) - $startTime) * 1000),
-                $e->getMessage()
-            );
-            throw $e;
         }
+
+        throw new Exception('NETWORK_ERROR: retry limit exhausted');
     }
 
     /**
@@ -407,6 +411,8 @@ class OdooAPIClient
                 $postFields['order_id'] = (int) $options['order_id'];
 
             $uploadUrl = $this->baseUrl . '/reya/slip/upload';
+            $timeout = $this->resolveTimeoutForEndpoint('/reya/slip/upload');
+            $connectTimeout = min(max(1, $this->connectTimeout), max(1, $timeout - 1));
             $ch = curl_init($uploadUrl);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -417,8 +423,8 @@ class OdooAPIClient
                     'X-Requested-With: XMLHttpRequest',
                     'X-CSRF-Token: 1',   // Odoo Werkzeug: non-empty value bypasses CSRF check
                 ],
-                CURLOPT_TIMEOUT        => $this->timeout,
-                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_CONNECTTIMEOUT => $connectTimeout,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 3,
             ]);
@@ -435,8 +441,9 @@ class OdooAPIClient
                 throw new Exception('NETWORK_ERROR: ' . $curlError);
             }
 
-            // Always log raw response for diagnosis
-            error_log("[OdooAPIClient::uploadSlipMultipart] URL=$uploadUrl HTTP=$httpCode CT=$contentType RAW=" . mb_substr($response, 0, 500));
+            if ($httpCode >= 400 || $this->shouldDebugLog()) {
+                error_log("[OdooAPIClient::uploadSlipMultipart] URL=$uploadUrl HTTP=$httpCode CT=$contentType RAW=" . mb_substr($response, 0, 500));
+            }
 
             $data = json_decode($response, true);
 
@@ -532,12 +539,14 @@ class OdooAPIClient
     public function getStatementPdf($bdoId)
     {
         $url = $this->baseUrl . '/reya/bdo/statement-pdf/' . (int) $bdoId . '?api_key=' . urlencode($this->apiKey);
+        $timeout = $this->resolveTimeoutForEndpoint('/reya/bdo/statement-pdf');
+        $connectTimeout = min(max(1, $this->connectTimeout), max(1, $timeout - 1));
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => $this->timeout,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_CONNECTTIMEOUT => $connectTimeout,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTPHEADER => [
                 'X-Api-Key: ' . $this->apiKey
@@ -666,11 +675,15 @@ class OdooAPIClient
     private function checkRateLimit()
     {
         try {
-            $key = 'odoo_api_rate_limit';
-            $now = time();
-            $window = 60; // 1 minute
+            if (!$this->tableExists('odoo_api_logs')) {
+                return true;
+            }
 
-            // Get current count from database
+            $currentMinute = date('Y-m-d H:i');
+            if (self::$rateLimitWindow['minute'] === $currentMinute && self::$rateLimitWindow['count'] !== null) {
+                return self::$rateLimitWindow['count'] < $this->rateLimit;
+            }
+
             $stmt = $this->db->prepare("
                 SELECT COUNT(*) as count 
                 FROM odoo_api_logs 
@@ -679,6 +692,7 @@ class OdooAPIClient
             $stmt->execute();
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $count = $result['count'] ?? 0;
+            self::$rateLimitWindow = ['minute' => $currentMinute, 'count' => (int) $count];
 
             return $count < $this->rateLimit;
 
@@ -701,10 +715,8 @@ class OdooAPIClient
     private function logApiCall($endpoint, $params, $response, $statusCode, $duration, $error = null)
     {
         try {
-            // Check if odoo_api_logs table exists
-            $stmt = $this->db->query("SHOW TABLES LIKE 'odoo_api_logs'");
-            if ($stmt->rowCount() === 0) {
-                return; // Table doesn't exist, skip logging
+            if (!$this->tableExists('odoo_api_logs')) {
+                return;
             }
 
             $stmt = $this->db->prepare("
@@ -724,9 +736,92 @@ class OdooAPIClient
                 $error,
                 $duration
             ]);
+
+            $currentMinute = date('Y-m-d H:i');
+            if (self::$rateLimitWindow['minute'] === $currentMinute && self::$rateLimitWindow['count'] !== null) {
+                self::$rateLimitWindow['count']++;
+            }
         } catch (Exception $e) {
             // Logging failed, but don't throw error
             error_log('Failed to log Odoo API call: ' . $e->getMessage());
         }
+    }
+
+    private function tableExists($table)
+    {
+        if (array_key_exists($table, self::$tableExistsCache)) {
+            return self::$tableExistsCache[$table];
+        }
+
+        try {
+            $stmt = $this->db->query("SHOW TABLES LIKE " . $this->db->quote($table));
+            self::$tableExistsCache[$table] = $stmt && $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            self::$tableExistsCache[$table] = false;
+        }
+
+        return self::$tableExistsCache[$table];
+    }
+
+    private function shouldDebugLog()
+    {
+        return defined('ODOO_API_DEBUG_LOG') && ODOO_API_DEBUG_LOG;
+    }
+
+    private function shouldRetryCurlError($curlErrno, $curlError)
+    {
+        if (in_array((int) $curlErrno, [6, 7, 18, 28, 52, 56], true)) {
+            return true;
+        }
+
+        $message = strtolower((string) $curlError);
+        foreach (['timeout', 'timed out', 'connection reset', 'temporarily unavailable', 'empty reply'] as $needle) {
+            if ($message !== '' && strpos($message, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function shouldRetryHttpStatus($httpCode)
+    {
+        return in_array((int) $httpCode, [408, 425, 429, 500, 502, 503, 504], true);
+    }
+
+    private function sleepBeforeRetry($attempt)
+    {
+        $baseDelayMs = 250 * (2 ** max(0, (int) $attempt));
+        $delayMs = min(2000, $baseDelayMs + random_int(0, 150));
+        usleep($delayMs * 1000);
+    }
+
+    private function resolveTimeoutForEndpoint($endpoint)
+    {
+        $endpoint = (string) $endpoint;
+
+        if (strpos($endpoint, '/reya/health') === 0) {
+            return min($this->timeout, 5);
+        }
+
+        if (strpos($endpoint, '/reya/slip/upload') === 0 || strpos($endpoint, '/reya/bdo/statement-pdf') === 0) {
+            return max($this->timeout, 25);
+        }
+
+        $dashboardReadEndpoints = [
+            '/reya/orders',
+            '/reya/invoices',
+            '/reya/payment/status',
+            '/reya/credit-status',
+            '/reya/bdo/list',
+            '/reya/bdo/detail',
+            '/reya/user/profile',
+        ];
+
+        if (in_array($endpoint, $dashboardReadEndpoints, true)) {
+            return min($this->timeout, 12);
+        }
+
+        return $this->timeout;
     }
 }
