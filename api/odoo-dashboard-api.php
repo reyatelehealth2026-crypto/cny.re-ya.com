@@ -2045,7 +2045,9 @@ function getOrderGroupedToday($db, $input)
     $params = [];
 
     if ($processedAtColumn) {
-        $where[] = "DATE({$processedAtColumn}) = ?";
+        // Range scan (can use index on processed_at) instead of DATE() which forces a full scan
+        $where[] = "{$processedAtColumn} >= ? AND {$processedAtColumn} < ? + INTERVAL 1 DAY";
+        $params[] = $date;
         $params[] = $date;
     }
 
@@ -2196,9 +2198,76 @@ function getOrderGroupedToday($db, $input)
 /**
  * Single batch endpoint for dashboard overview: stats, orders, overdue, pending BDO, slips.
  */
+/**
+ * Lightweight stats for the overview section only.
+ * Avoids the full-table-scan + JSON_EXTRACT-on-all-rows that getStats() does.
+ *
+ * Strategy:
+ *  1) All-time status counts: windowed to last 90 days, no JSON_EXTRACT
+ *  2) Today-only: range scan on processed_at (index-friendly), JSON_EXTRACT on today's rows only
+ */
+function getStatsMini($db)
+{
+    $processedAtColumn = resolveWebhookTimeColumn($db);
+    $processedAtExpr   = $processedAtColumn ?: 'NOW()';
+
+    // ── All-time windowed counts (no JSON_EXTRACT, no DATE() on every row) ──
+    $window = webhookRecentWindowWhere($db, $processedAtColumn, 90, 100000);
+    $alltime = $db->query("
+        SELECT
+            COUNT(*) as total,
+            SUM(IF(status = 'success', 1, 0)) as success,
+            SUM(IF(status = 'dead_letter', 1, 0)) as dead_letter,
+            SUM(IF(status = 'failed', 1, 0)) as failed,
+            SUM(IF(status = 'retry', 1, 0)) as retry_cnt,
+            MAX({$processedAtExpr}) as last_webhook
+        FROM odoo_webhooks_log
+        WHERE {$window}
+    ")->fetch(PDO::FETCH_ASSOC);
+
+    // ── Today-only stats: range scan on index, JSON_EXTRACT only on today's rows ──
+    if ($processedAtColumn) {
+        // Range scan — can use index on processed_at
+        $todayFilter = "{$processedAtColumn} >= CURDATE() AND {$processedAtColumn} < CURDATE() + INTERVAL 1 DAY";
+    } else {
+        $todayFilter = '1=0';
+    }
+    $orderNameExpr = "COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_name')), ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.order_ref')), ''), CAST(order_id AS CHAR))";
+    $today = $db->query("
+        SELECT
+            COUNT(*) as today,
+            COUNT(DISTINCT {$orderNameExpr}) as unique_orders_today,
+            SUM(IF(line_user_id IS NOT NULL, 1, 0)) as notified_today
+        FROM odoo_webhooks_log
+        WHERE {$todayFilter}
+    ")->fetch(PDO::FETCH_ASSOC);
+
+    return [
+        'total'               => (int)  ($alltime['total']        ?? 0),
+        'success'             => (int)  ($alltime['success']      ?? 0),
+        'dead_letter'         => (int)  ($alltime['dead_letter']  ?? 0),
+        'failed'              => (int)  ($alltime['failed']       ?? 0),
+        'retry'               => (int)  ($alltime['retry_cnt']    ?? 0),
+        'last_webhook'        =>         $alltime['last_webhook'] ?? null,
+        'today'               => (int)  ($today['today']              ?? 0),
+        'unique_orders_today' => (int)  ($today['unique_orders_today'] ?? 0),
+        'notified_today'      => (int)  ($today['notified_today']      ?? 0),
+        // Placeholders to keep JS backward-compatible
+        'received'            => 0,
+        'processing'          => 0,
+        'duplicate'           => 0,
+        'avg_latency_ms'      => null,
+        'retried_total'       => 0,
+        'dlq_total'           => 0,
+        'events_by_type'      => [],
+        'top_failed_events'   => [],
+        'hourly_distribution' => [],
+    ];
+}
+
 function getOverviewToday($db)
 {
-    $stats = getStats($db);
+    $stats = getStatsMini($db);
     $ordersData = getOrderGroupedToday($db, ['limit' => 5, 'offset' => 0]);
     $overdueData = getCustomerList($db, [
         'invoice_filter' => 'overdue',
