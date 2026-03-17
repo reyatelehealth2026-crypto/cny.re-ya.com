@@ -3,14 +3,17 @@
  * Slips List API
  * 
  * Returns paginated list of all slip uploads, auto-joined with users table
- * to show customer name. Used by odoo-dashboard.php.
+ * to show customer name. Used by odoo-dashboard.php and Slip Center.
  * 
  * GET params:
- *   limit   - Max records (default 30)
- *   offset  - Pagination offset (default 0)
- *   search  - Search by customer display_name or line_user_id
- *   status  - Filter by status (pending|matched|failed)
- *   date    - Filter by upload date (YYYY-MM-DD)
+ *   limit        - Max records (default 30, max 200)
+ *   offset       - Pagination offset (default 0)
+ *   search       - Search by customer display_name or line_user_id (LIKE)
+ *   status       - Filter by status (pending|matched|failed)
+ *   date         - Filter by upload date (YYYY-MM-DD)
+ *   line_user_id - Exact match on line_user_id (for customer-scoped queries)
+ *   customer_ref - Exact match on customer_ref (joins odoo_line_users to resolve)
+ *   partner_id   - Filter by resolved partner_id (via odoo_line_users)
  */
 
 ini_set('display_errors', 0);
@@ -27,16 +30,52 @@ use Modules\Core\Database;
 try {
     $db = Database::getInstance()->getConnection();
 
-    $limit  = min((int) ($_GET['limit']  ?? 30), 100);
-    $offset = max((int) ($_GET['offset'] ?? 0),  0);
-    $search = trim($_GET['search'] ?? '');
-    $status = trim($_GET['status'] ?? '');
-    $date   = trim($_GET['date']   ?? '');
+    $limit       = min((int) ($_GET['limit']  ?? 30), 200);
+    $offset      = max((int) ($_GET['offset'] ?? 0),  0);
+    $search      = trim($_GET['search']      ?? '');
+    $status      = trim($_GET['status']      ?? '');
+    $date        = trim($_GET['date']        ?? '');
+    $lineUserId  = trim($_GET['line_user_id'] ?? '');
+    $customerRef = trim($_GET['customer_ref'] ?? '');
+    $partnerId   = (int) ($_GET['partner_id'] ?? 0);
+
+    // Resolve line_user_id from customer_ref or partner_id if not directly provided
+    if ($lineUserId === '' && $customerRef !== '') {
+        try {
+            $stmt = $db->prepare("SELECT line_user_id FROM odoo_line_users WHERE customer_ref = ? AND line_user_id IS NOT NULL LIMIT 1");
+            $stmt->execute([$customerRef]);
+            $row = $stmt->fetchColumn();
+            if ($row) $lineUserId = $row;
+        } catch (Exception $e) { /* ignore */ }
+
+        // Also try odoo_bdos as fallback for customer_ref→line_user_id
+        if ($lineUserId === '') {
+            try {
+                $stmt = $db->prepare("SELECT line_user_id FROM odoo_bdos WHERE customer_ref = ? AND line_user_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1");
+                $stmt->execute([$customerRef]);
+                $row = $stmt->fetchColumn();
+                if ($row) $lineUserId = $row;
+            } catch (Exception $e) { /* ignore */ }
+        }
+    }
+
+    if ($lineUserId === '' && $partnerId > 0) {
+        try {
+            $stmt = $db->prepare("SELECT line_user_id FROM odoo_line_users WHERE odoo_partner_id = ? AND line_user_id IS NOT NULL LIMIT 1");
+            $stmt->execute([$partnerId]);
+            $row = $stmt->fetchColumn();
+            if ($row) $lineUserId = $row;
+        } catch (Exception $e) { /* ignore */ }
+    }
 
     $where  = [];
     $params = [];
 
-    if ($search !== '') {
+    // Exact customer scope takes priority over fuzzy search
+    if ($lineUserId !== '') {
+        $where[]  = 's.line_user_id = ?';
+        $params[] = $lineUserId;
+    } elseif ($search !== '') {
         $where[]  = '(u.display_name LIKE ? OR s.line_user_id LIKE ?)';
         $params[] = '%' . $search . '%';
         $params[] = '%' . $search . '%';

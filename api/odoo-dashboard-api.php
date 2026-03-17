@@ -25,6 +25,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/odoo-dashboard-functions.php';
+require_once __DIR__ . '/../classes/BdoSlipContract.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -65,6 +66,8 @@ try {
         'customer_detail' => 45,
         'customer_360' => 30,
         'pending_bdo_orders' => 60,
+        'slip_center_bdo_overview' => 30,
+        'slip_center_customer_detail' => 20,
         'activity_log_list' => 30,
         'webhook_stats_mini' => 30,
         'dlq_stats' => 30,
@@ -150,6 +153,12 @@ try {
                 break;
             case 'pending_bdo_orders':
                 $result = getPendingBdoOrdersApi($db, $input);
+                break;
+            case 'slip_center_customer_detail':
+                $result = getSlipCenterCustomerDetail($db, $input);
+                break;
+            case 'slip_center_bdo_overview':
+                $result = getSlipCenterBdoOverview($db, $input);
                 break;
             case 'activity_log_list':
                 $result = activityLogList($db, $input);
@@ -2415,8 +2424,10 @@ function getOverviewSlipsSummary($db)
         return $out;
     }
     try {
-        $countStmt = $db->prepare("SELECT COUNT(*) FROM odoo_slip_uploads WHERE status = 'pending'");
-        $countStmt->execute();
+        $openStatuses = BdoSlipContract::getOpenSlipStatuses();
+        $openPlaceholders = implode(', ', array_fill(0, count($openStatuses), '?'));
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM odoo_slip_uploads WHERE status IN ({$openPlaceholders})");
+        $countStmt->execute($openStatuses);
         $out['pending_total'] = (int) $countStmt->fetchColumn();
         $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : 'https://cny.re-ya.com', '/');
         $stmt = $db->prepare("
@@ -2424,7 +2435,7 @@ function getOverviewSlipsSummary($db)
                    u.display_name AS customer_name
             FROM odoo_slip_uploads s
             LEFT JOIN users u ON u.line_user_id = s.line_user_id
-            WHERE s.status = 'pending'
+            WHERE s.status IN ({$openPlaceholders})
             ORDER BY s.uploaded_at DESC
             LIMIT 5
         ");
@@ -3818,7 +3829,7 @@ function slipMatchBdo($db, $input)
 
         $db->prepare("
             UPDATE odoo_slip_uploads
-            SET status = 'matched',
+            SET status = ?,
                 match_reason = ?,
                 matched_at = NOW(),
                 slip_inbox_id = ?,
@@ -3905,7 +3916,7 @@ function slipUnmatch($db, $input)
     if ($localSlipId > 0) {
         $db->prepare("
             UPDATE odoo_slip_uploads
-            SET status = 'pending',
+            SET status = ?,
                 match_reason = ?,
                 matched_at = NULL,
                 match_confidence = NULL,
@@ -4022,6 +4033,245 @@ function getPendingBdoOrdersApi($db, $input)
     } catch (Exception $e) {
         return ['bdo_orders' => [], 'total' => 0, 'error' => $e->getMessage()];
     }
+}
+
+/**
+ * Fast BDO overview for Slip Center dashboard (local DB only, no Odoo live API).
+ * Returns all pending/partial BDOs with customer_ref and line_user_id for grouping.
+ */
+function getSlipCenterBdoOverview($db, $input)
+{
+    $limit = min((int) ($input['limit'] ?? 200), 500);
+
+    try {
+        $tableCheck = $db->query("SHOW TABLES LIKE 'odoo_bdo_orders'");
+        if ($tableCheck->rowCount() === 0) {
+            return ['bdos' => [], 'total' => 0, 'source' => 'local'];
+        }
+
+        $contextTableExists = false;
+        try {
+            $cx = $db->query("SHOW TABLES LIKE 'odoo_bdo_context'");
+            $contextTableExists = $cx && $cx->rowCount() > 0;
+        } catch (Exception $e) {}
+
+        $contextSelect = $contextTableExists
+            ? ", ctx.delivery_type"
+            : ", NULL AS delivery_type";
+        $contextJoin = $contextTableExists
+            ? "LEFT JOIN (
+                SELECT c1.bdo_id, c1.delivery_type
+                FROM odoo_bdo_context c1
+                INNER JOIN (SELECT bdo_id, MAX(id) AS max_id FROM odoo_bdo_context GROUP BY bdo_id) lc ON lc.max_id = c1.id
+               ) ctx ON bo.bdo_id = ctx.bdo_id"
+            : "";
+
+        $stmt = $db->prepare("
+            SELECT
+                bo.id, bo.bdo_id, bo.bdo_name, bo.order_id, bo.order_name,
+                bo.partner_id, bo.customer_name, bo.line_user_id,
+                bo.amount_total, bo.payment_status, bo.payment_method,
+                bo.created_at, bo.updated_at,
+                b.state AS bdo_state, b.bdo_date, b.customer_ref,
+                b.salesperson_name{$contextSelect}
+            FROM odoo_bdo_orders bo
+            LEFT JOIN odoo_bdos b ON bo.bdo_id = b.bdo_id
+            {$contextJoin}
+            WHERE bo.payment_status IN ('pending', 'partial')
+            ORDER BY bo.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$r) {
+            $r['id']           = (int) $r['id'];
+            $r['bdo_id']       = (int) $r['bdo_id'];
+            $r['order_id']     = (int) $r['order_id'];
+            $r['partner_id']   = $r['partner_id'] !== null ? (int) $r['partner_id'] : null;
+            $r['amount_total'] = $r['amount_total'] !== null ? (float) $r['amount_total'] : null;
+        }
+        unset($r);
+
+        return ['bdos' => $rows, 'total' => count($rows), 'source' => 'local'];
+    } catch (Exception $e) {
+        return ['bdos' => [], 'total' => 0, 'source' => 'local', 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Combined customer detail for Slip Center: BDO orders + slips in one call.
+ * Much faster than two separate API calls from Next.js.
+ *
+ * Input: partner_id, customer_ref, line_user_id (at least one required)
+ * Optional: limit (default 100)
+ */
+function getSlipCenterCustomerDetail($db, $input)
+{
+    $partnerId   = trim((string) ($input['partner_id']   ?? ''));
+    $lineUserId  = trim((string) ($input['line_user_id'] ?? ''));
+    $customerRef = trim((string) ($input['customer_ref'] ?? ''));
+    $limit       = min((int) ($input['limit'] ?? 100), 200);
+
+    if ($partnerId === '' && $lineUserId === '' && $customerRef === '') {
+        return ['bdo_orders' => [], 'slips' => [], 'total_bdos' => 0, 'total_slips' => 0, 'error' => 'No identifier provided'];
+    }
+
+    // Step 1: Resolve line_user_id and partner_id from whatever was given
+    if ($lineUserId === '' && $customerRef !== '') {
+        try {
+            $stmt = $db->prepare("SELECT line_user_id FROM odoo_line_users WHERE customer_ref = ? AND line_user_id IS NOT NULL LIMIT 1");
+            $stmt->execute([$customerRef]);
+            $row = $stmt->fetchColumn();
+            if ($row) $lineUserId = $row;
+        } catch (Exception $e) {}
+        if ($lineUserId === '') {
+            try {
+                $stmt = $db->prepare("SELECT line_user_id FROM odoo_bdos WHERE customer_ref = ? AND line_user_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1");
+                $stmt->execute([$customerRef]);
+                $row = $stmt->fetchColumn();
+                if ($row) $lineUserId = $row;
+            } catch (Exception $e) {}
+        }
+    }
+
+    if (($partnerId === '' || $partnerId === '-') && $customerRef !== '') {
+        try {
+            $stmt = $db->prepare("SELECT partner_id FROM odoo_bdos WHERE customer_ref = ? AND partner_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1");
+            $stmt->execute([$customerRef]);
+            $row = $stmt->fetchColumn();
+            if ($row) $partnerId = (string) $row;
+        } catch (Exception $e) {}
+    }
+    if (($partnerId === '' || $partnerId === '-') && $lineUserId !== '') {
+        try {
+            $stmt = $db->prepare("SELECT odoo_partner_id FROM odoo_line_users WHERE line_user_id = ? LIMIT 1");
+            $stmt->execute([$lineUserId]);
+            $row = $stmt->fetchColumn();
+            if ($row) $partnerId = (string) $row;
+        } catch (Exception $e) {}
+    }
+
+    $bdoOrders  = [];
+    $allSlips   = [];
+    $bdoErrors  = [];
+    $slipErrors = [];
+
+    // Step 2: Fetch BDO orders (pending)
+    if ($partnerId !== '' && $partnerId !== '-') {
+        try {
+            $tableCheck = $db->query("SHOW TABLES LIKE 'odoo_bdo_orders'");
+            if ($tableCheck->rowCount() > 0) {
+                $contextTableExists = false;
+                try {
+                    $cx = $db->query("SHOW TABLES LIKE 'odoo_bdo_context'");
+                    $contextTableExists = $cx && $cx->rowCount() > 0;
+                } catch (Exception $e) {}
+
+                $contextSelect = $contextTableExists
+                    ? ", ctx.delivery_type, ctx.statement_pdf_path"
+                    : ", NULL AS delivery_type, NULL AS statement_pdf_path";
+                $contextJoin = $contextTableExists
+                    ? "LEFT JOIN (
+                        SELECT c1.bdo_id, c1.delivery_type, c1.statement_pdf_path
+                        FROM odoo_bdo_context c1
+                        INNER JOIN (SELECT bdo_id, MAX(id) AS max_id FROM odoo_bdo_context GROUP BY bdo_id) lc ON lc.max_id = c1.id
+                       ) ctx ON bo.bdo_id = ctx.bdo_id"
+                    : "";
+
+                $stmt = $db->prepare("
+                    SELECT bo.*, b.state as bdo_state, b.bdo_date, b.qr_data{$contextSelect}
+                    FROM odoo_bdo_orders bo
+                    LEFT JOIN odoo_bdos b ON bo.bdo_id = b.bdo_id
+                    {$contextJoin}
+                    WHERE bo.partner_id = ?
+                      AND bo.payment_status IN ('pending', 'partial')
+                    ORDER BY bo.created_at DESC
+                    LIMIT ?
+                ");
+                $stmt->execute([(int) $partnerId, $limit]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($rows as &$r) {
+                    $r['id']             = (int) $r['id'];
+                    $r['bdo_id']         = (int) $r['bdo_id'];
+                    $r['order_id']       = (int) $r['order_id'];
+                    $r['partner_id']     = $r['partner_id'] !== null ? (int) $r['partner_id'] : null;
+                    $r['amount_total']   = $r['amount_total'] !== null ? (float) $r['amount_total'] : null;
+                    $r['slip_upload_id'] = $r['slip_upload_id'] !== null ? (int) $r['slip_upload_id'] : null;
+                }
+                unset($r);
+                $bdoOrders = $rows;
+            }
+        } catch (Exception $e) {
+            $bdoErrors[] = $e->getMessage();
+        }
+    }
+
+    // Step 3: Fetch slips for this customer (all statuses, recent 90 days)
+    if ($lineUserId !== '') {
+        try {
+            $baseUrl = rtrim(defined('SITE_URL') ? SITE_URL : 'https://cny.re-ya.com', '/');
+            $stmt = $db->prepare("
+                SELECT
+                    s.id, s.line_user_id, s.line_account_id, s.odoo_slip_id, s.slip_inbox_id,
+                    s.slip_inbox_name, s.bdo_id, s.bdo_name, s.invoice_id, s.order_id,
+                    s.amount, s.transfer_date, s.image_path, s.image_url, s.uploaded_by,
+                    s.status, s.match_confidence, s.delivery_type, s.bdo_amount,
+                    s.match_reason, s.uploaded_at, s.matched_at,
+                    u.display_name AS customer_name, u.picture_url AS customer_avatar
+                FROM odoo_slip_uploads s
+                LEFT JOIN users u ON u.line_user_id = s.line_user_id
+                WHERE s.line_user_id = ?
+                  AND s.uploaded_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                ORDER BY s.uploaded_at DESC
+                LIMIT ?
+            ");
+            $stmt->execute([$lineUserId, $limit]);
+            $slips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($slips as &$slip) {
+                $slip['id']            = (int) $slip['id'];
+                $slip['amount']        = $slip['amount'] !== null ? (float) $slip['amount'] : null;
+                $slip['slip_inbox_id'] = $slip['slip_inbox_id'] !== null ? (int) $slip['slip_inbox_id'] : null;
+                $slip['bdo_id']        = $slip['bdo_id'] !== null ? (int) $slip['bdo_id'] : null;
+                $slip['bdo_amount']    = $slip['bdo_amount'] !== null ? (float) $slip['bdo_amount'] : null;
+                if ($slip['image_path']) {
+                    $slip['image_full_url'] = $baseUrl . '/' . ltrim($slip['image_path'], '/');
+                } else {
+                    $slip['image_full_url'] = $slip['image_url'] ?: null;
+                }
+            }
+            unset($slip);
+            $allSlips = $slips;
+        } catch (Exception $e) {
+            $slipErrors[] = $e->getMessage();
+        }
+    }
+
+    $pendingSlips  = array_values(array_filter($allSlips, fn($s) => ($s['status'] ?? '') === 'pending'));
+    $today         = date('Y-m-d');
+    $matchedToday  = array_values(array_filter($allSlips, fn($s) =>
+        ($s['status'] ?? '') === 'matched' &&
+        !empty($s['matched_at']) &&
+        substr($s['matched_at'], 0, 10) === $today
+    ));
+
+    return [
+        'bdo_orders'    => $bdoOrders,
+        'pending_slips' => $pendingSlips,
+        'all_slips'     => $allSlips,
+        'matched_today' => $matchedToday,
+        'resolved'      => [
+            'partner_id'  => $partnerId ?: null,
+            'line_user_id' => $lineUserId ?: null,
+        ],
+        'stats' => [
+            'total_bdos'          => count($bdoOrders),
+            'total_pending_slips' => count($pendingSlips),
+            'total_matched_today' => count($matchedToday),
+            'total_all_slips'     => count($allSlips),
+        ],
+        'errors' => array_merge($bdoErrors, $slipErrors),
+    ];
 }
 
 function ensureOdooSlipInboxId($db, $odoo, array $localSlip, $lineUserId)
