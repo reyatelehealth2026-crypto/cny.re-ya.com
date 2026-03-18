@@ -228,34 +228,6 @@
         .spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* ── Skeleton Loading ── */
-        .skeleton {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: skeleton-loading 1.5s ease-in-out infinite;
-        }
-        @keyframes skeleton-loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        .skeleton-row {
-            height: 60px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-        .skeleton-card {
-            height: 120px;
-            border-radius: 12px;
-        }
-
-        /* ── Performance Optimizations ── */
-        .menu-card, .kpi-card, .chip {
-            will-change: transform;
-        }
-        .section-panel {
-            contain: layout style paint;
-        }
-
         /* ── Modal Backdrop ── */
         .modal-backdrop-custom {
             position: fixed; inset: 0;
@@ -621,7 +593,7 @@
                     </div>
                     <div id="grpSearchBar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                         <input type="date" class="form-control" id="grpDateInput" style="width:auto;font-size:0.82rem;padding:4px 8px;" onchange="grpCurrentOffset=0;loadOrdersGrouped()">
-                        <input type="text" class="form-control" id="grpSearchInput" placeholder="ค้นหาออเดอร์/ลูกค้า..." style="width:180px;font-size:0.82rem;padding:4px 8px;" oninput="debouncedLoadOrdersGrouped()">
+                        <input type="text" class="form-control" id="grpSearchInput" placeholder="ค้นหาออเดอร์/ลูกค้า..." style="width:180px;font-size:0.82rem;padding:4px 8px;" onkeyup="if(event.key==='Enter'){grpCurrentOffset=0;loadOrdersGrouped();}">
                         <button class="chip" onclick="grpCurrentOffset=0;loadOrdersGrouped();" style="font-size:0.8rem;"><i class="bi bi-search"></i></button>
                         <button class="chip" onclick="loadWebhookStats();grpCurrentOffset=0;loadOrdersGrouped();" style="font-size:0.8rem;"><i class="bi bi-arrow-repeat"></i> รีเฟรช</button>
                         <span id="whDateScopeBadge" class="badge-status badge-primary">วันนี้</span>
@@ -668,7 +640,7 @@
                     <div class="col-md-3">
                         <div class="form-group">
                             <label class="form-label">ค้นหา (Order/Delivery ID)</label>
-                            <input type="text" class="form-control" id="whFilterSearch" placeholder="ค้นหา..." oninput="debouncedLoadWebhooks()">
+                            <input type="text" class="form-control" id="whFilterSearch" placeholder="ค้นหา..." onkeyup="if(event.key==='Enter')loadWebhooks()">
                         </div>
                     </div>
                 </div>
@@ -697,7 +669,7 @@
                     <span id="custTotalCount" style="font-size:0.8rem;color:var(--gray-500);margin-left:auto;"></span>
                 </div>
                 <div class="d-flex gap-2 mb-3" style="flex-wrap:wrap;">
-                    <input type="text" class="form-control" id="custSearch" placeholder="ค้นหาชื่อ / รหัสลูกค้า..." style="max-width:280px;" oninput="debouncedLoadCustomers()">
+                    <input type="text" class="form-control" id="custSearch" placeholder="ค้นหาชื่อ / รหัสลูกค้า..." style="max-width:280px;" onkeyup="if(event.key==='Enter')loadCustomers()">
                     <select class="form-control" id="custInvoiceFilter" onchange="custCurrentOffset=0;loadCustomers()" style="max-width:180px;">
                         <option value="">ทุกสถานะ</option>
                         <option value="unpaid">มีค้างชำระ</option>
@@ -782,7 +754,7 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="content-title mb-0"><i class="bi bi-receipt"></i> สลิปการชำระเงิน</div>
                     <div class="d-flex gap-2 flex-wrap">
-                        <input type="text" class="form-control" id="slipSearch" placeholder="ค้นหาชื่อลูกค้า / LINE ID..." style="max-width:240px;" oninput="debouncedLoadSlips()">
+                        <input type="text" class="form-control" id="slipSearch" placeholder="ค้นหาชื่อลูกค้า / LINE ID..." style="max-width:240px;" onkeyup="if(event.key==='Enter')loadSlips()">
                         <select class="form-control" id="slipStatusFilter" onchange="loadSlips()" style="max-width:160px;">
                             <option value="">ทุกสถานะ</option>
                             <option value="pending">รอตรวจสอบ</option>
@@ -1186,9 +1158,6 @@
         </div>
     </div>
 
-    <script>
-        window.ENABLE_LOCAL_DASHBOARD = false;
-    </script>
     <script src="odoo-dashboard.js?v=<?= filemtime(__DIR__ . '/odoo-dashboard.js') ?>"></script>
 </body>
 </html>
