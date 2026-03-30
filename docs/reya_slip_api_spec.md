@@ -485,65 +485,100 @@ Slip API response ตอนนี้ return fields ใหม่:
 
 ---
 
-## 9. Re-Ya Dashboard: Current Architecture
+## 9. Re-Ya Dashboard: Current Implementation (Verified)
 
-จากการวิเคราะห์ `odoo-dashboard.js`:
+จากการตรวจสอบโค้ด `odoo-dashboard.js`, `api/odoo-webhooks-dashboard.php`, `api/slips-list.php`, `api/slip-match-orders.php`, `api/odoo-slip-upload.php`
 
-### Current Data Flow
+### 9A. Data Flow ที่ใช้งานจริง
+
 ```
-Re-Ya Dashboard (JS) → whApiCall({action:'odoo_slips'}) → PHP Backend → Odoo
-                      → whApiCall({action:'odoo_bdos'})  → PHP Backend → Odoo
+Matching Dashboard (odoo-dashboard.js)
+  ├─ GET  /api/slips-list.php
+  ├─ POST /api/odoo-webhooks-dashboard.php {action:'odoo_bdos'}
+  ├─ POST /api/odoo-webhooks-dashboard.php {action:'slip_match_bdo'}
+  └─ POST /api/odoo-webhooks-dashboard.php {action:'slip_unmatch'}
+
+Slip Attach Modal
+  ├─ POST /api/slip-match-orders.php {action:'match_bdo'}   # จับคู่สลิปเดิมในระบบ
+  └─ POST /api/odoo-slip-upload.php                         # อัปโหลดสลิปใหม่เข้าคิว local
 ```
 
-### Current Slip Matching (Client-side)
-- `matchSlipsToItems()` → 2-pass: exact → 5% tolerance
-- Match by: `amount` + `transfer_date` proximity (≤180 days)
-- **ยังไม่ใช้ `bdo_id` ในการ match** → ควรเพิ่ม
+### 9B. Matching Logic ฝั่ง UI (Smart Suggestion)
 
-### แนะนำ: ใช้ `bdo_id` ในการ match
-ถ้า slip มี `bdo_id` → match กับ BDO ตรง ไม่ต้อง fuzzy match
-```javascript
-// Instead of fuzzy matching:
-if (slip.bdo_id && bdo.bdo_id === slip.bdo_id) {
-    // Direct match — no need for amount/date comparison
-    matchMap.set(bdoIndex, slip);
+ลำดับการจับคู่ใน `computeSmartMatches()`:
+
+1. `bdo_id` ตรงกัน (priority สูงสุด)  
+   - ถ้ายอดต่างไม่เกิน ±1 บาท → `exact_bdo_id`
+   - ถ้า `bdo_id` ตรงแต่ยอดต่าง → `bdo_id_amount_diff`
+2. ยอดตรงกัน (±1 บาท) → `exact_amount`
+3. ยอดใกล้เคียง (ภายใน 5%) และพยายามยืนยันลูกค้าเดียวกัน → `fuzzy`
+
+> ระบบมี auto-confirm เฉพาะคู่ `exact_bdo_id`
+
+### 9C. Payload ที่ Dashboard ส่งสำหรับ Match/Unmatch
+
+**Match (ผ่าน proxy API):**
+```json
+{
+  "action": "slip_match_bdo",
+  "slip_inbox_id": 113,
+  "line_user_id": "U1234567890abcdef",
+  "matches": [
+    {"bdo_id": 437, "amount": 15950.00}
+  ],
+  "note": "Auto-confirm: bdo_id + exact amount"
 }
 ```
 
-### Fields เพิ่มจาก Odoo Slip API
-| Field | Type | ต้องแสดงใน Dashboard |
-|-------|------|---------------------|
-| `bdo_id` | int | ใช้ match กับ BDO |
-| `bdo_name` | string | แสดงใน slip detail |
-| `delivery_type` | string | badge: "สายส่ง" / "ขนส่งเอกชน" |
-| `match_confidence` | string | badge: status ของ matching |
-| `bdo_amount` | number | ยอดตาม BDO |
+**Unmatch (ผ่าน proxy API):**
+```json
+{
+  "action": "slip_unmatch",
+  "slip_inbox_id": 113,
+  "line_user_id": "U1234567890abcdef",
+  "reason": "ยกเลิกจาก Matching Dashboard"
+}
+```
+
+### 9D. Operational Constraints / Pitfalls (Current Code)
+
+1. `slip_match_bdo` ต้องมี `slip_inbox_id`  
+   - ถ้ายังไม่มี inbox ID (ยังไม่ถูกส่งเข้า Odoo Slip Inbox) การจับคู่อาจ fallback เป็น `source: local`
+2. `getOdooBdos()` ดึงข้อมูล BDO จาก `odoo_bdos` และ fallback ไป `odoo_webhooks_log`  
+   - จึงควรให้ sync tables อัปเดตสม่ำเสมอเพื่อ quality ของ matching
+3. สลิปที่อัปโหลดผ่าน `api/odoo-slip-upload.php` จะถูกบันทึกเป็น local queue (`status=pending`) ก่อน  
+   - ต้องมี step ส่งต่อ Odoo (เช่น `api/send-slips-to-odoo.php`) เพื่อให้ได้ข้อมูล enriched เช่น `slip_inbox_id`, `match_confidence`, `delivery_type`
 
 ---
 
-## 10. Staging Test Checklist for Re-Ya
+## 10. Staging Checklist (External + Re-Ya Local Pipeline)
 
 ```
 ✅ = พร้อมทดสอบบน Staging (stg-erp.cnyrxapp.com)
 
-1. [ ] Webhook: Odoo → Re-Ya
-   - สร้าง BDO บน staging → กดยืนยัน → Re-Ya ได้รับ bdo.confirmed?
-   - bdo_id, amount, customer.line_user_id ครบ?
+1. [ ] Odoo Webhook → Re-Ya Context
+   - bdo.confirmed มาพร้อม bdo_id, line_user_id, amount
+   - Re-Ya เก็บ context ใน local tables ได้
 
-2. [ ] Slip Upload: Re-Ya → Odoo
-   - POST /reya/slip/upload + bdo_id → ได้ bdo_prepayment?
-   - POST /reya/slip/upload ไม่มี bdo_id → ได้ exact/unmatched?
+2. [ ] Re-Ya Local Slip Ingestion
+   - POST /api/odoo-slip-upload.php (image_base64 หรือ image_url)
+   - บันทึก odoo_slip_uploads สำเร็จ (status=pending)
 
-3. [ ] Payment Status: Re-Ya → Odoo
-   - POST /reya/payment/status + bdo_id → ได้ status?
+3. [ ] Re-Ya Forwarding to Odoo
+   - POST /api/send-slips-to-odoo.php (dry_run=false)
+   - ได้ slip_inbox_id / match_confidence กลับมาใน DB
 
-4. [ ] Dashboard: ข้อมูลครบ
-   - BDO tab แสดง BDO ที่สร้าง?
-   - Slip tab แสดง slip ที่ upload + bdo_name?
+4. [ ] Dashboard Matching Actions
+   - action=slip_match_bdo สำเร็จ (source=odoo หรือ source=local)
+   - action=slip_unmatch reset local state ถูกต้อง
+
+5. [ ] External Odoo API Contract
+   - POST /reya/slip/upload + bdo_id → bdo_prepayment
+   - POST /reya/payment/status + bdo_id → paid/partial/unpaid
 ```
 
 ---
 
 *Document generated: 2026-03-06*
-*Updated: 2026-03-06 — Added webhook payload, Re-Ya action items, dashboard analysis*
+*Updated: 2026-03-30 — Aligned dashboard/matching docs with implemented Re-Ya local pipeline + proxy actions*
 *Contact: consdevs | SOMZAA*

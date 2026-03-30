@@ -1,6 +1,6 @@
 # Re-Ya ↔ Odoo: BDO Matching Workflow — Complete Design
 
-**Version:** 1.0 (March 2026)
+**Version:** 1.1 (March 2026)
 **สำหรับ:** Re-Ya Developer + CNY Sales Team
 **เป้าหมาย:** Sales ทำ matching ที่ Re-Ya ที่เดียว → Odoo auto-process + validate
 
@@ -736,6 +736,48 @@ Response: application/pdf binary (Content-Disposition: attachment)
 }
 ```
 
+### 6F. Re-Ya Local/Proxy Endpoints (Implementation จริงในระบบปัจจุบัน)
+
+เพื่อให้ dashboard ใช้งานได้แม้ Odoo ช้า/ล่มชั่วคราว ฝั่ง Re-Ya มี endpoint local/proxy เพิ่มเติม:
+
+| Endpoint | Method | ใช้ทำอะไร |
+|----------|--------|-----------|
+| `/api/slips-list.php` | GET | ดึงรายการสลิปจาก `odoo_slip_uploads` (รองรับ `status/search/date/limit/offset`) |
+| `/api/odoo-webhooks-dashboard.php` | POST | Proxy action สำหรับ `odoo_bdos`, `odoo_slips`, `slip_match_bdo`, `slip_unmatch`, `bdo_detail` |
+| `/api/slip-match-orders.php` | POST | workflow manual matching (`search_orders`, `match`, `unmatch`, `match_bdo`) |
+| `/api/odoo-slip-upload.php` | POST | รับสลิปเข้า local queue (`odoo_slip_uploads`, `status=pending`) |
+| `/api/send-slips-to-odoo.php` | POST | ส่งสลิป pending จาก local queue ไป Odoo `/reya/slip/upload` |
+
+**สำคัญ:** Matching Dashboard (`odoo-dashboard.js`) เรียก `action:'slip_match_bdo'` ผ่าน `/api/odoo-webhooks-dashboard.php` ก่อน ไม่ได้ยิง Odoo ตรงทุกครั้ง
+
+ตัวอย่าง request ที่ UI ใช้งานจริง:
+
+```json
+{
+  "action": "slip_match_bdo",
+  "slip_inbox_id": 113,
+  "line_user_id": "U1234567890abcdef",
+  "matches": [
+    {"bdo_id": 437, "amount": 15950.00}
+  ],
+  "note": "Auto-confirm: bdo_id + exact amount"
+}
+```
+
+```json
+{
+  "action": "slip_unmatch",
+  "slip_inbox_id": 113,
+  "line_user_id": "U1234567890abcdef",
+  "reason": "ยกเลิกจาก Matching Dashboard"
+}
+```
+
+พฤติกรรม fallback:
+- `slip_match_bdo` จะพยายาม call Odoo `/reya/slip/match-bdo` ก่อน
+- ถ้า Odoo ไม่พร้อมใช้งาน จะ update local DB (`odoo_slip_uploads`, `odoo_bdo_orders`) และตอบ `source: local`
+- จึงควรมี job/schedule สำหรับ retry และ reconciliation ใน production
+
 ---
 
 ## 7. Cross-Link ระหว่าง Re-Ya ↔ Odoo
@@ -821,8 +863,35 @@ Odoo Validation:
 | 8 | Dashboard: แสดง Statement PDF link | Medium |
 | 9 | LINE Bot: แจ้งลูกค้าตาม match_confidence | Medium |
 
+### 9A. Operational Runbook (Re-Ya)
+
+1. รัน migration โครงสร้างที่เกี่ยวข้องก่อน deploy
+   - `php install/migration_bdo_order_link.php`
+   - `php install/migration_bdo_matching.php`
+   - `php install/migration_slip_verification.php`
+2. ตรวจสอบว่า table/column สำคัญมีครบ
+   - `odoo_bdo_orders`, `odoo_bdo_context`
+   - `odoo_slip_uploads.match_confidence`, `delivery_type`, `slip_inbox_id`, `slip_verified`
+3. ทดสอบ local ingestion ก่อน
+   - `POST /api/odoo-slip-upload.php` ต้องได้ `success=true` และ `status=pending`
+4. ทดสอบ forwarding ไป Odoo
+   - `POST /api/send-slips-to-odoo.php` แล้วสถานะต้องขยับเป็น `matched` หรือ `failed`
+5. ทดสอบ dashboard matching/unmatching
+   - `action=slip_match_bdo` และ `action=slip_unmatch` ผ่าน `/api/odoo-webhooks-dashboard.php`
+
+### 9B. Common Pitfalls
+
+- ใช้ `slip_id` แทน `slip_inbox_id` ใน proxy action  
+  ผลคือ match ไม่สำเร็จหรือไป local fallback
+- มีแต่ local slip (`pending`) แต่ยังไม่ส่งเข้า Odoo inbox  
+  ทำให้ข้อมูล `match_confidence`/`delivery_type` ยังไม่ครบ
+- ลืมรัน migration `slip_verified` บนบางเครื่อง  
+  แม้โค้ดมี backward compatibility แต่จะไม่มีข้อมูล verification เชิงลึก
+- BDO data มาจาก webhook fallback มากเกินไป  
+  quality ของ suggestion จะต่ำกว่าการอ่านจาก `odoo_bdos` sync table
+
 ---
 
 *Document: reya_bdo_matching_workflow.md*
-*Version: 1.0 — 2026-03-06*
+*Version: 1.1 — 2026-03-30*
 *Contact: consdevs | SOMZAA*
