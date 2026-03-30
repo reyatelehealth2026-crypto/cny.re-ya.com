@@ -205,6 +205,9 @@ Set up in Admin > AI Settings:
 - [CRM Workflow](CRM_WORKFLOW_COMPLETE.md)
 - [User Manual](USER_MANUAL.md)
 - [Setup Guide](SETUP_GUIDE_COMPLETE.md)
+- [Re-Ya Slip API Spec](reya_slip_api_spec.md)
+- [Re-Ya BDO Matching Workflow](reya_bdo_matching_workflow.md)
+- [Odoo BDO Webhook Testing Guide](ODOO_BDO_WEBHOOK_TESTING_GUIDE.md)
 
 ---
 
